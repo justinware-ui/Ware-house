@@ -55,14 +55,16 @@ export interface SelectedContent {
 
 interface Props {
   mode: 'full' | 'panel'
-  onFirstSend?: () => void
+  onFirstSend?: (text?: string) => void
   onCreateDemo?: (proposal: DemoProposal, selectedContent: SelectedContent[]) => void
+  inputBottom?: boolean
 }
 
-export default function AgenticChat({ mode, onFirstSend, onCreateDemo }: Props) {
+export default function AgenticChat({ mode, onFirstSend, onCreateDemo, inputBottom }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const hasSent = messages.some((m) => m.role === 'user')
+  const effectiveHasSent = hasSent || !!inputBottom
   const [step, setStep] = useState<ConvoStep>('ask_purpose')
   const [personas, setPersonas] = useState<{ name: string; painPoints: string[] }[]>([])
   const [contentOffset, setContentOffset] = useState(0)
@@ -105,7 +107,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo }: Props) 
     setTimeout(() => {
       addMessage({
         role: 'ai',
-        content: "Hey! What kind of demo are you building today, and who is it for?",
+        content: "Hey! What kind of demo are you building today and who is it for?",
       })
       setStep('awaiting_purpose')
     }, 600)
@@ -141,7 +143,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo }: Props) 
   }, [])
 
   useEffect(() => {
-    if (mode !== 'full' || !hasSent || !scrollWrapRef.current) {
+    if (mode !== 'full' || !effectiveHasSent || !scrollWrapRef.current) {
       setScrollMaxH(undefined)
       return
     }
@@ -154,7 +156,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo }: Props) 
     update()
     window.addEventListener('resize', update)
     return () => window.removeEventListener('resize', update)
-  }, [mode, hasSent, inputHeight])
+  }, [mode, effectiveHasSent, inputHeight])
 
   const handleSend = () => {
     const text = input.trim()
@@ -163,17 +165,25 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo }: Props) 
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
 
     const isFirst = !messages.some((m) => m.role === 'user')
-    addMessage({ role: 'user', content: text, actions: true })
-    if (isFirst) onFirstSend?.()
 
-    if (step === 'awaiting_purpose') {
-      handlePurposeResponse(text)
-    } else if (step === 'awaiting_pain_points') {
-      handlePainPointsResponse(text)
-    } else if (step === 'post_proposal') {
-      handleMoreContentRequest(text)
-    } else if (step === 'survey') {
-      addMessage({ role: 'ai', content: "Thanks for the feedback! I'll keep improving. Your demo is ready on the canvas — feel free to edit anything directly." })
+    const processMessage = () => {
+      addMessage({ role: 'user', content: text, actions: true })
+      if (step === 'awaiting_purpose') {
+        handlePurposeResponse(text)
+      } else if (step === 'awaiting_pain_points') {
+        handlePainPointsResponse(text)
+      } else if (step === 'post_proposal') {
+        handleMoreContentRequest(text)
+      } else if (step === 'survey') {
+        addMessage({ role: 'ai', content: "Thanks for the feedback! I'll keep improving. Your demo is ready on the canvas — feel free to edit anything directly." })
+      }
+    }
+
+    if (isFirst) {
+      onFirstSend?.(text)
+      setTimeout(processMessage, 700)
+    } else {
+      processMessage()
     }
   }
 
@@ -423,7 +433,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo }: Props) 
 
   return (
     <div className={containerClass}>
-      <div ref={scrollWrapRef} className={mode === 'full' ? 'relative overflow-hidden' : 'relative flex-1 overflow-hidden'} style={mode === 'full' ? { height: hasSent && scrollMaxH ? scrollMaxH : undefined, maxHeight: 'calc(100vh - 340px)' } : undefined}>
+      <div ref={scrollWrapRef} data-scroll-area className={mode === 'full' ? 'relative overflow-hidden' : 'relative flex-1 overflow-hidden'} style={mode === 'full' ? { height: effectiveHasSent && scrollMaxH ? scrollMaxH : undefined, maxHeight: 'calc(100vh - 340px)' } : undefined}>
         <div className="absolute top-0 left-0 right-0 h-3 z-10 pointer-events-none transition-opacity duration-200" style={{ background: 'radial-gradient(ellipse 70% 100% at 50% 0%, rgba(0,0,0,0.06) 0%, transparent 100%)', opacity: canScrollUp ? 1 : 0 }} />
         <div className="absolute bottom-0 left-0 right-0 h-3 z-10 pointer-events-none transition-opacity duration-200" style={{ background: 'radial-gradient(ellipse 70% 100% at 50% 100%, rgba(0,0,0,0.06) 0%, transparent 100%)', opacity: canScrollDown ? 1 : 0 }} />
       <div ref={scrollRef} className="h-full overflow-y-auto pl-4 pr-8 py-4 flex flex-col" style={{ scrollbarGutter: 'stable' }}>
@@ -480,13 +490,14 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo }: Props) 
       {/* Input area */}
       <div
         ref={inputWrapRef}
+        data-chat-input
         className={
           mode === 'full'
             ? 'pointer-events-auto mt-9'
             : 'border-t border-gray-100 px-4 py-3 bg-white'
         }
         style={
-          mode === 'full' && hasSent
+          mode === 'full' && effectiveHasSent
             ? {
                 position: 'absolute',
                 bottom: 56,
@@ -503,7 +514,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo }: Props) 
         <div
           className="bg-white rounded-2xl flex flex-col transition-shadow duration-200"
           style={{
-            minHeight: mode === 'full' ? (hasSent ? 60 : 100) : 60,
+            minHeight: mode === 'full' ? (effectiveHasSent ? 60 : 100) : 60,
             ...(mode === 'full' ? { maxWidth: 640, margin: '0 auto', transition: 'min-height 0.5s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease, border-color 0.2s ease' } : {}),
             border: inputFocused ? '2px solid #F44C10' : '1px solid #e5e7eb',
             boxShadow: inputFocused ? '0 0 0 5px rgba(255, 150, 89, 0.5)' : '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
@@ -528,7 +539,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo }: Props) 
               }}
               placeholder="Type or record your message"
               className="w-full resize-none outline-none text-sm text-gray-900 placeholder:text-gray-400 bg-transparent overflow-hidden"
-              rows={mode === 'full' && !hasSent ? 3 : 1}
+              rows={mode === 'full' && !effectiveHasSent ? 3 : 1}
               style={{ maxHeight: 200 }}
               onFocus={() => setInputFocused(true)}
               onBlur={() => setInputFocused(false)}

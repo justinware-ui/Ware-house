@@ -182,6 +182,33 @@ function ControlsToolbar() {
   )
 }
 
+function GhostText({ text, onDone }: { text: string; onDone: () => void }) {
+  const [visible, setVisible] = useState(true)
+
+  useEffect(() => {
+    const raf1 = requestAnimationFrame(() => {
+      requestAnimationFrame(() => setVisible(false))
+    })
+    const timer = setTimeout(onDone, 500)
+    return () => { cancelAnimationFrame(raf1); clearTimeout(timer) }
+  }, [onDone])
+
+  return (
+    <div
+      className="absolute inset-0 flex items-center justify-center pointer-events-none z-30"
+      style={{
+        opacity: visible ? 0.35 : 0,
+        transform: visible ? 'translateY(0)' : 'translateY(-24px)',
+        transition: 'opacity 0.3s ease-out, transform 0.3s ease-out',
+      }}
+    >
+      <div className="text-sm text-gray-900 max-w-lg text-center px-4 whitespace-pre-wrap">
+        {text}
+      </div>
+    </div>
+  )
+}
+
 function SparkleIcon({ size = 92 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 89 89" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -223,6 +250,10 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
   const panelResizing = useRef(false)
   const panelResizeStart = useRef({ y: 0, h: 0 })
   const prevNodeCount = useRef(0)
+  const [ghostText, setGhostText] = useState<string | null>(null)
+  const [inputBottom, setInputBottom] = useState(false)
+  const headingRef = useRef<HTMLDivElement>(null)
+  const chatWrapRef = useRef<HTMLDivElement>(null)
 
   const showWelcome = nodes.length === 0
 
@@ -233,6 +264,60 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
     }
     prevNodeCount.current = nodes.length
   }, [nodes.length, onContentChange])
+
+  const handleFirstSend = useCallback((text?: string) => {
+    const headingEl = headingRef.current
+    const chatWrapEl = chatWrapRef.current
+    const parentEl = headingEl?.parentElement
+    if (!headingEl || !parentEl) return
+
+    const parentRect = parentEl.getBoundingClientRect()
+    const headingRect = headingEl.getBoundingClientRect()
+    const targetTop = parentRect.top + 24
+    const deltaY = targetTop - headingRect.top
+
+    const dur = '0.5s'
+    const ease = 'cubic-bezier(0.4, 0, 0.2, 1)'
+
+    headingEl.style.transition = `transform ${dur} ${ease}`
+    headingEl.style.transform = `translateY(${deltaY}px)`
+
+    const scrollAreaEl = chatWrapEl?.querySelector('[data-scroll-area]') as HTMLElement | null
+    if (scrollAreaEl) {
+      scrollAreaEl.style.transition = `transform ${dur} ${ease}`
+      scrollAreaEl.style.transform = `translateY(${deltaY}px)`
+    }
+
+    const inputEl = chatWrapEl?.querySelector('[data-chat-input]') as HTMLElement | null
+    if (inputEl) {
+      const inputRect = inputEl.getBoundingClientRect()
+      const inputTargetTop = parentRect.bottom - 56 - inputRect.height
+      const inputDeltaY = inputTargetTop - inputRect.top
+      inputEl.style.transition = `transform ${dur} ${ease}`
+      inputEl.style.transform = `translateY(${inputDeltaY}px)`
+    }
+
+    setHelperVisible(false)
+    if (text) {
+      setGhostText(text)
+      setTimeout(() => setGhostText(null), 700)
+    }
+
+    setTimeout(() => {
+      headingEl.style.transition = ''
+      headingEl.style.transform = ''
+      if (scrollAreaEl) {
+        scrollAreaEl.style.transition = ''
+        scrollAreaEl.style.transform = ''
+      }
+      if (inputEl) {
+        inputEl.style.transition = ''
+        inputEl.style.transform = ''
+      }
+      setHasChatStarted(true)
+      setInputBottom(true)
+    }, 550)
+  }, [])
 
   const onPanelResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -543,12 +628,12 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
       <div
         className={
           showWelcome
-            ? 'absolute inset-0 flex flex-col items-center pointer-events-none z-10'
+            ? `absolute inset-0 flex flex-col items-center pointer-events-none z-10 ${!hasChatStarted ? 'justify-center' : ''}`
             : 'absolute top-4 left-4 z-20 flex flex-col rounded-2xl border border-gray-200 bg-white/80 shadow-lg overflow-hidden backdrop-blur-sm'
         }
         style={
           showWelcome
-            ? { paddingTop: 40 }
+            ? (hasChatStarted ? { paddingTop: 24 } : undefined)
             : {
                 width: 440,
                 height: panelHeight,
@@ -562,7 +647,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
       >
         {/* Welcome decorations — only when stage is empty */}
         {showWelcome && (
-          <div className="flex flex-col items-center pointer-events-auto w-full" style={{ maxWidth: 640, margin: '0 auto' }}>
+          <div ref={headingRef} className="flex flex-col items-center pointer-events-auto w-full" style={{ maxWidth: 640, margin: '0 auto' }}>
             <div className="mb-4" style={{ transform: 'translateY(24px)' }}>
               <SparkleIcon size={92} />
             </div>
@@ -594,8 +679,8 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
         )}
 
         {/* Chat component — always mounted, mode changes */}
-        <div className={showWelcome ? 'w-full pointer-events-auto' : 'flex-1 overflow-hidden'} style={showWelcome ? { maxWidth: 640, margin: '0 auto' } : undefined}>
-          <AgenticChat mode={showWelcome ? 'full' : 'panel'} onFirstSend={() => { setHelperVisible(false); setHasChatStarted(true) }} onCreateDemo={handleCreateDemo} />
+        <div ref={chatWrapRef} className={showWelcome ? 'w-full pointer-events-auto' : 'flex-1 overflow-hidden'} style={showWelcome ? { maxWidth: 640, margin: '0 auto' } : undefined}>
+          <AgenticChat mode={showWelcome ? 'full' : 'panel'} onFirstSend={handleFirstSend} onCreateDemo={handleCreateDemo} inputBottom={inputBottom} />
         </div>
 
         {/* Welcome helper text — fades out after first send */}
@@ -609,6 +694,11 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
           >
             Tell Consensus AI what you want to build or drag content and interactions on to the stage.
           </p>
+        )}
+
+        {/* Ghost text — fades out after first send */}
+        {showWelcome && ghostText && (
+          <GhostText text={ghostText} onDone={() => setGhostText(null)} />
         )}
 
         {/* Vertical resize handle — only in panel mode */}

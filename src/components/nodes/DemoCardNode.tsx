@@ -1,4 +1,4 @@
-import { MoreHorizontal, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { Handle, Position, useReactFlow, type NodeProps } from '@xyflow/react'
 import thumbTableHero from '../../assets/thumb-table-hero.svg'
 import thumbContent from '../../assets/thumb-content.svg'
@@ -16,6 +16,7 @@ export default function DemoCardNode({ id, data }: NodeProps) {
   }
   const { setNodes, setEdges } = useReactFlow()
   const [width, setWidth] = useState(MIN_WIDTH)
+  const [favorited, setFavorited] = useState(false)
   const resizing = useRef<{ startX: number; startW: number } | null>(null)
 
   const fallbackThumb = useMemo(
@@ -84,8 +85,18 @@ export default function DemoCardNode({ id, data }: NodeProps) {
             </g>
           </svg>
         </button>
-        <button className="text-[#172537] hover:opacity-70 transition-opacity">
-          <MoreHorizontal size={18} />
+        <button
+          className="relative group/fav flex items-center justify-center w-8 h-8 transition-all nodrag nopan"
+          onClick={() => setFavorited((f) => !f)}
+        >
+          <div className="absolute inset-0 rounded-full bg-[#FB56B9]/15 opacity-0 group-hover/fav:opacity-100 transition-opacity" />
+          <svg width="20" height="20" viewBox="10 10 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="relative z-[1]">
+            {favorited ? (
+              <path d="M20 14.664C20.872 13.648 22.208 13 23.6 13C26.064 13 28 14.928 28 17.4C28 20.416 25.28 22.888 21.16 26.624L20 27.68L18.84 26.624C14.72 22.888 12 20.416 12 17.4C12 14.928 13.936 13 16.4 13C17.792 13 19.128 13.648 20 14.664Z" fill="#FB56B9"/>
+            ) : (
+              <path fillRule="evenodd" clipRule="evenodd" d="M20.0818 25.4418L20.0852 25.4387C22.1767 23.5422 23.7835 22.0785 24.8862 20.7294C25.9713 19.4019 26.4 18.382 26.4 17.4C26.4 15.8136 25.1823 14.6 23.6 14.6C22.6917 14.6 21.7934 15.0311 21.2141 15.7061L20 17.1207L18.7859 15.7061C18.2066 15.0311 17.3083 14.6 16.4 14.6C14.8177 14.6 13.6 15.8136 13.6 17.4C13.6 18.382 14.0287 19.4019 15.1138 20.7294C16.2165 22.0785 17.8233 23.5422 19.9148 25.4387L19.9171 25.4408L20 25.52L20.0818 25.4418ZM20 27.68L18.84 26.624C14.72 22.888 12 20.416 12 17.4C12 14.928 13.936 13 16.4 13C17.3006 13 18.1777 13.2712 18.9209 13.7379C19.3265 13.9925 19.6922 14.3053 20 14.664C20.3078 14.3053 20.6735 13.9925 21.0791 13.7379C21.8223 13.2712 22.6994 13 23.6 13C26.064 13 28 14.928 28 17.4C28 20.416 25.28 22.888 21.16 26.624L20 27.68Z" className="fill-[#6F6F6F] group-hover/fav:fill-[#FB56B9]" />
+            )}
+          </svg>
         </button>
       </div>
 
