@@ -500,8 +500,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
           type: 'deletable',
           style: { stroke: '#FC6839', strokeWidth: 3, strokeDasharray: '8 4', strokeLinecap: 'round' },
         }}
-        fitView
-        fitViewOptions={{ padding: 0.3 }}
+        defaultViewport={{ x: 0, y: 0, zoom: 0.75 }}
         className="bg-gray-50"
       >
         <Background variant={BackgroundVariant.Dots} gap={14} size={1.5} color="#b0b0b0" />

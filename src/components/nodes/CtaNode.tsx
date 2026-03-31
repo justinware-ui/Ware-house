@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useLayoutEffect, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Handle, Position, type NodeProps, useReactFlow } from '@xyflow/react'
+import { Handle, Position, type NodeProps, useReactFlow, useUpdateNodeInternals } from '@xyflow/react'
 import {
   Copy, X, Plus, Bold, Italic, Underline, AlignJustify,
   Image, Pilcrow, ChevronDown, CircleHelp, Sparkles, HelpCircle,
@@ -133,6 +133,7 @@ function FormattingToolbar({
 
 export default function CtaNode({ id, data }: NodeProps) {
   const { setNodes, setEdges } = useReactFlow()
+  const updateNodeInternals = useUpdateNodeInternals()
   const typedData = data as { question?: string; answers?: string[] }
   const [question, setQuestion] = useState(typedData.question ?? '')
   const [answers, setAnswers] = useState<Answer[]>(() => {
@@ -157,6 +158,11 @@ export default function CtaNode({ id, data }: NodeProps) {
   answersRef.current = answers
   const dragIndexRef = useRef<number | null>(null)
   const isDraggingNode = useRef(false)
+  const answerOrderKey = answers.map((a) => a.id).join(',')
+
+  useEffect(() => {
+    updateNodeInternals(id)
+  }, [answerOrderKey, id, updateNodeInternals])
 
   const LINE_LIMIT = 65
 
