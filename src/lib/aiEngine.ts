@@ -119,21 +119,25 @@ function scoreAndRank(
     const engagementPercentile = deterministicEngagement(demo.title)
     const confidence = computeConfidence(relevanceScore, engagementPercentile)
 
+    const searchWords = searchTerms.toLowerCase().split(/\s+/).filter((w) => w.length >= 3)
+    const titleLower = demo.title.toLowerCase()
+    const matchedTerms = searchWords.filter((w) => titleLower.includes(w))
+
     let relevanceReason = ''
-    if (relevanceScore >= 2) {
-      relevanceReason = `Direct keyword match with "${persona}" pain points. `
-    } else if (relevanceScore >= 1) {
-      relevanceReason = `Indirect match — related terminology found. `
+    if (relevanceScore >= 2 && matchedTerms.length > 0) {
+      relevanceReason = `Matches "${matchedTerms.slice(0, 2).join('" and "')}" from your description of ${persona}. `
+    } else if (relevanceScore >= 1 && matchedTerms.length > 0) {
+      relevanceReason = `Related to "${matchedTerms[0]}" — a close match for ${persona}. `
     } else {
-      relevanceReason = `Broad topic match. `
+      relevanceReason = `General content that may be relevant to ${persona}. `
     }
 
-    if (engagementPercentile >= 70) {
-      relevanceReason += `Top ${100 - engagementPercentile}% engagement in last 30 days.`
+    if (relevanceScore >= 1 && engagementPercentile >= 70) {
+      relevanceReason += `Strong performer — ${engagementPercentile}th percentile engagement over 30 days.`
     } else if (engagementPercentile >= 50) {
-      relevanceReason += `Above-average engagement (${engagementPercentile}th percentile).`
+      relevanceReason += `Solid engagement — ${engagementPercentile}th percentile over 30 days.`
     } else {
-      relevanceReason += `Below-average engagement (${engagementPercentile}th percentile).`
+      relevanceReason += `Lower engagement (${engagementPercentile}th percentile) — may need a refresh or could be newer content.`
     }
 
     return { demo, confidence, relevanceReason, engagementPercentile, contentType, relevanceScore }
