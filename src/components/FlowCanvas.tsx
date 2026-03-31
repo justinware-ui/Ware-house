@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState, useEffect } from 'react'
-import AgenticChat from './AgenticChat'
+import AgenticChat, { type SelectedContent } from './AgenticChat'
+import type { DemoProposal } from '../lib/aiEngine'
 import {
   ReactFlow,
   Background,
@@ -18,6 +19,7 @@ import StartNode from './nodes/StartNode'
 import InteractionNode from './nodes/InteractionNode'
 import CtaNode from './nodes/CtaNode'
 import DemoCardNode from './nodes/DemoCardNode'
+import FullScreenDialogNode from './nodes/FullScreenDialogNode'
 import DeletableEdge from './edges/DeletableEdge'
 
 const edgeTypes = {
@@ -29,6 +31,7 @@ const nodeTypes = {
   interactionNode: InteractionNode,
   ctaNode: CtaNode,
   demoCardNode: DemoCardNode,
+  fullScreenDialogNode: FullScreenDialogNode,
 }
 
 const initialNodes: Node[] = []
@@ -39,6 +42,7 @@ let nodeId = Date.now()
 const getNodeId = () => `dnd-${++nodeId}`
 
 const nodeTypeMap: Record<string, string> = {
+  fullscreen: 'fullScreenDialogNode',
   cta: 'ctaNode',
   discovery: 'ctaNode',
   'card-demos': 'demoCardNode',
@@ -297,6 +301,189 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
     [screenToFlowPosition, setNodes],
   )
 
+  const handleCreateDemo = useCallback((proposal: DemoProposal, selectedContent: SelectedContent[]) => {
+    console.log('[FlowCanvas] handleCreateDemo called', { template: proposal.template, selectedCount: selectedContent.length, items: selectedContent.map(s => ({ persona: s.persona, title: s.demo.demo.title })) })
+    const newNodes: Node[] = []
+    const newEdges: Edge[] = []
+    const COL_GAP = 400
+    const ROW_GAP = 240
+    const startX = 200
+    const startY = 150
+
+    const uniquePersonas = [...new Set(selectedContent.map((s) => s.persona))]
+    const personaSelections = uniquePersonas.map((name) => ({
+      name,
+      items: selectedContent.filter((s) => s.persona === name),
+    }))
+
+    // Decide best-fit template based on actual selections:
+    // - 1 persona, 1 item → Single Asset
+    // - multiple personas, 1 item each → 1 Discovery Branch
+    // - multiple personas with 2+ items per any persona → 2 Discovery Branches
+    // - 1 persona, 2+ items → 1 Discovery Branch (question asks about content)
+    const hasMultiplePersonas = uniquePersonas.length > 1
+    const anyPersonaHasMultiple = personaSelections.some((p) => p.items.length > 1)
+    const totalItems = selectedContent.length
+
+    let effectiveTemplate: 'single_asset' | '1_disco_branch' | '2_disco_branch'
+    if (totalItems === 1 && !hasMultiplePersonas) {
+      effectiveTemplate = 'single_asset'
+    } else if (hasMultiplePersonas && anyPersonaHasMultiple) {
+      effectiveTemplate = '2_disco_branch'
+    } else {
+      effectiveTemplate = '1_disco_branch'
+    }
+
+    // --- Template 1: Single Asset ---
+    if (effectiveTemplate === 'single_asset') {
+      const sel = selectedContent[0]
+      newNodes.push({
+        id: getNodeId(),
+        type: 'demoCardNode',
+        position: { x: startX, y: startY },
+        data: { title: sel.demo.demo.title, creator: sel.demo.demo.creator },
+      })
+    }
+
+    // --- Template 2: 1 Discovery Branch ---
+    // 1 question → branches lead directly to content (video, tour, or both)
+    if (effectiveTemplate === '1_disco_branch') {
+      const questionId = getNodeId()
+
+      if (hasMultiplePersonas) {
+        newNodes.push({
+          id: questionId,
+          type: 'ctaNode',
+          position: { x: startX, y: startY },
+          data: { question: proposal.discoveryQuestion, answers: uniquePersonas },
+        })
+
+        personaSelections.forEach((ps, pi) => {
+          ps.items.forEach((sel, si) => {
+            const cardId = getNodeId()
+            newNodes.push({
+              id: cardId,
+              type: 'demoCardNode',
+              position: { x: startX + COL_GAP, y: startY + pi * ROW_GAP + si * 180 },
+              data: { title: sel.demo.demo.title, creator: sel.demo.demo.creator },
+            })
+            newEdges.push({
+              id: `e-${questionId}-${cardId}`,
+              source: questionId,
+              sourceHandle: `answer-${pi}`,
+              target: cardId,
+              type: 'deletable',
+            })
+          })
+        })
+      } else {
+        const answers = selectedContent.map((s) =>
+          s.demo.demo.title.length > 45 ? s.demo.demo.title.slice(0, 42) + '...' : s.demo.demo.title
+        )
+        newNodes.push({
+          id: questionId,
+          type: 'ctaNode',
+          position: { x: startX, y: startY },
+          data: { question: 'Which of these is most relevant to you?', answers },
+        })
+
+        selectedContent.forEach((sel, i) => {
+          const cardId = getNodeId()
+          newNodes.push({
+            id: cardId,
+            type: 'demoCardNode',
+            position: { x: startX + COL_GAP, y: startY + i * 180 },
+            data: { title: sel.demo.demo.title, creator: sel.demo.demo.creator },
+          })
+          newEdges.push({
+            id: `e-${questionId}-${cardId}`,
+            source: questionId,
+            sourceHandle: `answer-${i}`,
+            target: cardId,
+            type: 'deletable',
+          })
+        })
+      }
+    }
+
+    // --- Template 3: 2 Discovery Branches ---
+    // Question 1 (persona) → Question 2 (interest/content) → content cards
+    if (effectiveTemplate === '2_disco_branch') {
+      const q1Id = getNodeId()
+      newNodes.push({
+        id: q1Id,
+        type: 'ctaNode',
+        position: { x: startX, y: startY },
+        data: { question: proposal.discoveryQuestion, answers: uniquePersonas },
+      })
+
+      let yAccum = startY
+      personaSelections.forEach((ps, pi) => {
+        const branchY = yAccum
+
+        if (ps.items.length > 1) {
+          const q2Id = getNodeId()
+          const subAnswers = ps.items.map((s) =>
+            s.demo.demo.title.length > 45 ? s.demo.demo.title.slice(0, 42) + '...' : s.demo.demo.title
+          )
+          newNodes.push({
+            id: q2Id,
+            type: 'ctaNode',
+            position: { x: startX + COL_GAP, y: branchY },
+            data: { question: `What's most important to you?`, answers: subAnswers },
+          })
+          newEdges.push({
+            id: `e-${q1Id}-${q2Id}`,
+            source: q1Id,
+            sourceHandle: `answer-${pi}`,
+            target: q2Id,
+            type: 'deletable',
+          })
+
+          ps.items.forEach((sel, mi) => {
+            const cardId = getNodeId()
+            newNodes.push({
+              id: cardId,
+              type: 'demoCardNode',
+              position: { x: startX + COL_GAP * 2, y: branchY + mi * 180 },
+              data: { title: sel.demo.demo.title, creator: sel.demo.demo.creator },
+            })
+            newEdges.push({
+              id: `e-${q2Id}-${cardId}`,
+              source: q2Id,
+              sourceHandle: `answer-${mi}`,
+              target: cardId,
+              type: 'deletable',
+            })
+          })
+
+          yAccum += Math.max(1, ps.items.length) * 180 + 60
+        } else {
+          const cardId = getNodeId()
+          newNodes.push({
+            id: cardId,
+            type: 'demoCardNode',
+            position: { x: startX + COL_GAP, y: branchY },
+            data: { title: ps.items[0].demo.demo.title, creator: ps.items[0].demo.demo.creator },
+          })
+          newEdges.push({
+            id: `e-${q1Id}-${cardId}`,
+            source: q1Id,
+            sourceHandle: `answer-${pi}`,
+            target: cardId,
+            type: 'deletable',
+          })
+
+          yAccum += ROW_GAP
+        }
+      })
+    }
+
+    console.log('[FlowCanvas] placing on canvas', { effectiveTemplate, nodesCount: newNodes.length, edgesCount: newEdges.length, nodes: newNodes.map(n => ({ id: n.id, type: n.type, data: n.data })) })
+    setNodes((nds) => [...nds, ...newNodes])
+    setEdges((eds) => [...eds, ...newEdges])
+  }, [setNodes, setEdges])
+
   return (
     <div ref={reactFlowWrapper} className="flex-1 h-full relative">
       <ReactFlow
@@ -409,7 +596,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
 
         {/* Chat component — always mounted, mode changes */}
         <div className={showWelcome ? 'w-full pointer-events-auto' : 'flex-1 overflow-hidden'} style={showWelcome ? { maxWidth: 640, margin: '0 auto' } : undefined}>
-          <AgenticChat mode={showWelcome ? 'full' : 'panel'} onFirstSend={() => { setHelperVisible(false); setHasChatStarted(true) }} />
+          <AgenticChat mode={showWelcome ? 'full' : 'panel'} onFirstSend={() => { setHelperVisible(false); setHasChatStarted(true) }} onCreateDemo={handleCreateDemo} />
         </div>
 
         {/* Welcome helper text — fades out after first send */}

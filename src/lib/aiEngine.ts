@@ -14,6 +14,7 @@ export interface PersonaAnalysis {
   name: string
   painPoints: string[]
   matches: ContentMatch[]
+  painPointMatches?: PainPointMatches[]
   noMatchReason?: string
 }
 
@@ -22,7 +23,9 @@ export type TemplateType = 'single_asset' | '1_disco_branch' | '2_disco_branch'
 export interface DemoProposal {
   template: TemplateType
   templateLabel: string
+  templateDescription: string
   discoveryQuestion: string
+  secondDiscoveryQuestions?: { persona: string; question: string }[]
   personas: PersonaAnalysis[]
   editHistory: { field: string; before: string; after: string }[]
 }
@@ -91,13 +94,24 @@ export function getTemplateLabel(t: TemplateType): string {
   }
 }
 
-export function matchContent(
+export function getTemplateDescription(t: TemplateType): string {
+  switch (t) {
+    case 'single_asset':
+      return 'A single video or tour targeted to your persona.'
+    case '1_disco_branch':
+      return '1 discovery question with multiple answer branches — each branch leads to a video, tour, or both.'
+    case '2_disco_branch':
+      return '1 discovery question where the response leads to a second discovery question with multiple answer branches — each branch leads to a video, tour, or both.'
+  }
+}
+
+function scoreAndRank(
+  searchTerms: string,
   persona: string,
-  painPoints: string[],
-  allDemos: Demo[] = demos,
-  offset = 0,
-): ContentMatch[] {
-  const searchTerms = [persona, ...painPoints].join(' ')
+  allDemos: Demo[],
+  offset: number,
+  count: number,
+): (ContentMatch & { relevanceScore: number })[] {
   const contentType: 'video' | 'tour' = isExecutiveTitle(persona) ? 'video' : 'tour'
 
   const scored = allDemos.map((demo) => {
@@ -126,33 +140,59 @@ export function matchContent(
   })
 
   scored.sort((a, b) => {
-    const confOrder = { high: 0, medium: 1, low: 2 }
-    if (confOrder[a.confidence] !== confOrder[b.confidence]) return confOrder[a.confidence] - confOrder[b.confidence]
-    return b.relevanceScore - a.relevanceScore
+    if (b.relevanceScore !== a.relevanceScore) return b.relevanceScore - a.relevanceScore
+    return b.engagementPercentile - a.engagementPercentile
   })
 
-  const results = scored.slice(offset, offset + 3)
+  const results = scored.slice(offset, offset + count)
 
-  const hasHigh = results.some((r) => r.confidence === 'high')
-  const hasMedium = results.some((r) => r.confidence === 'medium')
-  const hasLow = results.some((r) => r.confidence === 'low')
+  results.forEach((r, i) => {
+    if (i === 0 && r.relevanceScore > 0) {
+      r.confidence = 'high'
+    } else if (i < Math.ceil(count / 2) && r.relevanceScore > 0) {
+      r.confidence = r.engagementPercentile >= 50 ? 'high' : 'medium'
+    } else if (r.relevanceScore > 0) {
+      r.confidence = r.engagementPercentile >= 60 ? 'medium' : 'low'
+    } else {
+      r.confidence = r.engagementPercentile >= 70 ? 'medium' : 'low'
+    }
+  })
 
-  if (!hasHigh && results.length >= 1 && results[0].relevanceScore > 0) {
-    results[0].confidence = 'high'
-    results[0].engagementPercentile = Math.max(results[0].engagementPercentile, 75)
-    results[0].relevanceReason = `Direct keyword match with "${persona}" pain points. Top ${100 - results[0].engagementPercentile}% engagement in last 30 days.`
-  }
-  if (!hasMedium && results.length >= 2) {
-    results[1].confidence = 'medium'
-    results[1].relevanceReason = `Indirect match — related terminology found. Above-average engagement (${results[1].engagementPercentile}th percentile).`
-  }
-  if (!hasLow && results.length >= 3) {
-    results[2].confidence = 'low'
-    results[2].engagementPercentile = Math.min(results[2].engagementPercentile, 35)
-    results[2].relevanceReason = `Broad topic match. Below-average engagement (${results[2].engagementPercentile}th percentile).`
-  }
+  return results
+}
 
-  return results.map(({ relevanceScore: _, ...rest }) => rest)
+export function matchContent(
+  persona: string,
+  painPoints: string[],
+  allDemos: Demo[] = demos,
+  offset = 0,
+): ContentMatch[] {
+  const searchTerms = [persona, ...painPoints].join(' ')
+  return scoreAndRank(searchTerms, persona, allDemos, offset, 6)
+    .map(({ relevanceScore: _, ...rest }) => rest)
+}
+
+export interface PainPointMatches {
+  painPoint: string
+  matches: ContentMatch[]
+}
+
+export function matchContentByPainPoint(
+  persona: string,
+  painPoints: string[],
+  allDemos: Demo[] = demos,
+  offset = 0,
+): PainPointMatches[] {
+  const usedDemoIds = new Set<string>()
+
+  return painPoints.map((pp) => {
+    const searchTerms = `${persona} ${pp}`
+    const available = allDemos.filter((d) => !usedDemoIds.has(d.id))
+    const matches = scoreAndRank(searchTerms, persona, available, offset, 4)
+      .map(({ relevanceScore: _, ...rest }) => rest)
+    matches.forEach((m) => usedDemoIds.add(m.demo.id))
+    return { painPoint: pp, matches }
+  })
 }
 
 export function buildProposal(
@@ -167,32 +207,53 @@ export function buildProposal(
 
   const personaAnalyses: PersonaAnalysis[] = personas.map((p) => {
     const matches = matchContent(p.name, p.painPoints, undefined, offset)
+    const painPointMatches = p.painPoints.length >= 2
+      ? matchContentByPainPoint(p.name, p.painPoints, undefined, offset)
+      : undefined
     const hasGoodMatch = matches.some((m) => m.confidence !== 'low')
     return {
       name: p.name,
       painPoints: p.painPoints,
       matches,
+      painPointMatches,
       noMatchReason: hasGoodMatch
         ? undefined
         : `We couldn't find highly relevant content for ${p.name}. Consider creating new content focused on ${p.painPoints.join(', ')}.`,
     }
   })
 
-  const discoveryQuestion =
-    personas.length === 1
-      ? `Tell us more about what you're looking for`
-      : `Which best describes your role? ${personas.map((p, i) => `${i + 1}. ${p.name}`).join(', ')}`
+  let discoveryQuestion: string
+  let secondDiscoveryQuestions: { persona: string; question: string }[] | undefined
+
+  if (template === 'single_asset') {
+    discoveryQuestion = `Tell us more about what you're looking for`
+  } else {
+    discoveryQuestion = `Which best describes your role? ${personas.map((p, i) => `${i + 1}. ${p.name}`).join(', ')}`
+  }
+
+  if (template === '2_disco_branch') {
+    secondDiscoveryQuestions = personas.map((p) => ({
+      persona: p.name,
+      question: `What are you most interested in? ${p.painPoints.map((pp, i) => `${i + 1}. ${pp}`).join(', ')}`,
+    }))
+  }
 
   return {
     template,
     templateLabel: getTemplateLabel(template),
+    templateDescription: getTemplateDescription(template),
     discoveryQuestion,
+    secondDiscoveryQuestions,
     personas: personaAnalyses,
     editHistory: [],
   }
 }
 
 export function generateToolCalls(personas: { name: string; painPoints: string[] }[]): ToolGroup[] {
+  const hasSubSegments = personas.some((p) => p.painPoints.length > 2)
+  const template = selectTemplate(personas.map((p) => p.name), hasSubSegments)
+  const templateLabel = getTemplateLabel(template)
+
   return [
     {
       label: 'Analyzing conversation',
@@ -214,10 +275,15 @@ export function generateToolCalls(personas: { name: string; painPoints: string[]
       tools: [
         {
           name: 'select_template',
-          description: `Selected template: ${personas.length === 1 ? 'Single Asset' : personas.length >= 2 ? '1 Discovery Branch' : '2 Discovery Branches'}`,
+          description: `Selected template: ${templateLabel}`,
           status: 'complete',
         },
-        { name: 'compose_demo', description: 'Assembling discovery question and content branches...', status: 'complete' },
+        { name: 'compose_demo', description: template === '2_disco_branch'
+          ? 'Assembling 2-level discovery questions and content branches...'
+          : template === '1_disco_branch'
+            ? 'Assembling discovery question and content branches...'
+            : 'Selecting best content asset for your persona...',
+          status: 'complete' },
       ],
     },
   ]

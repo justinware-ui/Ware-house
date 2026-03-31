@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Mic, Send, ThumbsUp, ThumbsDown, ChevronDown, ChevronRight } from 'lucide-react'
+import { Mic, Send, ChevronDown, ChevronRight } from 'lucide-react'
 import {
   buildProposal,
   generateToolCalls,
@@ -48,12 +48,18 @@ const confidenceLabel: Record<ConfidenceLevel, string> = {
 let msgId = 0
 const nextId = () => `msg-${++msgId}`
 
+export interface SelectedContent {
+  persona: string
+  demo: import('../lib/aiEngine').ContentMatch
+}
+
 interface Props {
   mode: 'full' | 'panel'
   onFirstSend?: () => void
+  onCreateDemo?: (proposal: DemoProposal, selectedContent: SelectedContent[]) => void
 }
 
-export default function AgenticChat({ mode, onFirstSend }: Props) {
+export default function AgenticChat({ mode, onFirstSend, onCreateDemo }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const hasSent = messages.some((m) => m.role === 'user')
@@ -64,6 +70,8 @@ export default function AgenticChat({ mode, onFirstSend }: Props) {
   const [expandedInfo, setExpandedInfo] = useState<Record<string, boolean>>({})
   const [feedbackText, setFeedbackText] = useState('')
   const [showFeedbackInput, setShowFeedbackInput] = useState(false)
+  const [latestProposal, setLatestProposal] = useState<DemoProposal | null>(null)
+  const [globalSelected, setGlobalSelected] = useState<Record<string, boolean>>({})
   const scrollRef = useRef<HTMLDivElement>(null)
   const scrollWrapRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -72,6 +80,7 @@ export default function AgenticChat({ mode, onFirstSend }: Props) {
   const [scrollMaxH, setScrollMaxH] = useState<number | undefined>(undefined)
   const [canScrollUp, setCanScrollUp] = useState(false)
   const [canScrollDown, setCanScrollDown] = useState(false)
+  const [inputFocused, setInputFocused] = useState(false)
   const hasInit = useRef(false)
 
   const scrollToBottom = useCallback(() => {
@@ -229,17 +238,18 @@ export default function AgenticChat({ mode, onFirstSend }: Props) {
         clearInterval(interval)
         setTimeout(() => {
           const proposal = buildProposal(finalPersonas, contentOffset)
+          setLatestProposal(proposal)
+          setGlobalSelected({})
           updateMessage(msgId, { thinking: false, toolGroups: updated })
 
           addMessage({
             role: 'ai',
-            content: `Alright, I've put together a ${proposal.templateLabel} demo for you! Here's what I'm proposing:`,
+            content: `Here's a discovery question and content options I found for each persona. Select the content you'd like to include — you can pick as many as you want:`,
             proposal,
-            showVote: true,
           })
           addMessage({
             role: 'ai',
-            content: "How does this look? If you'd like to see more content options, just ask! Otherwise, feel free to select what works and I'll set it up on the canvas.",
+            content: "Once you've selected the content you want, just say **\"create it\"** and I'll build the demo on the canvas with a discovery question connected to your selections. If you need more options, just ask!",
           })
           setStep('post_proposal')
           scrollToBottom()
@@ -252,14 +262,81 @@ export default function AgenticChat({ mode, onFirstSend }: Props) {
     const lower = text.toLowerCase()
     const wantsMore = /more|other|additional|alternative|different|better|higher|another|else|options/i.test(lower)
     const isHappy = /looks good|perfect|great|love it|awesome|let's go|done|satisfied|that works|i'm good|ship it/i.test(lower)
+    const wantsBuild = /create|build|set up|generate|make it|do it|place it|put it|assemble|go ahead/i.test(lower)
+
+    console.log('[AgenticChat] handleMoreContentRequest', {
+      step, wantsBuild, isHappy, wantsMore,
+      hasProposal: !!latestProposal,
+      globalSelected: { ...globalSelected },
+      activeKeys: Object.keys(globalSelected).filter(k => globalSelected[k]),
+    })
+
+    if (wantsBuild && latestProposal) {
+      const selectedItems: SelectedContent[] = []
+
+      latestProposal.personas.forEach((persona, pi) => {
+        const hasPPMatches = persona.painPointMatches && persona.painPointMatches.length >= 2
+        console.log(`[AgenticChat] persona ${pi}: "${persona.name}", hasPPMatches: ${hasPPMatches}, matches: ${persona.matches.length}`)
+
+        if (hasPPMatches && persona.painPointMatches) {
+          persona.painPointMatches.forEach((ppGroup, gi) => {
+            ppGroup.matches.forEach((match, mi) => {
+              const key = `${pi}-pp${gi}-${mi}`
+              const isSelected = !!globalSelected[key]
+              console.log(`  ppKey: "${key}" selected: ${isSelected}`)
+              if (isSelected) {
+                selectedItems.push({ persona: persona.name, demo: match })
+              }
+            })
+          })
+        } else {
+          persona.matches.forEach((match, mi) => {
+            const key = `${pi}-${mi}`
+            const isSelected = !!globalSelected[key]
+            console.log(`  key: "${key}" selected: ${isSelected}`)
+            if (isSelected) {
+              selectedItems.push({ persona: persona.name, demo: match })
+            }
+          })
+        }
+      })
+
+      console.log('[AgenticChat] selectedItems after collection:', selectedItems.length)
+
+      if (selectedItems.length === 0) {
+        console.log('[AgenticChat] FALLBACK: no selections found, using first match per persona')
+        latestProposal.personas.forEach((persona) => {
+          if (persona.matches.length > 0) {
+            selectedItems.push({ persona: persona.name, demo: persona.matches[0] })
+          }
+        })
+      }
+
+      addMessage({
+        role: 'ai',
+        content: "Building your demo on the canvas now! I'm placing the discovery question, answer branches, and content — all connected and ready to go.",
+      })
+
+      console.log('[AgenticChat] creating demo', { selectedItems: selectedItems.length, items: selectedItems.map(s => ({ persona: s.persona, title: s.demo.demo.title })) })
+      onCreateDemo?.(latestProposal, selectedItems)
+
+      setTimeout(() => {
+        addMessage({
+          role: 'ai',
+          content: "Your demo is live on the canvas! Feel free to edit any text, swap content, or rearrange elements. How would you rate the content suggestions?",
+          showVote: true,
+        })
+        setStep('survey')
+        scrollToBottom()
+      }, 500)
+      return
+    }
 
     if (isHappy) {
       addMessage({
         role: 'ai',
-        content: "Glad you like it! I'll get everything set up on the canvas. How would you rate the content suggestions?",
-        showVote: true,
+        content: "Glad you like it! Would you like me to create the demo on the canvas? Just say **\"create it\"** and I'll set everything up.",
       })
-      setStep('survey')
       return
     }
 
@@ -349,23 +426,30 @@ export default function AgenticChat({ mode, onFirstSend }: Props) {
       <div ref={scrollWrapRef} className={mode === 'full' ? 'relative overflow-hidden' : 'relative flex-1 overflow-hidden'} style={mode === 'full' ? { height: hasSent && scrollMaxH ? scrollMaxH : undefined, maxHeight: 'calc(100vh - 340px)' } : undefined}>
         <div className="absolute top-0 left-0 right-0 h-3 z-10 pointer-events-none transition-opacity duration-200" style={{ background: 'radial-gradient(ellipse 70% 100% at 50% 0%, rgba(0,0,0,0.06) 0%, transparent 100%)', opacity: canScrollUp ? 1 : 0 }} />
         <div className="absolute bottom-0 left-0 right-0 h-3 z-10 pointer-events-none transition-opacity duration-200" style={{ background: 'radial-gradient(ellipse 70% 100% at 50% 100%, rgba(0,0,0,0.06) 0%, transparent 100%)', opacity: canScrollDown ? 1 : 0 }} />
-      <div ref={scrollRef} className="h-full overflow-y-auto px-4 py-4 flex flex-col gap-4">
-        {messages.map((msg) => (
-          <div key={msg.id}>
-            {msg.role === 'user' ? (
-              <UserMessage msg={msg} />
-            ) : (
-              <AiMessage
-                msg={msg}
-                expandedTools={expandedTools}
-                expandedInfo={expandedInfo}
-                onToggleTool={toggleToolGroup}
-                onToggleInfo={toggleInfo}
-                onVote={handleVote}
-              />
-            )}
-          </div>
-        ))}
+      <div ref={scrollRef} className="h-full overflow-y-auto px-4 py-4 flex flex-col">
+        {messages.map((msg, idx) => {
+          const prev = messages[idx - 1]
+          const isNewSection = prev && prev.role !== msg.role
+          const sameRoleAi = prev && prev.role === 'ai' && msg.role === 'ai'
+          return (
+            <div key={msg.id} style={{ marginTop: idx === 0 ? 0 : isNewSection ? 32 : sameRoleAi ? 24 : 8 }}>
+              {msg.role === 'user' ? (
+                <UserMessage msg={msg} />
+              ) : (
+                <AiMessage
+                  msg={msg}
+                  expandedTools={expandedTools}
+                  expandedInfo={expandedInfo}
+                  onToggleTool={toggleToolGroup}
+                  onToggleInfo={toggleInfo}
+                  onVote={handleVote}
+                  selected={globalSelected}
+                  onToggleSelect={(key) => { console.log('[AgenticChat] toggle select:', key); setGlobalSelected((prev) => ({ ...prev, [key]: !prev[key] })) }}
+                />
+              )}
+            </div>
+          )
+        })}
 
         {showFeedbackInput && (
           <div className="ml-10 flex gap-2">
@@ -417,17 +501,14 @@ export default function AgenticChat({ mode, onFirstSend }: Props) {
         }
       >
         <div
-          className="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col"
-          style={
-            mode === 'full'
-              ? {
-                  minHeight: hasSent ? 60 : 100,
-                  maxWidth: 640,
-                  margin: '0 auto',
-                  transition: 'min-height 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-                }
-              : { minHeight: 60 }
-          }
+          className="bg-white rounded-2xl flex flex-col transition-shadow duration-200"
+          style={{
+            minHeight: mode === 'full' ? (hasSent ? 60 : 100) : 60,
+            ...(mode === 'full' ? { maxWidth: 640, margin: '0 auto', transition: 'min-height 0.5s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease, border-color 0.2s ease' } : {}),
+            border: inputFocused ? '2px solid #F44C10' : '1px solid #e5e7eb',
+            boxShadow: inputFocused ? '0 0 0 5px rgba(255, 150, 89, 0.5)' : '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+            padding: inputFocused ? 0 : 1,
+          }}
         >
           <div className="flex-1 px-4 pt-3 pb-1">
             <textarea
@@ -449,6 +530,8 @@ export default function AgenticChat({ mode, onFirstSend }: Props) {
               className="w-full resize-none outline-none text-sm text-gray-900 placeholder:text-gray-400 bg-transparent overflow-hidden"
               rows={mode === 'full' && !hasSent ? 3 : 1}
               style={{ maxHeight: 200 }}
+              onFocus={() => setInputFocused(true)}
+              onBlur={() => setInputFocused(false)}
             />
           </div>
           <div className="flex items-center justify-between px-4 pb-3">
@@ -537,6 +620,8 @@ function AiMessage({
   onToggleTool,
   onToggleInfo,
   onVote,
+  selected,
+  onToggleSelect,
 }: {
   msg: ChatMessage
   expandedTools: Record<string, boolean>
@@ -544,6 +629,8 @@ function AiMessage({
   onToggleTool: (key: string) => void
   onToggleInfo: (key: string) => void
   onVote: (msgId: string, vote: 'up' | 'down') => void
+  selected: Record<string, boolean>
+  onToggleSelect: (key: string) => void
 }) {
   return (
     <div className="flex gap-3 items-start">
@@ -625,22 +712,28 @@ function AiMessage({
         )}
 
         {/* Proposal rendering */}
-        {msg.proposal && <ProposalView proposal={msg.proposal} expandedInfo={expandedInfo} onToggleInfo={onToggleInfo} />}
+        {msg.proposal && <ProposalView proposal={msg.proposal} expandedInfo={expandedInfo} onToggleInfo={onToggleInfo} selected={selected} onToggleSelect={onToggleSelect} />}
 
         {/* Vote buttons */}
         {msg.showVote && (
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-1 mt-1">
             <button
               onClick={() => onVote(msg.id, 'up')}
-              className={`p-1 rounded transition-colors ${msg.voted === 'up' ? 'text-blue-500' : 'text-gray-400 hover:text-gray-600'}`}
+              className="hover:opacity-70 transition-opacity"
             >
-              <ThumbsUp size={16} />
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <mask id="mask_vote_up" style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24"><rect width="24" height="24" fill="#D9D9D9"/></mask>
+                <g mask="url(#mask_vote_up)"><path d="M15.0003 17.5H5.83366V6.66665L11.667 0.833313L12.7087 1.87498C12.8059 1.9722 12.8857 2.10415 12.9482 2.27081C13.0107 2.43748 13.042 2.5972 13.042 2.74998V3.04165L12.1253 6.66665H17.5003C17.9448 6.66665 18.3337 6.83331 18.667 7.16665C19.0003 7.49998 19.167 7.88887 19.167 8.33331V9.99998C19.167 10.0972 19.1531 10.2014 19.1253 10.3125C19.0975 10.4236 19.0698 10.5278 19.042 10.625L16.542 16.5C16.417 16.7778 16.2087 17.0139 15.917 17.2083C15.6253 17.4028 15.3198 17.5 15.0003 17.5ZM7.50033 15.8333H15.0003L17.5003 9.99998V8.33331H10.0003L11.1253 3.74998L7.50033 7.37498V15.8333ZM5.83366 6.66665V8.33331H3.33366V15.8333H5.83366V17.5H1.66699V6.66665H5.83366Z" fill={msg.voted === 'up' ? '#FC6839' : '#6F6F6F'}/></g>
+              </svg>
             </button>
             <button
               onClick={() => onVote(msg.id, 'down')}
-              className={`p-1 rounded transition-colors ${msg.voted === 'down' ? 'text-red-500' : 'text-gray-400 hover:text-gray-600'}`}
+              className="hover:opacity-70 transition-opacity"
             >
-              <ThumbsDown size={16} />
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <mask id="mask_vote_down" style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24"><rect width="24" height="24" fill="#D9D9D9"/></mask>
+                <g mask="url(#mask_vote_down)"><path d="M4.99967 2.5H14.1663V13.3333L8.33301 19.1667L7.29134 18.125C7.19412 18.0278 7.11426 17.8958 7.05176 17.7292C6.98926 17.5625 6.95801 17.4028 6.95801 17.25V16.9583L7.87467 13.3333H2.49967C2.05523 13.3333 1.66634 13.1667 1.33301 12.8333C0.999674 12.5 0.833008 12.1111 0.833008 11.6667V10C0.833008 9.90278 0.846897 9.79861 0.874674 9.6875C0.902452 9.57639 0.93023 9.47222 0.958008 9.375L3.45801 3.5C3.58301 3.22222 3.79134 2.98611 4.08301 2.79167C4.37467 2.59722 4.68023 2.5 4.99967 2.5ZM12.4997 4.16667H4.99967L2.49967 10V11.6667H9.99967L8.87467 16.25L12.4997 12.625V4.16667ZM14.1663 13.3333V11.6667H16.6663V4.16667H14.1663V2.5H18.333V13.3333H14.1663Z" fill={msg.voted === 'down' ? '#FC6839' : '#6F6F6F'}/></g>
+              </svg>
             </button>
           </div>
         )}
@@ -714,34 +807,47 @@ function ContentCard({
           </div>
 
           {/* Preview icon */}
-          <button className="hover:opacity-70 transition-opacity">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <mask id={`mask_eye_${infoKey}`} style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="0" y="0" width="20" height="20">
-                <rect width="20" height="20" fill="#D9D9D9"/>
-              </mask>
-              <g mask={`url(#mask_eye_${infoKey})`}>
-                <path d="M9.99935 13.3334C11.041 13.3334 11.9266 12.9689 12.656 12.24C13.3849 11.5106 13.7493 10.625 13.7493 9.58337C13.7493 8.54171 13.3849 7.65615 12.656 6.92671C11.9266 6.19782 11.041 5.83337 9.99935 5.83337C8.95768 5.83337 8.07213 6.19782 7.34268 6.92671C6.61379 7.65615 6.24935 8.54171 6.24935 9.58337C6.24935 10.625 6.61379 11.5106 7.34268 12.24C8.07213 12.9689 8.95768 13.3334 9.99935 13.3334ZM9.99935 11.8334C9.37435 11.8334 8.84324 11.6145 8.40602 11.1767C7.96824 10.7395 7.74935 10.2084 7.74935 9.58337C7.74935 8.95837 7.96824 8.42698 8.40602 7.98921C8.84324 7.55198 9.37435 7.33337 9.99935 7.33337C10.6243 7.33337 11.1557 7.55198 11.5935 7.98921C12.0307 8.42698 12.2493 8.95837 12.2493 9.58337C12.2493 10.2084 12.0307 10.7395 11.5935 11.1767C11.1557 11.6145 10.6243 11.8334 9.99935 11.8334ZM9.99935 15.8334C8.06879 15.8334 6.3049 15.3231 4.70768 14.3025C3.11046 13.2814 1.90213 11.9028 1.08268 10.1667C1.04102 10.0973 1.01324 10.0103 0.999349 9.90587C0.98546 9.80199 0.978516 9.69448 0.978516 9.58337C0.978516 9.47226 0.98546 9.36449 0.999349 9.26004C1.01324 9.15615 1.04102 9.06949 1.08268 9.00004C1.90213 7.26393 3.11046 5.8856 4.70768 4.86504C6.3049 3.84393 8.06879 3.33337 9.99935 3.33337C11.9299 3.33337 13.6938 3.84393 15.291 4.86504C16.8882 5.8856 18.0966 7.26393 18.916 9.00004C18.9577 9.06949 18.9855 9.15615 18.9993 9.26004C19.0132 9.36449 19.0202 9.47226 19.0202 9.58337C19.0202 9.69448 19.0132 9.80199 18.9993 9.90587C18.9855 10.0103 18.9577 10.0973 18.916 10.1667C18.0966 11.9028 16.8882 13.2814 15.291 14.3025C13.6938 15.3231 11.9299 15.8334 9.99935 15.8334ZM9.99935 14.1667C11.5688 14.1667 13.0099 13.7534 14.3227 12.9267C15.6349 12.1006 16.6382 10.9862 17.3327 9.58337C16.6382 8.1806 15.6349 7.06587 14.3227 6.23921C13.0099 5.4131 11.5688 5.00004 9.99935 5.00004C8.4299 5.00004 6.98879 5.4131 5.67602 6.23921C4.36379 7.06587 3.36046 8.1806 2.66602 9.58337C3.36046 10.9862 4.36379 12.1006 5.67602 12.9267C6.98879 13.7534 8.4299 14.1667 9.99935 14.1667Z" fill="#293748"/>
-              </g>
-            </svg>
-          </button>
+          <div className="relative group/preview flex items-center">
+            <button className="hover:opacity-70 transition-opacity">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <mask id={`mask_eye_${infoKey}`} style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="0" y="0" width="20" height="20">
+                  <rect width="20" height="20" fill="#D9D9D9"/>
+                </mask>
+                <g mask={`url(#mask_eye_${infoKey})`}>
+                  <path d="M9.99935 13.3334C11.041 13.3334 11.9266 12.9689 12.656 12.24C13.3849 11.5106 13.7493 10.625 13.7493 9.58337C13.7493 8.54171 13.3849 7.65615 12.656 6.92671C11.9266 6.19782 11.041 5.83337 9.99935 5.83337C8.95768 5.83337 8.07213 6.19782 7.34268 6.92671C6.61379 7.65615 6.24935 8.54171 6.24935 9.58337C6.24935 10.625 6.61379 11.5106 7.34268 12.24C8.07213 12.9689 8.95768 13.3334 9.99935 13.3334ZM9.99935 11.8334C9.37435 11.8334 8.84324 11.6145 8.40602 11.1767C7.96824 10.7395 7.74935 10.2084 7.74935 9.58337C7.74935 8.95837 7.96824 8.42698 8.40602 7.98921C8.84324 7.55198 9.37435 7.33337 9.99935 7.33337C10.6243 7.33337 11.1557 7.55198 11.5935 7.98921C12.0307 8.42698 12.2493 8.95837 12.2493 9.58337C12.2493 10.2084 12.0307 10.7395 11.5935 11.1767C11.1557 11.6145 10.6243 11.8334 9.99935 11.8334ZM9.99935 15.8334C8.06879 15.8334 6.3049 15.3231 4.70768 14.3025C3.11046 13.2814 1.90213 11.9028 1.08268 10.1667C1.04102 10.0973 1.01324 10.0103 0.999349 9.90587C0.98546 9.80199 0.978516 9.69448 0.978516 9.58337C0.978516 9.47226 0.98546 9.36449 0.999349 9.26004C1.01324 9.15615 1.04102 9.06949 1.08268 9.00004C1.90213 7.26393 3.11046 5.8856 4.70768 4.86504C6.3049 3.84393 8.06879 3.33337 9.99935 3.33337C11.9299 3.33337 13.6938 3.84393 15.291 4.86504C16.8882 5.8856 18.0966 7.26393 18.916 9.00004C18.9577 9.06949 18.9855 9.15615 18.9993 9.26004C19.0132 9.36449 19.0202 9.47226 19.0202 9.58337C19.0202 9.69448 19.0132 9.80199 18.9993 9.90587C18.9855 10.0103 18.9577 10.0973 18.916 10.1667C18.0966 11.9028 16.8882 13.2814 15.291 14.3025C13.6938 15.3231 11.9299 15.8334 9.99935 15.8334ZM9.99935 14.1667C11.5688 14.1667 13.0099 13.7534 14.3227 12.9267C15.6349 12.1006 16.6382 10.9862 17.3327 9.58337C16.6382 8.1806 15.6349 7.06587 14.3227 6.23921C13.0099 5.4131 11.5688 5.00004 9.99935 5.00004C8.4299 5.00004 6.98879 5.4131 5.67602 6.23921C4.36379 7.06587 3.36046 8.1806 2.66602 9.58337C3.36046 10.9862 4.36379 12.1006 5.67602 12.9267C6.98879 13.7534 8.4299 14.1667 9.99935 14.1667Z" fill="#293748"/>
+                </g>
+              </svg>
+            </button>
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-medium whitespace-nowrap opacity-0 pointer-events-none group-hover/preview:opacity-100 transition-opacity shadow-lg z-50" style={{ backgroundColor: '#293748' }}>
+              Preview
+              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent" style={{ borderTopColor: '#293748' }} />
+            </div>
+          </div>
 
           {/* Switch icon */}
-          <button className="hover:opacity-70 transition-opacity">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <mask id={`mask_switch_${infoKey}`} style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="0" y="0" width="20" height="20">
-                <rect width="20" height="20" fill="#D9D9D9"/>
-              </mask>
-              <g mask={`url(#mask_switch_${infoKey})`}>
-                <path d="M10.0417 16.6667C8.18056 16.6667 6.59722 16.0209 5.29167 14.7292C3.98611 13.4375 3.33333 11.8612 3.33333 10V9.85421L2.58333 10.6042C2.43056 10.757 2.23611 10.8334 2 10.8334C1.76389 10.8334 1.56944 10.757 1.41667 10.6042C1.26389 10.4514 1.1875 10.257 1.1875 10.0209C1.1875 9.78476 1.26389 9.59032 1.41667 9.43754L3.58333 7.27087C3.66667 7.18754 3.75694 7.12837 3.85417 7.09337C3.95139 7.05893 4.05556 7.04171 4.16667 7.04171C4.27778 7.04171 4.38194 7.05893 4.47917 7.09337C4.57639 7.12837 4.66667 7.18754 4.75 7.27087L6.91667 9.43754C7.06944 9.59032 7.14583 9.78476 7.14583 10.0209C7.14583 10.257 7.06944 10.4514 6.91667 10.6042C6.76389 10.757 6.56944 10.8334 6.33333 10.8334C6.09722 10.8334 5.90278 10.757 5.75 10.6042L5 9.85421V10C5 11.3889 5.48972 12.5695 6.46917 13.5417C7.44806 14.5139 8.63889 15 10.0417 15C10.3194 15 10.5903 14.9759 10.8542 14.9275C11.1181 14.8787 11.3819 14.8056 11.6458 14.7084C11.7847 14.6528 11.9342 14.6389 12.0942 14.6667C12.2536 14.6945 12.3889 14.7639 12.5 14.875C12.75 15.125 12.8508 15.3923 12.8025 15.6767C12.7536 15.9617 12.5694 16.1598 12.25 16.2709C11.8889 16.3959 11.5244 16.4931 11.1567 16.5625C10.7883 16.632 10.4167 16.6667 10.0417 16.6667ZM15.8333 12.9584C15.7222 12.9584 15.6181 12.9409 15.5208 12.9059C15.4236 12.8714 15.3333 12.8125 15.25 12.7292L13.0833 10.5625C12.9306 10.4098 12.8542 10.2153 12.8542 9.97921C12.8542 9.7431 12.9306 9.54865 13.0833 9.39587C13.2361 9.2431 13.4306 9.16671 13.6667 9.16671C13.9028 9.16671 14.0972 9.2431 14.25 9.39587L15 10.1459V10C15 8.61115 14.5106 7.4306 13.5317 6.45837C12.5522 5.48615 11.3611 5.00004 9.95833 5.00004C9.68056 5.00004 9.40972 5.02448 9.14583 5.07337C8.88194 5.12171 8.61806 5.19449 8.35417 5.29171C8.21528 5.34726 8.06611 5.36115 7.90667 5.33337C7.74667 5.3056 7.61111 5.23615 7.5 5.12504C7.25 4.87504 7.14917 4.60754 7.1975 4.32254C7.24639 4.0381 7.43056 3.84032 7.75 3.72921C8.11111 3.60421 8.47583 3.50699 8.84417 3.43754C9.21194 3.3681 9.58333 3.33337 9.95833 3.33337C11.8194 3.33337 13.4028 3.97921 14.7083 5.27087C16.0139 6.56254 16.6667 8.13893 16.6667 10V10.1459L17.4167 9.39587C17.5694 9.2431 17.7639 9.16671 18 9.16671C18.2361 9.16671 18.4306 9.2431 18.5833 9.39587C18.7361 9.54865 18.8125 9.7431 18.8125 9.97921C18.8125 10.2153 18.7361 10.4098 18.5833 10.5625L16.4167 12.7292C16.3333 12.8125 16.2431 12.8714 16.1458 12.9059C16.0486 12.9409 15.9444 12.9584 15.8333 12.9584Z" fill="#172537"/>
-              </g>
-            </svg>
-          </button>
+          <div className="relative group/switch flex items-center">
+            <button className="hover:opacity-70 transition-opacity">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <mask id={`mask_switch_${infoKey}`} style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="0" y="0" width="20" height="20">
+                  <rect width="20" height="20" fill="#D9D9D9"/>
+                </mask>
+                <g mask={`url(#mask_switch_${infoKey})`}>
+                  <path d="M10.0417 16.6667C8.18056 16.6667 6.59722 16.0209 5.29167 14.7292C3.98611 13.4375 3.33333 11.8612 3.33333 10V9.85421L2.58333 10.6042C2.43056 10.757 2.23611 10.8334 2 10.8334C1.76389 10.8334 1.56944 10.757 1.41667 10.6042C1.26389 10.4514 1.1875 10.257 1.1875 10.0209C1.1875 9.78476 1.26389 9.59032 1.41667 9.43754L3.58333 7.27087C3.66667 7.18754 3.75694 7.12837 3.85417 7.09337C3.95139 7.05893 4.05556 7.04171 4.16667 7.04171C4.27778 7.04171 4.38194 7.05893 4.47917 7.09337C4.57639 7.12837 4.66667 7.18754 4.75 7.27087L6.91667 9.43754C7.06944 9.59032 7.14583 9.78476 7.14583 10.0209C7.14583 10.257 7.06944 10.4514 6.91667 10.6042C6.76389 10.757 6.56944 10.8334 6.33333 10.8334C6.09722 10.8334 5.90278 10.757 5.75 10.6042L5 9.85421V10C5 11.3889 5.48972 12.5695 6.46917 13.5417C7.44806 14.5139 8.63889 15 10.0417 15C10.3194 15 10.5903 14.9759 10.8542 14.9275C11.1181 14.8787 11.3819 14.8056 11.6458 14.7084C11.7847 14.6528 11.9342 14.6389 12.0942 14.6667C12.2536 14.6945 12.3889 14.7639 12.5 14.875C12.75 15.125 12.8508 15.3923 12.8025 15.6767C12.7536 15.9617 12.5694 16.1598 12.25 16.2709C11.8889 16.3959 11.5244 16.4931 11.1567 16.5625C10.7883 16.632 10.4167 16.6667 10.0417 16.6667ZM15.8333 12.9584C15.7222 12.9584 15.6181 12.9409 15.5208 12.9059C15.4236 12.8714 15.3333 12.8125 15.25 12.7292L13.0833 10.5625C12.9306 10.4098 12.8542 10.2153 12.8542 9.97921C12.8542 9.7431 12.9306 9.54865 13.0833 9.39587C13.2361 9.2431 13.4306 9.16671 13.6667 9.16671C13.9028 9.16671 14.0972 9.2431 14.25 9.39587L15 10.1459V10C15 8.61115 14.5106 7.4306 13.5317 6.45837C12.5522 5.48615 11.3611 5.00004 9.95833 5.00004C9.68056 5.00004 9.40972 5.02448 9.14583 5.07337C8.88194 5.12171 8.61806 5.19449 8.35417 5.29171C8.21528 5.34726 8.06611 5.36115 7.90667 5.33337C7.74667 5.3056 7.61111 5.23615 7.5 5.12504C7.25 4.87504 7.14917 4.60754 7.1975 4.32254C7.24639 4.0381 7.43056 3.84032 7.75 3.72921C8.11111 3.60421 8.47583 3.50699 8.84417 3.43754C9.21194 3.3681 9.58333 3.33337 9.95833 3.33337C11.8194 3.33337 13.4028 3.97921 14.7083 5.27087C16.0139 6.56254 16.6667 8.13893 16.6667 10V10.1459L17.4167 9.39587C17.5694 9.2431 17.7639 9.16671 18 9.16671C18.2361 9.16671 18.4306 9.2431 18.5833 9.39587C18.7361 9.54865 18.8125 9.7431 18.8125 9.97921C18.8125 10.2153 18.7361 10.4098 18.5833 10.5625L16.4167 12.7292C16.3333 12.8125 16.2431 12.8714 16.1458 12.9059C16.0486 12.9409 15.9444 12.9584 15.8333 12.9584Z" fill="#172537"/>
+                </g>
+              </svg>
+            </button>
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-medium whitespace-nowrap opacity-0 pointer-events-none group-hover/switch:opacity-100 transition-opacity shadow-lg z-50" style={{ backgroundColor: '#293748' }}>
+              Replace
+              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent" style={{ borderTopColor: '#293748' }} />
+            </div>
+          </div>
 
           {/* Add / Selected toggle */}
-          <button
-            onClick={() => onToggleSelect(infoKey)}
-            className="transition-all hover:opacity-80"
-          >
+          <div className="relative group/add flex items-center">
+            <button
+              onClick={() => onToggleSelect(infoKey)}
+              className="transition-all hover:opacity-80"
+            >
             {isSelected ? (
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect width="24" height="24" rx="12" fill="#61B08B"/>
@@ -758,7 +864,12 @@ function ContentCard({
                 <path d="M12 8v8M8 12h8" stroke="#FC6839" strokeWidth="1.5" strokeLinecap="round"/>
               </svg>
             )}
-          </button>
+            </button>
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-medium whitespace-nowrap opacity-0 pointer-events-none group-hover/add:opacity-100 transition-opacity shadow-lg z-50" style={{ backgroundColor: '#293748' }}>
+              {isSelected ? 'Remove' : 'Add'}
+              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent" style={{ borderTopColor: '#293748' }} />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -776,27 +887,34 @@ function ProposalView({
   proposal,
   expandedInfo,
   onToggleInfo,
+  selected,
+  onToggleSelect,
 }: {
   proposal: DemoProposal
   expandedInfo: Record<string, boolean>
   onToggleInfo: (key: string) => void
+  selected: Record<string, boolean>
+  onToggleSelect: (key: string) => void
 }) {
-  const [selected, setSelected] = useState<Record<string, boolean>>({})
-  const toggleSelect = (key: string) => setSelected((prev) => ({ ...prev, [key]: !prev[key] }))
+
+  const selectedCount = Object.values(selected).filter(Boolean).length
 
   return (
     <div className="flex flex-col gap-3 mt-2">
-      {/* Template info */}
-      <div className="bg-white rounded-xl p-3 border border-gray-200">
-        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Template</div>
-        <div className="text-sm font-medium text-gray-900">{proposal.templateLabel}</div>
-      </div>
+      {/* Discovery question (not shown for single asset) */}
+      {proposal.template !== 'single_asset' && (
+        <div className="bg-white rounded-xl p-3 border border-gray-200">
+          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Discovery Question</div>
+          <div className="text-sm text-gray-900">&ldquo;{proposal.discoveryQuestion}&rdquo;</div>
+          <div className="text-xs text-gray-500 mt-2">Each persona below will become an answer branch. Select the content you want under each.</div>
+        </div>
+      )}
 
-      {/* Discovery question */}
-      <div className="bg-white rounded-xl p-3 border border-gray-200">
-        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Discovery Question</div>
-        <div className="text-sm text-gray-900">&ldquo;{proposal.discoveryQuestion}&rdquo;</div>
-      </div>
+      {selectedCount > 0 && (
+        <div className="px-1 text-xs font-medium text-brand-500">
+          {selectedCount} content item{selectedCount !== 1 ? 's' : ''} selected
+        </div>
+      )}
 
       {/* Per-persona content */}
       {proposal.personas.map((persona, pi) => (
@@ -810,6 +928,18 @@ function ProposalView({
             )}
           </div>
 
+          {/* Second discovery question for 2-branch template */}
+          {proposal.template === '2_disco_branch' && proposal.secondDiscoveryQuestions && (
+            <div className="bg-white rounded-xl p-3 border border-gray-200 mb-2">
+              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                Follow-up Question for {persona.name}
+              </div>
+              <div className="text-sm text-gray-900">
+                &ldquo;{proposal.secondDiscoveryQuestions.find((q) => q.persona === persona.name)?.question}&rdquo;
+              </div>
+            </div>
+          )}
+
           {persona.noMatchReason && (
             <div className="mb-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-start gap-2">
               <span className="mt-px">⚠️</span>
@@ -820,22 +950,50 @@ function ProposalView({
             </div>
           )}
 
-          <div className="flex flex-col gap-2">
-            {persona.matches.map((match, mi) => {
-              const infoKey = `${pi}-${mi}`
-              return (
-                <ContentCard
-                  key={mi}
-                  match={match}
-                  infoKey={infoKey}
-                  isInfoOpen={!!expandedInfo[infoKey]}
-                  isSelected={!!selected[infoKey]}
-                  onToggleInfo={onToggleInfo}
-                  onToggleSelect={toggleSelect}
-                />
-              )
-            })}
-          </div>
+          {persona.painPointMatches && persona.painPointMatches.length >= 2 ? (
+            <div className="flex flex-col gap-3">
+              {persona.painPointMatches.map((ppGroup, gi) => (
+                <div key={gi}>
+                  <div className="px-1 mb-1.5">
+                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{ppGroup.painPoint}</div>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {ppGroup.matches.map((match, mi) => {
+                      const infoKey = `${pi}-pp${gi}-${mi}`
+                      return (
+                        <ContentCard
+                          key={mi}
+                          match={match}
+                          infoKey={infoKey}
+                          isInfoOpen={!!expandedInfo[infoKey]}
+                          isSelected={!!selected[infoKey]}
+                          onToggleInfo={onToggleInfo}
+                          onToggleSelect={onToggleSelect}
+                        />
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {persona.matches.map((match, mi) => {
+                const infoKey = `${pi}-${mi}`
+                return (
+                  <ContentCard
+                    key={mi}
+                    match={match}
+                    infoKey={infoKey}
+                    isInfoOpen={!!expandedInfo[infoKey]}
+                    isSelected={!!selected[infoKey]}
+                    onToggleInfo={onToggleInfo}
+                    onToggleSelect={onToggleSelect}
+                  />
+                )
+              })}
+            </div>
+          )}
         </div>
       ))}
     </div>

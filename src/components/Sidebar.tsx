@@ -88,7 +88,7 @@ export default function Sidebar() {
         <div className="w-1 h-10 rounded-full bg-gray-300" />
       </div>
       {/* Interaction types */}
-      <div className="px-9 pt-4 pb-3">
+      <div className="px-9 pt-9 pb-3">
         <h2 className="text-xs font-semibold text-navy-600 uppercase tracking-wider mb-3">
           Interactions
         </h2>
@@ -140,7 +140,7 @@ export default function Sidebar() {
       </div>
 
       {/* Filter + search */}
-      <div className="px-9 pt-14 pb-3 flex items-center gap-2">
+      <div className="px-9 pt-14 pb-6 flex items-center gap-2">
         {/* Filter button */}
         <button className="shrink-0">
           <svg width="107" height="40" viewBox="0 0 107 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -169,7 +169,7 @@ export default function Sidebar() {
       </div>
 
       {/* Demo list */}
-      <div className="flex-1 overflow-y-auto px-9 py-1">
+      <div className="flex-1 overflow-y-auto px-9 pt-1 pb-1 mb-6">
         {demos.map((demo) => (
           <div
             key={demo.id}
