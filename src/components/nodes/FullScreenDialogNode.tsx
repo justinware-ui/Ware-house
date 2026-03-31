@@ -15,7 +15,7 @@ const AddPhotoIcon = ({ className }: { className?: string }) => (
 const AddTooltipIcon = ({ className }: { className?: string }) => (
   <svg width="17" height="16" viewBox="0 0 17 16" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
     <path d="M7.966 12c.234 0 .431-.081.592-.242.161-.161.242-.358.242-.591 0-.234-.08-.431-.242-.592a.806.806 0 0 0-.592-.242.806.806 0 0 0-.592.242.806.806 0 0 0-.242.592c0 .233.08.43.241.591.162.161.359.242.593.242Zm.1-6.867c.31 0 .56.086.75.258.188.173.283.398.283.675 0 .19-.064.381-.191.575a3.64 3.64 0 0 1-.542.609c-.334.289-.578.567-.734.833-.155.267-.233.534-.233.8 0 .156.058.287.175.392a.498.498 0 0 0 .408.159.498.498 0 0 0 .417-.167.76.76 0 0 0 .233-.417c.034-.189.109-.364.226-.525.116-.161.308-.37.575-.625.344-.323.586-.617.725-.884.139-.266.208-.561.208-.883 0-.567-.213-1.031-.641-1.392-.428-.361-.981-.541-1.659-.541-.466 0-.88.089-1.241.266-.362.178-.642.45-.842.817a.583.583 0 0 0-.084.425c.023.138.1.253.234.341a.523.523 0 0 0 .475.084.556.556 0 0 0 .425-.284 1.04 1.04 0 0 1 .442-.383c.172-.089.369-.134.591-.134ZM8 14.666a6.65 6.65 0 0 1-2.584-.525 6.698 6.698 0 0 1-2.125-1.425 6.677 6.677 0 0 1-1.433-2.116A6.521 6.521 0 0 1 1.333 8c0-.922.175-1.789.525-2.6a6.682 6.682 0 0 1 1.434-2.117A6.692 6.692 0 0 1 5.416 1.858 6.649 6.649 0 0 1 8 1.333c.933 0 1.805.175 2.616.525a6.71 6.71 0 0 1 2.117 1.425A6.711 6.711 0 0 1 14.15 5.4c.344.811.516 1.678.516 2.6 0 .922-.172 1.789-.517 2.6a6.711 6.711 0 0 1-1.416 2.116 6.692 6.692 0 0 1-2.117 1.425 6.598 6.598 0 0 1-2.617.525ZM8 13.333c1.489 0 2.75-.52 3.783-1.558C12.816 10.736 13.333 9.478 13.333 8c0-1.478-.517-2.736-1.55-3.776C10.75 3.186 9.489 2.666 8 2.666c-1.456 0-2.709.52-3.759 1.558C3.191 5.264 2.666 6.522 2.666 8c0 1.478.525 2.736 1.575 3.775 1.05 1.039 2.303 1.558 3.759 1.558Z" fill="currentColor"/>
-    <circle cx="14" cy="4" r="2.75" fill="#F7F4F1"/>
+    <circle cx="14" cy="4" r="2.75" fill="#302C28"/>
     <path d="M13.5 4.5v1.334h1V4.5h1.334v-1H14.5V2.167h-1V3.5h-1.333v1H13.5Z" fill="currentColor"/>
   </svg>
 )
@@ -79,8 +79,8 @@ function FormattingToolbar({
   return (
     <div
       data-toolbar
-      className="absolute -top-14 left-1/2 -translate-x-1/2 z-10 flex items-center rounded-full shadow-lg border border-gray-200 px-2 py-1.5 gap-0.5"
-      style={{ backgroundColor: '#F7F4F2' }}
+      className="absolute -top-14 left-1/2 -translate-x-1/2 z-10 flex items-center rounded-full shadow-lg border border-[#3D3834] px-2 py-1.5 gap-0.5"
+      style={{ backgroundColor: '#302C28' }}
     >
       <svg
         ref={grabRef}
@@ -100,10 +100,10 @@ function FormattingToolbar({
               disabled={isDisabled}
               className={`p-1.5 rounded transition-colors flex items-center gap-0.5 ${
                 isDisabled
-                  ? 'text-gray-300 cursor-not-allowed'
+                  ? 'text-[#4A4540] cursor-not-allowed'
                   : activeFormats.has(key)
                     ? 'text-brand-500'
-                    : 'text-gray-600 hover:text-brand-500'
+                    : 'text-[#A8A29E] hover:text-brand-500'
               }`}
             >
               {custom === 'addPhoto' ? (
@@ -123,8 +123,8 @@ function FormattingToolbar({
         )
       })}
 
-      <div className="w-px h-6 bg-gray-200 mx-1 nodrag nopan" />
-      <button className="p-1.5 rounded text-brand-500 hover:bg-brand-50 transition-colors nodrag nopan" onMouseDown={(e) => e.preventDefault()}>
+      <div className="w-px h-6 bg-[#3D3834] mx-1 nodrag nopan" />
+      <button className="p-1.5 rounded text-brand-500 hover:bg-[#3D3834] transition-colors nodrag nopan" onMouseDown={(e) => e.preventDefault()}>
         <Sparkles size={18} />
       </button>
     </div>
@@ -275,7 +275,7 @@ export default function FullScreenDialogNode({ id }: NodeProps) {
 
   return (
     <div
-      className="bg-white border border-gray-200 rounded-2xl px-6 py-5 shadow-sm relative transition-[width] duration-150"
+      className="bg-[#302C28] border border-[#3D3834] rounded-2xl px-6 py-5 shadow-sm relative transition-[width] duration-150"
       style={{ width: tooltipMode ? Math.max(manualWidth ?? cardWidth, 320) : (manualWidth ?? cardWidth) }}
     >
       <span
@@ -302,38 +302,38 @@ export default function FullScreenDialogNode({ id }: NodeProps) {
 
       {/* Close button */}
       <button
-        className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors"
+        className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-[#3D3834] hover:bg-[#4A4540] flex items-center justify-center transition-colors"
         onClick={() => {
           setNodes((nds) => nds.filter((n) => n.id !== id))
           setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id))
         }}
       >
-        <X size={12} className="text-gray-600" />
+        <X size={12} className="text-[#A8A29E]" />
       </button>
 
       {/* Preview button */}
-      <button className="absolute top-2 text-gray-400 hover:text-gray-600" style={{ right: 46 }}>
+      <button className="absolute top-2 text-[#78716C] hover:text-[#A8A29E]" style={{ right: 46 }}>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M12 14.667c.833 0 1.542-.292 2.125-.875.584-.584.875-1.292.875-2.125 0-.834-.291-1.542-.875-2.126A2.893 2.893 0 0 0 12 8.667c-.833 0-1.542.292-2.125.874A2.893 2.893 0 0 0 9 11.667c0 .833.292 1.541.875 2.125A2.893 2.893 0 0 0 12 14.667Zm0-1.2a1.63 1.63 0 0 1-1.275-.525 1.63 1.63 0 0 1-.525-1.275c0-.5.175-.925.525-1.275.35-.35.775-.525 1.275-.525s.925.175 1.275.525c.35.35.525.775.525 1.275s-.175.925-.525 1.275a1.63 1.63 0 0 1-1.275.525Zm0 3.2c-1.544 0-2.956-.408-4.233-1.225a8.455 8.455 0 0 1-2.9-3.309.304.304 0 0 1-.067-.233.89.89 0 0 1 .017-.258.304.304 0 0 1 .067-.234 8.455 8.455 0 0 1 2.9-3.308C9.044 7.075 10.456 6.667 12 6.667s2.955.408 4.233 1.225a8.458 8.458 0 0 1 2.9 3.308c.034.055.056.125.067.234a.89.89 0 0 1-.017.258.304.304 0 0 1-.067.233 8.458 8.458 0 0 1-2.9 3.309c-1.278.817-2.689 1.225-4.233 1.225Zm0-1.334c1.256 0 2.408-.33 3.459-.992a7.2 7.2 0 0 0 2.408-2.674A7.2 7.2 0 0 0 15.459 9c-1.05-.661-2.203-.992-3.459-.992-1.255 0-2.408.33-3.459.991A7.2 7.2 0 0 0 6.133 11.667a7.2 7.2 0 0 0 2.408 2.674c1.05.661 2.204.992 3.459.992Z" fill="currentColor"/>
         </svg>
       </button>
 
       {/* Duplicate button */}
-      <button className="absolute top-2 right-5 text-gray-400 hover:text-gray-600">
+      <button className="absolute top-2 right-5 text-[#78716C] hover:text-[#A8A29E]">
         <svg width="17" height="17" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M6.75 13.5c-.412 0-.766-.147-1.059-.44A1.445 1.445 0 0 1 5.25 12V3c0-.412.147-.766.44-1.06.294-.293.647-.44 1.06-.44h6.75c.412 0 .766.147 1.06.44.293.294.44.648.44 1.06v9c0 .412-.147.766-.44 1.06-.294.293-.648.44-1.06.44H6.75ZM6.75 12h6.75V3H6.75v9ZM3.75 16.5c-.412 0-.766-.147-1.06-.44A1.445 1.445 0 0 1 2.25 15V5.25c0-.212.072-.391.216-.535A.726.726 0 0 1 3 4.5c.212 0 .391.072.535.215a.727.727 0 0 1 .215.535V15h7.5c.212 0 .391.072.535.216a.726.726 0 0 1 .215.534c0 .213-.072.391-.215.534a.726.726 0 0 1-.535.216H3.75Z" fill="currentColor"/>
         </svg>
       </button>
 
       <div className="px-1 pt-4 pb-3 flex items-center gap-1.5">
-        <Monitor size={14} className="text-[#8b5cf6] shrink-0" />
-        <span className="text-xs font-medium text-gray-500">Full screen dialog</span>
+        <Monitor size={14} className="text-[#C78DEC] shrink-0" />
+        <span className="text-xs font-medium text-[#A8A29E]">Full screen dialog</span>
       </div>
 
       {tooltipMode ? (
         <>
           <div className="mb-5 px-1">
-            <p className="text-base font-semibold italic text-gray-800">
+            <p className="text-base font-semibold italic text-[#F5F0EB]">
               Create tooltips for your buttons
             </p>
           </div>
@@ -342,7 +342,7 @@ export default function FullScreenDialogNode({ id }: NodeProps) {
             {buttons.map((btn) => (
               <div key={btn.id}>
                 {btn.text && (
-                  <p className="text-xs text-gray-600 mb-1">
+                  <p className="text-xs text-[#A8A29E] mb-1">
                     Button: {btn.text}
                   </p>
                 )}
@@ -355,11 +355,11 @@ export default function FullScreenDialogNode({ id }: NodeProps) {
                         setDraftTooltips((prev) => ({ ...prev, [btn.id]: e.target.value }))
                       }
                       placeholder="Type your tool-tip here"
-                      className="nodrag w-full text-sm text-gray-800 placeholder:text-brand-300 outline-none bg-transparent pb-2 border-b border-gray-200 focus:border-brand-400 transition-colors"
+                      className="nodrag w-full text-sm text-[#F5F0EB] placeholder:text-brand-300 outline-none bg-transparent pb-2 border-b border-[#3D3834] focus:border-brand-400 transition-colors"
                     />
                   </div>
                   <button
-                    className="text-gray-400 hover:text-gray-600 shrink-0 mt-0.5"
+                    className="text-[#78716C] hover:text-[#A8A29E] shrink-0 mt-0.5"
                     onClick={() =>
                       setDraftTooltips((prev) => {
                         const next = { ...prev }
@@ -377,7 +377,7 @@ export default function FullScreenDialogNode({ id }: NodeProps) {
 
           <div className="flex items-center justify-between mt-5">
             <button
-              className="text-sm font-bold text-gray-800 hover:text-gray-600 transition-colors"
+              className="text-sm font-bold text-[#F5F0EB] hover:text-[#A8A29E] transition-colors"
               onClick={() => setTooltipMode(false)}
             >
               Cancel
@@ -386,7 +386,7 @@ export default function FullScreenDialogNode({ id }: NodeProps) {
               className={`text-sm font-semibold transition-colors ${
                 Object.values(draftTooltips).some((v) => v.trim())
                   ? 'text-brand-500 hover:text-brand-600'
-                  : 'text-gray-300 cursor-not-allowed'
+                  : 'text-[#4A4540] cursor-not-allowed'
               }`}
               disabled={!Object.values(draftTooltips).some((v) => v.trim())}
               onClick={() => {
@@ -407,7 +407,7 @@ export default function FullScreenDialogNode({ id }: NodeProps) {
               value={header}
               onChange={(e) => setHeader(e.target.value)}
               placeholder="Type your header here"
-              className="nodrag w-full text-base font-semibold italic text-gray-800 placeholder:text-gray-800 placeholder:font-semibold placeholder:italic placeholder:opacity-100 focus:placeholder:opacity-60 outline-none bg-transparent"
+              className="nodrag w-full text-base font-semibold italic text-[#F5F0EB] placeholder:text-[#F5F0EB] placeholder:font-semibold placeholder:italic placeholder:opacity-100 focus:placeholder:opacity-60 outline-none bg-transparent"
               data-cta-field
               onFocus={handleFieldFocus}
               onBlur={handleFieldBlur}
@@ -415,13 +415,13 @@ export default function FullScreenDialogNode({ id }: NodeProps) {
           </div>
 
           {/* Message body */}
-          <div className="mb-6 pb-2 border-b border-gray-200 focus-within:border-brand-400 transition-colors" data-answer-content>
+          <div className="mb-6 pb-2 border-b border-[#3D3834] focus-within:border-brand-400 transition-colors" data-answer-content>
             <div
               contentEditable
               suppressContentEditableWarning
               data-cta-field
               data-placeholder="Type your message here"
-              className={`nodrag text-sm text-gray-800 outline-none min-h-[1.5em] ${!message ? 'before:content-[attr(data-placeholder)] before:pointer-events-none before:text-[#FC6839] before:opacity-100 focus:before:opacity-60' : ''}`}
+              className={`nodrag text-sm text-[#F5F0EB] outline-none min-h-[1.5em] ${!message ? 'before:content-[attr(data-placeholder)] before:pointer-events-none before:text-[#FF9356] before:opacity-100 focus:before:opacity-60' : ''}`}
               style={{ wordBreak: 'break-word' }}
               onInput={(e) => {
                 const el = e.target as HTMLDivElement
@@ -437,7 +437,7 @@ export default function FullScreenDialogNode({ id }: NodeProps) {
             {buttons.map((btn) => (
               <div
                 key={btn.id}
-                className="nodrag flex items-start gap-3 relative pb-2 border-b border-gray-200 focus-within:border-brand-400 transition-colors"
+                className="nodrag flex items-start gap-3 relative pb-2 border-b border-[#3D3834] focus-within:border-brand-400 transition-colors"
               >
                 {/* Input */}
                 <div className="flex-1 min-w-0" data-answer-content>
@@ -446,7 +446,7 @@ export default function FullScreenDialogNode({ id }: NodeProps) {
                     value={btn.text}
                     onChange={(e) => updateButtonText(btn.id, e.target.value)}
                     placeholder="Type your button text here"
-                    className="nodrag w-full text-sm text-[#FC6839] placeholder:text-[#FC6839] placeholder:opacity-100 focus:placeholder:opacity-60 outline-none bg-transparent"
+                    className="nodrag w-full text-sm text-[#FF9356] placeholder:text-[#FF9356] placeholder:opacity-100 focus:placeholder:opacity-60 outline-none bg-transparent"
                     data-cta-field
                     onFocus={() => { handleFieldFocus(); setFocusedButtonId(btn.id) }}
                     onBlur={(e) => {
@@ -460,7 +460,7 @@ export default function FullScreenDialogNode({ id }: NodeProps) {
                 <div className="flex items-center gap-2 shrink-0" style={{ marginTop: 6 }}>
                   {tooltips[btn.id]?.trim() && (
                     <div className="relative group/tip">
-                      <CircleHelp size={14} className="text-gray-800 cursor-help" />
+                      <CircleHelp size={14} className="text-[#F5F0EB] cursor-help" />
                       <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1.5 rounded-lg bg-gray-800 text-white text-xs opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity shadow-lg" style={{ width: 'max-content', maxWidth: 320 }}>
                         {tooltips[btn.id]}
                         <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
@@ -469,7 +469,7 @@ export default function FullScreenDialogNode({ id }: NodeProps) {
                   )}
                   {buttons.length >= 2 && (
                     <button
-                      className="text-gray-400 hover:text-gray-600"
+                      className="text-[#78716C] hover:text-[#A8A29E]"
                       onClick={() => removeButton(btn.id)}
                     >
                       <X size={14} />

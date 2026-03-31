@@ -9,7 +9,7 @@ export default function InteractionNode({ data }: NodeProps) {
   const blocks = (data as { blocks: Block[] }).blocks ?? []
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm min-w-[140px]">
+    <div className="bg-[#302C28] border border-[#3D3834] rounded-xl p-4 shadow-sm min-w-[140px]">
       <Handle
         type="target"
         position={Position.Left}

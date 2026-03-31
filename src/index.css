@@ -7,6 +7,6 @@
     @apply h-full m-0;
   }
   body {
-    @apply bg-white text-gray-800 font-sans antialiased;
+    @apply bg-[#1E1B18] text-[#F5F0EB] font-sans antialiased;
   }
 }

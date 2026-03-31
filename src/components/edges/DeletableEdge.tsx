@@ -39,8 +39,8 @@ export default function DeletableEdge({
         requiredExtensions="http://www.w3.org/1999/xhtml"
       >
         <button
-          className="w-[22px] h-[22px] rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors"
-          style={{ backgroundColor: '#f9fafb' }}
+          className="w-[22px] h-[22px] rounded-full flex items-center justify-center cursor-pointer hover:bg-[#3D3834] transition-colors"
+          style={{ backgroundColor: '#1E1B18' }}
           onClick={() => setEdges((eds) => eds.filter((e) => e.id !== id))}
         >
           <X size={12} className="text-brand-500" strokeWidth={3} />

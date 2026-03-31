@@ -13,8 +13,8 @@ import { demos as realDemos } from '../data/demos'
 const thumbnails = [thumbTableHero, thumbContent]
 
 const interactions = [
-  { id: 'fullscreen', label: 'Full Screen Dialog', icon: Monitor, color: '#8b5cf6' },
-  { id: 'cta', label: 'Call to Action', icon: MousePointerClick, color: '#FC6839' },
+  { id: 'fullscreen', label: 'Full Screen Dialog', icon: Monitor, color: '#C78DEC' },
+  { id: 'cta', label: 'Call to Action', icon: MousePointerClick, color: '#FF9356' },
   { id: 'discovery', label: 'Discovery Question', icon: HelpCircle, color: '#22c55e' },
   { id: 'leadcapture', label: 'Lead Capture Form', icon: FileText, color: '#1e40af' },
 ]
@@ -35,7 +35,7 @@ const MAX_WIDTH = 620
 export default function Sidebar() {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>('Demos')
   const [width, setWidth] = useState(420)
-  const [favorites, setFavorites] = useState<Set<number>>(new Set())
+  const [favorites, setFavorites] = useState<Set<string>>(new Set())
   const isDragging = useRef(false)
   const startX = useRef(0)
   const startWidth = useRef(0)
@@ -79,17 +79,17 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="relative border-l border-gray-200 flex flex-col shrink-0 overflow-hidden" style={{ backgroundColor: '#F7F4F2', width }}>
+    <aside className="relative border-l border-[#3D3834] flex flex-col shrink-0 overflow-hidden" style={{ backgroundColor: '#1E1B18', width }}>
       {/* Resize handle */}
       <div
         onMouseDown={onResizeStart}
         className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize z-10 hover:bg-brand-500/20 active:bg-brand-500/30 transition-colors flex items-center justify-center"
       >
-        <div className="w-1 h-10 rounded-full bg-gray-300" />
+        <div className="w-1 h-10 rounded-full bg-[#4A4540]" />
       </div>
       {/* Interaction types */}
       <div className="px-9 pt-9 pb-3">
-        <h2 className="text-xs font-semibold text-navy-600 uppercase tracking-wider mb-3">
+        <h2 className="text-xs font-semibold text-[#A8A29E] uppercase tracking-wider mb-3">
           Interactions
         </h2>
         <div className="grid grid-cols-4 gap-3">
@@ -98,7 +98,7 @@ export default function Sidebar() {
               key={id}
               draggable
               onDragStart={(e) => onDragStart(e, id)}
-              className="relative flex flex-col items-center gap-1.5 p-2 rounded-lg border border-gray-200 bg-white cursor-grab hover:border-brand-300 hover:shadow-sm transition-all group"
+              className="relative flex flex-col items-center gap-1.5 p-2 rounded-lg border border-[#3D3834] bg-[#302C28] cursor-grab hover:border-brand-300 hover:shadow-sm transition-all group"
             >
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="absolute top-1 left-1/2 -translate-x-1/2" style={{ transform: 'translateX(-50%) rotate(90deg)' }}>
                 <path d="M7.5 16.666c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.459.163-.851.49-1.178.326-.326.718-.489 1.177-.489s.851.163 1.177.49c.326.326.49.718.49 1.177s-.164.851-.49 1.177c-.326.327-.718.49-1.177.49Zm5 0c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.459.164-.851.49-1.178.326-.326.718-.489 1.177-.489s.851.163 1.177.49c.327.326.49.718.49 1.177s-.163.851-.49 1.177c-.326.327-.718.49-1.177.49ZM7.5 11.666c-.459 0-.851-.163-1.177-.49a1.604 1.604 0 0 1-.49-1.177c0-.458.163-.851.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.326.326.49.718.49 1.177 0 .459-.164.851-.49 1.178-.326.326-.718.489-1.177.489Zm5 0c-.459 0-.851-.163-1.177-.49a1.604 1.604 0 0 1-.49-1.177c0-.458.164-.851.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.327.326.49.718.49 1.177 0 .459-.163.851-.49 1.178-.326.326-.718.489-1.177.489ZM7.5 6.666c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.458.163-.85.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.326.327.49.718.49 1.177 0 .459-.164.851-.49 1.178-.326.326-.718.489-1.177.489Zm5 0c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.458.164-.85.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.327.327.49.718.49 1.177 0 .459-.163.851-.49 1.178-.326.326-.718.489-1.177.489Z" fill="#8D8A87"/>
@@ -106,7 +106,7 @@ export default function Sidebar() {
               <div className="w-full aspect-[4/3] flex items-center justify-center">
                 <Icon size={18} style={{ color, marginTop: 15 }} />
               </div>
-              <span className="text-[10px] text-gray-600 text-center leading-tight font-medium">
+              <span className="text-[10px] text-[#A8A29E] text-center leading-tight font-medium">
                 {label}
               </span>
             </div>
@@ -115,7 +115,7 @@ export default function Sidebar() {
       </div>
 
       {/* Tabs */}
-      <div className="px-9 pt-14 flex items-center gap-6" style={{ borderBottom: '1px solid #D6D1CB' }}>
+      <div className="px-9 pt-14 flex items-center gap-6" style={{ borderBottom: '1px solid #3D3834' }}>
         {/* Sparkle icon */}
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 -mr-3 mb-2" style={{ transform: 'translate(8px, -8px)' }}>
           <path d="M9.47102 6.3581C9.50322 6.1922 9.7512 6.1922 9.7834 6.3581L10.1404 8.1972C10.597 10.5498 12.5171 12.3903 14.9715 12.828L16.8902 13.1701C17.0633 13.201 17.0633 13.4387 16.8902 13.4696L14.9715 13.8117C12.5171 14.2494 10.597 16.0899 10.1404 18.4424L9.7834 20.2816C9.7512 20.4475 9.50322 20.4475 9.47102 20.2816L9.11404 18.4424C8.65742 16.0899 6.73727 14.2494 4.28294 13.8117L2.36419 13.4696C2.1911 13.4387 2.1911 13.201 2.36419 13.1701L4.28294 12.828C6.73728 12.3903 8.65742 10.5498 9.11404 8.1972L9.47102 6.3581Z" fill="#293748"/>
@@ -128,7 +128,7 @@ export default function Sidebar() {
             onClick={() => setActiveTab(tab)}
             className="relative pb-2 transition-colors text-sm"
             style={{
-              color: activeTab === tab ? '#172537' : '#172537',
+              color: activeTab === tab ? '#F5F0EB' : '#F5F0EB',
               opacity: activeTab === tab ? 1 : 0.5,
               borderBottom: activeTab === tab ? '2px solid #EC682B' : '2px solid transparent',
               marginBottom: -1,
@@ -156,14 +156,14 @@ export default function Sidebar() {
         </button>
 
         {/* Search field */}
-        <div className="flex-1 min-w-0 flex items-center gap-2 h-10 px-4 bg-white rounded-full" style={{ border: '1px solid #D0CBC6' }}>
+        <div className="flex-1 min-w-0 flex items-center gap-2 h-10 px-4 bg-[#2A2622] rounded-full" style={{ border: '1px solid #4A4540' }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
             <path d="M12.6 13.5333L8.86667 9.8C8.53333 10.0667 8.15 10.2778 7.71667 10.4333C7.28333 10.5889 6.82222 10.6667 6.33333 10.6667C5.12222 10.6667 4.09733 10.2473 3.25867 9.4087C2.41956 8.5696 2 7.5444 2 6.3333C2 5.1222 2.41956 4.0971 3.25867 3.258C4.09733 2.4193 5.12222 2 6.33333 2C7.54444 2 8.56956 2.4193 9.40867 3.258C10.2473 4.0971 10.6667 5.1222 10.6667 6.3333C10.6667 6.8222 10.5889 7.2833 10.4333 7.7167C10.2778 8.15 10.0667 8.5333 9.8 8.8667L13.55 12.6167C13.6722 12.7389 13.7333 12.8889 13.7333 13.0667C13.7333 13.2444 13.6667 13.4 13.5333 13.5333C13.4111 13.6556 13.2556 13.7167 13.0667 13.7167C12.8778 13.7167 12.7222 13.6556 12.6 13.5333ZM6.33333 9.3333C7.16667 9.3333 7.87511 9.0418 8.45867 8.4587C9.04178 7.8751 9.33333 7.1667 9.33333 6.3333C9.33333 5.5 9.04178 4.7916 8.45867 4.208C7.87511 3.6249 7.16667 3.3333 6.33333 3.3333C5.5 3.3333 4.79156 3.6249 4.208 4.208C3.62489 4.7916 3.33333 5.5 3.33333 6.3333C3.33333 7.1667 3.62489 7.8751 4.208 8.4587C4.79156 9.0418 5.5 9.3333 6.33333 9.3333Z" fill="#172537"/>
           </svg>
           <input
             type="text"
             placeholder="Search"
-            className="text-sm outline-none bg-transparent flex-1 min-w-0 text-gray-700 placeholder:text-gray-400"
+            className="text-sm outline-none bg-transparent flex-1 min-w-0 text-[#F5F0EB] placeholder:text-[#78716C]"
           />
         </div>
       </div>
@@ -178,7 +178,7 @@ export default function Sidebar() {
               const cardThumb = activeTab === 'Dynamic Tours' ? thumbDynamicTour : demo.thumb
               onDragStart(e, `card-${activeTab.toLowerCase().replace(/\s+/g, '-')}`, { title: demo.title, creator: demo.creator, thumb: cardThumb })
             }}
-            className="flex items-center gap-3 px-3 py-3 rounded-xl border border-gray-200 bg-white hover:border-brand-300 hover:shadow-sm transition-all cursor-grab mb-2"
+            className="flex items-center gap-3 px-3 py-3 rounded-xl border border-[#3D3834] bg-[#302C28] hover:border-brand-300 hover:shadow-sm transition-all cursor-grab mb-2"
           >
             {/* Drag handle */}
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
@@ -194,9 +194,9 @@ export default function Sidebar() {
 
             {/* Info */}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-900 truncate">{demo.title}</p>
+              <p className="text-sm font-semibold text-[#F5F0EB] truncate">{demo.title}</p>
               <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-xs text-gray-500">{demo.creator}</span>
+                <span className="text-xs text-[#A8A29E]">{demo.creator}</span>
                 <button className="text-xs text-brand-500 font-semibold hover:text-brand-600">
                   Show more
                 </button>
