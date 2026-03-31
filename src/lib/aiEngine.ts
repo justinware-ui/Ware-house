@@ -49,14 +49,25 @@ function isExecutiveTitle(persona: string): boolean {
   return EXEC_KEYWORDS.some((kw) => lower.includes(kw))
 }
 
+const STOP_WORDS = new Set([
+  'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had',
+  'her', 'was', 'one', 'our', 'out', 'has', 'have', 'been', 'some', 'them',
+  'than', 'its', 'over', 'such', 'that', 'this', 'with', 'will', 'each',
+  'from', 'they', 'been', 'said', 'into', 'what', 'when', 'how', 'who',
+  'which', 'their', 'there', 'where', 'about', 'would', 'these', 'other',
+  'your', 'just', 'also', 'more', 'very', 'most', 'make', 'like', 'does',
+  'demo', 'tour', 'video', 'overview', 'introduction', 'intro',
+])
+
 function fuzzyMatch(query: string, target: string): number {
   const qWords = query.toLowerCase().split(/\s+/)
   const tWords = target.toLowerCase().split(/\s+/)
   let directHits = 0
   let fuzzyHits = 0
   for (const qw of qWords) {
-    if (qw.length < 3) continue
+    if (qw.length < 3 || STOP_WORDS.has(qw)) continue
     for (const tw of tWords) {
+      if (STOP_WORDS.has(tw)) continue
       if (tw === qw) { directHits++; break }
       if (tw.includes(qw) || qw.includes(tw)) { fuzzyHits++; break }
     }
@@ -72,11 +83,10 @@ function deterministicEngagement(title: string): number {
 
 function computeConfidence(relevanceScore: number, engagementPercentile: number): ConfidenceLevel {
   const highRelevance = relevanceScore >= 2
-  const mediumRelevance = relevanceScore >= 1
   const highEngagement = engagementPercentile >= 50
 
   if (highRelevance && highEngagement) return 'high'
-  if ((highRelevance && !highEngagement) || (mediumRelevance && highEngagement)) return 'medium'
+  if (highRelevance && !highEngagement) return 'medium'
   return 'low'
 }
 
@@ -119,7 +129,7 @@ function scoreAndRank(
     const engagementPercentile = deterministicEngagement(demo.title)
     const confidence = computeConfidence(relevanceScore, engagementPercentile)
 
-    const searchWords = searchTerms.toLowerCase().split(/\s+/).filter((w) => w.length >= 3)
+    const searchWords = searchTerms.toLowerCase().split(/\s+/).filter((w) => w.length >= 3 && !STOP_WORDS.has(w))
     const titleLower = demo.title.toLowerCase()
     const matchedTerms = searchWords.filter((w) => titleLower.includes(w))
 
@@ -148,21 +158,7 @@ function scoreAndRank(
     return b.engagementPercentile - a.engagementPercentile
   })
 
-  const results = scored.slice(offset, offset + count)
-
-  results.forEach((r, i) => {
-    if (i === 0 && r.relevanceScore > 0) {
-      r.confidence = 'high'
-    } else if (i < Math.ceil(count / 2) && r.relevanceScore > 0) {
-      r.confidence = r.engagementPercentile >= 50 ? 'high' : 'medium'
-    } else if (r.relevanceScore > 0) {
-      r.confidence = r.engagementPercentile >= 60 ? 'medium' : 'low'
-    } else {
-      r.confidence = r.engagementPercentile >= 70 ? 'medium' : 'low'
-    }
-  })
-
-  return results
+  return scored.slice(offset, offset + count)
 }
 
 export function matchContent(

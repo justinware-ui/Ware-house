@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState, useEffect } from 'react'
 import AgenticChat, { type SelectedContent } from './AgenticChat'
-import type { DemoProposal } from '../lib/aiEngine'
+import type { DemoProposal, ContentMatch } from '../lib/aiEngine'
 import {
   ReactFlow,
   Background,
@@ -13,6 +13,7 @@ import {
   type OnConnect,
   BackgroundVariant,
   useReactFlow,
+  useUpdateNodeInternals,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import StartNode from './nodes/StartNode'
@@ -243,10 +244,13 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
   const { screenToFlowPosition } = useReactFlow()
+  const updateNodeInternals = useUpdateNodeInternals()
   const [chatOpen, setChatOpen] = useState(false)
   const [panelHeight, setPanelHeight] = useState(600)
   const [helperVisible, setHelperVisible] = useState(true)
   const [hasChatStarted, setHasChatStarted] = useState(false)
+  const [removedDemoIds, setRemovedDemoIds] = useState<string[]>([])
+  const chatNodeIdsRef = useRef<Set<string>>(new Set())
   const panelResizing = useRef(false)
   const panelResizeStart = useRef({ y: 0, h: 0 })
   const prevNodeCount = useRef(0)
@@ -265,7 +269,21 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
     prevNodeCount.current = nodes.length
   }, [nodes.length, onContentChange])
 
+  useEffect(() => {
+    const currentChatIds = new Set(
+      nodes.filter((n) => n.id.startsWith('chat-')).map((n) => n.id.replace('chat-', ''))
+    )
+    const prevIds = chatNodeIdsRef.current
+    const removed = [...prevIds].filter((id) => !currentChatIds.has(id))
+    if (removed.length > 0) {
+      setRemovedDemoIds((prev) => [...prev, ...removed])
+    }
+    chatNodeIdsRef.current = currentChatIds
+  }, [nodes])
+
   const handleFirstSend = useCallback((text?: string) => {
+    setHelperVisible(false)
+
     const headingEl = headingRef.current
     const chatWrapEl = chatWrapRef.current
     const parentEl = headingEl?.parentElement
@@ -297,7 +315,6 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
       inputEl.style.transform = `translateY(${inputDeltaY}px)`
     }
 
-    setHelperVisible(false)
     if (text) {
       setGhostText(text)
       setTimeout(() => setGhostText(null), 700)
@@ -392,8 +409,14 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
     const newEdges: Edge[] = []
     const COL_GAP = 400
     const ROW_GAP = 240
-    const startX = 200
-    const startY = 150
+
+    const wrapper = reactFlowWrapper.current
+    const wrapperRect = wrapper?.getBoundingClientRect()
+    const screenW = wrapperRect?.width ?? window.innerWidth
+    const screenH = wrapperRect?.height ?? window.innerHeight
+    const centerScreen = screenToFlowPosition({ x: screenW / 2, y: screenH / 2 })
+    const startX = centerScreen.x - 200
+    const startY = centerScreen.y - 200
 
     const uniquePersonas = [...new Set(selectedContent.map((s) => s.persona))]
     const personaSelections = uniquePersonas.map((name) => ({
@@ -567,7 +590,64 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
     console.log('[FlowCanvas] placing on canvas', { effectiveTemplate, nodesCount: newNodes.length, edgesCount: newEdges.length, nodes: newNodes.map(n => ({ id: n.id, type: n.type, data: n.data })) })
     setNodes((nds) => [...nds, ...newNodes])
     setEdges((eds) => [...eds, ...newEdges])
-  }, [setNodes, setEdges])
+  }, [setNodes, setEdges, screenToFlowPosition])
+
+  const handleToggleContent = useCallback((match: ContentMatch, selected: boolean) => {
+    const demoId = match.demo.id
+    const cardNodeId = `chat-${demoId}`
+
+    if (selected) {
+      const ctaNode = nodes.find((n) => n.type === 'ctaNode')
+      const demoCards = nodes.filter((n) => n.type === 'demoCardNode')
+
+      const newNode: Node = {
+        id: cardNodeId,
+        type: 'demoCardNode',
+        position: ctaNode
+          ? { x: ctaNode.position.x + 400, y: ctaNode.position.y + demoCards.length * 180 }
+          : { x: (demoCards[demoCards.length - 1]?.position.x ?? 400), y: (demoCards[demoCards.length - 1]?.position.y ?? 0) + 180 },
+        data: { title: match.demo.title, creator: match.demo.creator },
+      }
+
+      if (ctaNode) {
+        const currentAnswers: string[] = (ctaNode.data as { answers?: string[] }).answers ?? []
+        const answerLabel = match.demo.title.length > 45
+          ? match.demo.title.slice(0, 42) + '...'
+          : match.demo.title
+        const newAnswerIndex = currentAnswers.length
+
+        setNodes((nds) => [
+          ...nds.map((n) =>
+            n.id === ctaNode.id
+              ? { ...n, data: { ...n.data, answers: [...currentAnswers, answerLabel] } }
+              : n
+          ),
+          newNode,
+        ])
+
+        setTimeout(() => {
+          updateNodeInternals(ctaNode.id)
+          setTimeout(() => {
+            setEdges((eds) => [
+              ...eds,
+              {
+                id: `e-${ctaNode.id}-${cardNodeId}`,
+                source: ctaNode.id,
+                sourceHandle: `answer-${newAnswerIndex}`,
+                target: cardNodeId,
+                type: 'deletable',
+              },
+            ])
+          }, 300)
+        }, 400)
+      } else {
+        setNodes((nds) => [...nds, newNode])
+      }
+    } else {
+      setNodes((nds) => nds.filter((n) => n.id !== cardNodeId))
+      setEdges((eds) => eds.filter((e) => e.source !== cardNodeId && e.target !== cardNodeId))
+    }
+  }, [setNodes, setEdges, nodes])
 
   return (
     <div ref={reactFlowWrapper} className="flex-1 h-full relative">
@@ -680,7 +760,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
 
         {/* Chat component — always mounted, mode changes */}
         <div ref={chatWrapRef} className={showWelcome ? 'w-full pointer-events-auto' : 'flex-1 overflow-hidden'} style={showWelcome ? { maxWidth: 640, margin: '0 auto' } : undefined}>
-          <AgenticChat mode={showWelcome ? 'full' : 'panel'} onFirstSend={handleFirstSend} onCreateDemo={handleCreateDemo} inputBottom={inputBottom} />
+          <AgenticChat mode={showWelcome ? 'full' : 'panel'} onFirstSend={handleFirstSend} onCreateDemo={handleCreateDemo} onToggleContent={handleToggleContent} removedDemoIds={removedDemoIds} inputBottom={inputBottom} />
         </div>
 
         {/* Welcome helper text — fades out after first send */}
@@ -689,7 +769,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
             className="text-xs text-gray-900 mt-4 text-center pointer-events-auto"
             style={{
               opacity: helperVisible ? 1 : 0,
-              transition: 'opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+              transition: 'opacity 0.1s ease-out',
             }}
           >
             Tell Consensus AI what you want to build or drag content and interactions on to the stage.

@@ -35,7 +35,7 @@ const MAX_WIDTH = 620
 export default function Sidebar() {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>('Demos')
   const [width, setWidth] = useState(420)
-  const [favorites, setFavorites] = useState<Set<number>>(new Set())
+  const [favorites, setFavorites] = useState<Set<string>>(new Set())
   const isDragging = useRef(false)
   const startX = useRef(0)
   const startWidth = useRef(0)
@@ -115,7 +115,7 @@ export default function Sidebar() {
       </div>
 
       {/* Tabs */}
-      <div className="px-9 pt-14 flex items-center gap-6" style={{ borderBottom: '1px solid #D6D1CB' }}>
+      <div className="pt-14 flex items-center gap-6" style={{ borderBottom: '1px solid #D6D1CB', paddingLeft: 30, paddingRight: 36 }}>
         {/* Sparkle icon */}
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 -mr-3 mb-2" style={{ transform: 'translate(8px, -8px)' }}>
           <path d="M9.47102 6.3581C9.50322 6.1922 9.7512 6.1922 9.7834 6.3581L10.1404 8.1972C10.597 10.5498 12.5171 12.3903 14.9715 12.828L16.8902 13.1701C17.0633 13.201 17.0633 13.4387 16.8902 13.4696L14.9715 13.8117C12.5171 14.2494 10.597 16.0899 10.1404 18.4424L9.7834 20.2816C9.7512 20.4475 9.50322 20.4475 9.47102 20.2816L9.11404 18.4424C8.65742 16.0899 6.73727 14.2494 4.28294 13.8117L2.36419 13.4696C2.1911 13.4387 2.1911 13.201 2.36419 13.1701L4.28294 12.828C6.73728 12.3903 8.65742 10.5498 9.11404 8.1972L9.47102 6.3581Z" fill="#293748"/>

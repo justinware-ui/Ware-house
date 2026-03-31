@@ -57,10 +57,12 @@ interface Props {
   mode: 'full' | 'panel'
   onFirstSend?: (text?: string) => void
   onCreateDemo?: (proposal: DemoProposal, selectedContent: SelectedContent[]) => void
+  onToggleContent?: (demo: import('../lib/aiEngine').ContentMatch, selected: boolean) => void
+  removedDemoIds?: string[]
   inputBottom?: boolean
 }
 
-export default function AgenticChat({ mode, onFirstSend, onCreateDemo, inputBottom }: Props) {
+export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleContent, removedDemoIds, inputBottom }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const hasSent = messages.some((m) => m.role === 'user')
@@ -74,6 +76,38 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, inputBott
   const [showFeedbackInput, setShowFeedbackInput] = useState(false)
   const [latestProposal, setLatestProposal] = useState<DemoProposal | null>(null)
   const [globalSelected, setGlobalSelected] = useState<Record<string, boolean>>({})
+  const prevRemovedRef = useRef<string[]>([])
+
+  useEffect(() => {
+    if (!removedDemoIds || removedDemoIds.length === 0 || !latestProposal) return
+    if (JSON.stringify(removedDemoIds) === JSON.stringify(prevRemovedRef.current)) return
+    prevRemovedRef.current = removedDemoIds
+
+    const removedSet = new Set(removedDemoIds)
+    setGlobalSelected((prev) => {
+      const next = { ...prev }
+      latestProposal.personas.forEach((persona, pi) => {
+        const hasPP = persona.painPointMatches && persona.painPointMatches.length >= 2
+        if (hasPP && persona.painPointMatches) {
+          persona.painPointMatches.forEach((ppGroup, gi) => {
+            ppGroup.matches.forEach((m, mi) => {
+              if (removedSet.has(m.demo.id)) {
+                next[`${pi}-pp${gi}-${mi}`] = false
+              }
+            })
+          })
+        } else {
+          persona.matches.forEach((m, mi) => {
+            if (removedSet.has(m.demo.id)) {
+              next[`${pi}-${mi}`] = false
+            }
+          })
+        }
+      })
+      return next
+    })
+  }, [removedDemoIds, latestProposal])
+
   const scrollRef = useRef<HTMLDivElement>(null)
   const scrollWrapRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -249,19 +283,52 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, inputBott
         setTimeout(() => {
           const proposal = buildProposal(finalPersonas, contentOffset)
           setLatestProposal(proposal)
-          setGlobalSelected({})
           updateMessage(msgId, { thinking: false, toolGroups: updated })
+
+          const autoSelected: Record<string, boolean> = {}
+          const autoItems: SelectedContent[] = []
+
+          proposal.personas.forEach((persona, pi) => {
+            const hasPPMatches = persona.painPointMatches && persona.painPointMatches.length >= 2
+            if (hasPPMatches && persona.painPointMatches) {
+              persona.painPointMatches.forEach((ppGroup, gi) => {
+                const top = ppGroup.matches.slice(0, 2)
+                top.forEach((m, mi) => {
+                  const key = `${pi}-pp${gi}-${mi}`
+                  autoSelected[key] = true
+                  autoItems.push({ persona: persona.name, demo: m })
+                })
+              })
+            } else {
+              const top = persona.matches.slice(0, 2)
+              top.forEach((m, mi) => {
+                const key = `${pi}-${mi}`
+                autoSelected[key] = true
+                autoItems.push({ persona: persona.name, demo: m })
+              })
+            }
+          })
+
+          setGlobalSelected(autoSelected)
 
           addMessage({
             role: 'ai',
-            content: `Here's a discovery question and content options I found for each persona. Select the content you'd like to include — you can pick as many as you want:`,
+            content: `Here's what I put together — I selected the best content for each persona and placed it on the canvas as a connected flow. You can swap or adjust anything:`,
             proposal,
           })
-          addMessage({
-            role: 'ai',
-            content: "Once you've selected the content you want, just say **\"create it\"** and I'll build the demo on the canvas with a discovery question connected to your selections. If you need more options, just ask!",
-          })
-          setStep('post_proposal')
+
+          onCreateDemo?.(proposal, autoItems)
+
+          setTimeout(() => {
+            addMessage({
+              role: 'ai',
+              content: "Should I look for different content or create a different flow?",
+              showVote: true,
+            })
+            setStep('post_proposal')
+            scrollToBottom()
+          }, 500)
+
           scrollToBottom()
         }, 800)
       }
@@ -271,81 +338,12 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, inputBott
   const handleMoreContentRequest = (text: string) => {
     const lower = text.toLowerCase()
     const wantsMore = /more|other|additional|alternative|different|better|higher|another|else|options/i.test(lower)
-    const isHappy = /looks good|perfect|great|love it|awesome|let's go|done|satisfied|that works|i'm good|ship it/i.test(lower)
-    const wantsBuild = /create|build|set up|generate|make it|do it|place it|put it|assemble|go ahead/i.test(lower)
-
-    console.log('[AgenticChat] handleMoreContentRequest', {
-      step, wantsBuild, isHappy, wantsMore,
-      hasProposal: !!latestProposal,
-      globalSelected: { ...globalSelected },
-      activeKeys: Object.keys(globalSelected).filter(k => globalSelected[k]),
-    })
-
-    if (wantsBuild && latestProposal) {
-      const selectedItems: SelectedContent[] = []
-
-      latestProposal.personas.forEach((persona, pi) => {
-        const hasPPMatches = persona.painPointMatches && persona.painPointMatches.length >= 2
-        console.log(`[AgenticChat] persona ${pi}: "${persona.name}", hasPPMatches: ${hasPPMatches}, matches: ${persona.matches.length}`)
-
-        if (hasPPMatches && persona.painPointMatches) {
-          persona.painPointMatches.forEach((ppGroup, gi) => {
-            ppGroup.matches.forEach((match, mi) => {
-              const key = `${pi}-pp${gi}-${mi}`
-              const isSelected = !!globalSelected[key]
-              console.log(`  ppKey: "${key}" selected: ${isSelected}`)
-              if (isSelected) {
-                selectedItems.push({ persona: persona.name, demo: match })
-              }
-            })
-          })
-        } else {
-          persona.matches.forEach((match, mi) => {
-            const key = `${pi}-${mi}`
-            const isSelected = !!globalSelected[key]
-            console.log(`  key: "${key}" selected: ${isSelected}`)
-            if (isSelected) {
-              selectedItems.push({ persona: persona.name, demo: match })
-            }
-          })
-        }
-      })
-
-      console.log('[AgenticChat] selectedItems after collection:', selectedItems.length)
-
-      if (selectedItems.length === 0) {
-        console.log('[AgenticChat] FALLBACK: no selections found, using first match per persona')
-        latestProposal.personas.forEach((persona) => {
-          if (persona.matches.length > 0) {
-            selectedItems.push({ persona: persona.name, demo: persona.matches[0] })
-          }
-        })
-      }
-
-      addMessage({
-        role: 'ai',
-        content: "Building your demo on the canvas now! I'm placing the discovery question, answer branches, and content — all connected and ready to go.",
-      })
-
-      console.log('[AgenticChat] creating demo', { selectedItems: selectedItems.length, items: selectedItems.map(s => ({ persona: s.persona, title: s.demo.demo.title })) })
-      onCreateDemo?.(latestProposal, selectedItems)
-
-      setTimeout(() => {
-        addMessage({
-          role: 'ai',
-          content: "Your demo is live on the canvas! Feel free to edit any text, swap content, or rearrange elements. How would you rate the content suggestions?",
-          showVote: true,
-        })
-        setStep('survey')
-        scrollToBottom()
-      }, 500)
-      return
-    }
+    const isHappy = /looks good|perfect|great|love it|awesome|let's go|done|satisfied|that works|i'm good|ship it|create|build/i.test(lower)
 
     if (isHappy) {
       addMessage({
         role: 'ai',
-        content: "Glad you like it! Would you like me to create the demo on the canvas? Just say **\"create it\"** and I'll set everything up.",
+        content: "Glad you like it! The demo is already on the canvas — feel free to edit, swap content, or rearrange elements anytime.",
       })
       return
     }
@@ -353,7 +351,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, inputBott
     if (!wantsMore) {
       addMessage({
         role: 'ai',
-        content: "I can help with that! Would you like to see more content options, or are you happy with the current suggestions? Just let me know.",
+        content: "I can help with that! Would you like to see more content options, or are you happy with what's on the canvas? Just let me know.",
       })
       return
     }
@@ -373,11 +371,39 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, inputBott
         )
 
         setMessages((prev) => prev.filter((m) => !m.thinking))
+        setLatestProposal(proposal)
+
+        const autoSelected: Record<string, boolean> = {}
+        const autoItems: SelectedContent[] = []
+
+        proposal.personas.forEach((persona, pi) => {
+          const hasPPMatches = persona.painPointMatches && persona.painPointMatches.length >= 2
+          if (hasPPMatches && persona.painPointMatches) {
+            persona.painPointMatches.forEach((ppGroup, gi) => {
+              const top = ppGroup.matches.slice(0, 2)
+              top.forEach((m, mi) => {
+                const key = `${pi}-pp${gi}-${mi}`
+                autoSelected[key] = true
+                autoItems.push({ persona: persona.name, demo: m })
+              })
+            })
+          } else {
+            const top = persona.matches.slice(0, 2)
+            top.forEach((m, mi) => {
+              const key = `${pi}-${mi}`
+              autoSelected[key] = true
+              autoItems.push({ persona: persona.name, demo: m })
+            })
+          }
+        })
+
+        setGlobalSelected(autoSelected)
+        onCreateDemo?.(proposal, autoItems)
 
         if (allLow) {
           addMessage({
             role: 'ai',
-            content: "I found a few more options, but the relevance is lower than the previous set. Here's what I have:",
+            content: "I found a few more options but the relevance is lower. I've updated the canvas with the best of what's available:",
             proposal,
             showVote: true,
           })
@@ -388,7 +414,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, inputBott
         } else {
           addMessage({
             role: 'ai',
-            content: "Here are some additional content options I found:",
+            content: "Here are some additional options — I've updated the canvas with the top picks:",
             proposal,
             showVote: true,
           })
@@ -454,7 +480,24 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, inputBott
                   onToggleInfo={toggleInfo}
                   onVote={handleVote}
                   selected={globalSelected}
-                  onToggleSelect={(key) => { console.log('[AgenticChat] toggle select:', key); setGlobalSelected((prev) => ({ ...prev, [key]: !prev[key] })) }}
+                  onToggleSelect={(key) => {
+                    const nowSelected = !globalSelected[key]
+                    setGlobalSelected((prev) => ({ ...prev, [key]: nowSelected }))
+
+                    if (latestProposal && onToggleContent) {
+                      const ppMatch = key.match(/^(\d+)-pp(\d+)-(\d+)$/)
+                      const flatMatch = key.match(/^(\d+)-(\d+)$/)
+                      let match: import('../lib/aiEngine').ContentMatch | undefined
+                      if (ppMatch) {
+                        const [, pi, gi, mi] = ppMatch.map(Number)
+                        match = latestProposal.personas[pi]?.painPointMatches?.[gi]?.matches[mi]
+                      } else if (flatMatch) {
+                        const [, pi, mi] = flatMatch.map(Number)
+                        match = latestProposal.personas[pi]?.matches[mi]
+                      }
+                      if (match) onToggleContent(match, nowSelected)
+                    }
+                  }}
                 />
               )}
             </div>

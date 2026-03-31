@@ -142,6 +142,21 @@ export default function CtaNode({ id, data }: NodeProps) {
     }
     return [{ id: 0, value: '' }]
   })
+
+  const dataAnswersLen = typedData.answers?.length ?? 0
+  useEffect(() => {
+    if (typedData.answers && typedData.answers.length > answers.length) {
+      const newEntries = typedData.answers.slice(answers.length)
+      setAnswers((prev) => {
+        const nextId = prev.length
+        return [
+          ...prev,
+          ...newEntries.map((v, i) => ({ id: nextId + i, value: v })),
+        ]
+      })
+    }
+  }, [dataAnswersLen])
+
   const [showToolbar, setShowToolbar] = useState(false)
   const [activeFormats, setActiveFormats] = useState<Set<FormatOption>>(new Set())
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
