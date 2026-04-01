@@ -551,6 +551,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
               ) : (
                 <AiMessage
                   msg={msg}
+                  pulseGlow={idx === 0 && !messages.some((m) => m.role === 'user')}
                   expandedTools={expandedTools}
                   expandedInfo={expandedInfo}
                   onToggleTool={toggleToolGroup}
@@ -747,6 +748,7 @@ function UserMessage({ msg }: { msg: ChatMessage }) {
 
 function AiMessage({
   msg,
+  pulseGlow,
   expandedTools,
   expandedInfo,
   onToggleTool,
@@ -756,6 +758,7 @@ function AiMessage({
   onToggleSelect,
 }: {
   msg: ChatMessage
+  pulseGlow?: boolean
   expandedTools: Record<string, boolean>
   expandedInfo: Record<string, boolean>
   onToggleTool: (key: string) => void
@@ -767,7 +770,7 @@ function AiMessage({
   return (
     <div className="flex gap-3 items-start">
       {/* AI avatar */}
-      <div className="shrink-0" style={{ animation: 'pulse-glow 3s ease-in-out infinite' }}>
+      <div className="shrink-0" style={{ marginTop: -4, ...(pulseGlow ? { animation: 'pulse-glow 3s ease-in-out infinite' } : {}) }}>
         <svg width="28" height="28" viewBox="14 8 62 62" fill="none" xmlns="http://www.w3.org/2000/svg">
           <rect x="19.0464" y="12.4535" width="50.4" height="50.4" rx="25.2" fill="url(#paint_ai_msg)" />
           <path d="M43.0806 28.0993C43.1186 27.8951 43.4112 27.8951 43.4492 28.0993L43.8704 30.3629C44.4091 33.2584 46.6746 35.5236 49.5704 36.0623L51.8342 36.4835C52.0384 36.5215 52.0384 36.814 51.8342 36.852L49.5704 37.2731C46.6746 37.8118 44.4091 40.0771 43.8704 42.9726L43.4492 45.2362C43.4112 45.4404 43.1186 45.4404 43.0806 45.2362L42.6595 42.9726C42.1207 40.0771 39.8552 37.8118 36.9595 37.2731L34.6956 36.852C34.4914 36.814 34.4914 36.5215 34.6956 36.4835L36.9595 36.0623C39.8552 35.5236 42.1207 33.2584 42.6595 30.3629L43.0806 28.0993Z" fill="white"/>

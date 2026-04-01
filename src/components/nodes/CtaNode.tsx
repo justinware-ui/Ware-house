@@ -386,6 +386,16 @@ export default function CtaNode({ id, data }: NodeProps) {
       setShowToolbar(false)
       return
     }
+    if (fmt === 'bold' || fmt === 'italic' || fmt === 'underline') {
+      document.execCommand(fmt)
+      setActiveFormats((prev) => {
+        const next = new Set(prev)
+        if (document.queryCommandState(fmt)) next.add(fmt)
+        else next.delete(fmt)
+        return next
+      })
+      return
+    }
     setActiveFormats((prev) => {
       const next = new Set(prev)
       if (next.has(fmt)) next.delete(fmt)
@@ -393,6 +403,23 @@ export default function CtaNode({ id, data }: NodeProps) {
       return next
     })
   }, [tooltips])
+
+  useEffect(() => {
+    if (!showToolbar) return
+    const handleSelectionChange = () => {
+      setActiveFormats((prev) => {
+        const next = new Set(prev)
+        for (const f of ['bold', 'italic', 'underline'] as FormatOption[]) {
+          if (document.queryCommandState(f)) next.add(f)
+          else next.delete(f)
+        }
+        if (next.size !== prev.size || [...next].some((v) => !prev.has(v))) return next
+        return prev
+      })
+    }
+    document.addEventListener('selectionchange', handleSelectionChange)
+    return () => document.removeEventListener('selectionchange', handleSelectionChange)
+  }, [showToolbar])
 
   const handleFieldFocus = () => setShowToolbar(true)
   const handleFieldBlur = (e: React.FocusEvent) => {

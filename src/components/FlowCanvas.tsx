@@ -294,25 +294,25 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
       scrollAreaEl.style.opacity = '0'
     }
 
-    // Step 2: After content gone, sparkle+heading animate down toward center (200ms)
+    // Step 2: After content gone, sparkle+heading animate down toward center (500ms)
     setTimeout(() => {
       if (headingEl && wrapperEl) {
         const wrapperRect = wrapperEl.getBoundingClientRect()
         const headingRect = headingEl.getBoundingClientRect()
         const centerY = wrapperRect.top + wrapperRect.height / 2
         const headingDelta = centerY - headingRect.top - headingRect.height / 2
-        headingEl.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.08s ease'
+        headingEl.style.transition = 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.12s ease'
         headingEl.style.transform = `translateY(${headingDelta * 0.85}px)`
       }
 
-      // Step 3: Input animates up toward center (300ms)
+      // Step 3: Input animates up toward center (500ms)
       const inputEl = chatWrapEl?.querySelector('[data-chat-input]') as HTMLElement | null
       if (inputEl && wrapperEl) {
         const wrapperRect = wrapperEl.getBoundingClientRect()
         const inputRect = inputEl.getBoundingClientRect()
         const centerY = wrapperRect.top + wrapperRect.height / 2
         const inputDelta = centerY - inputRect.top - inputRect.height / 2
-        inputEl.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.08s ease'
+        inputEl.style.transition = 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.12s ease'
         inputEl.style.transform = `translateY(${inputDelta * 0.85}px)`
       }
 
@@ -321,7 +321,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
         if (headingEl) headingEl.style.opacity = '0'
         const inputEl2 = chatWrapEl?.querySelector('[data-chat-input]') as HTMLElement | null
         if (inputEl2) inputEl2.style.opacity = '0'
-      }, 160)
+      }, 100)
     }, 120)
 
     // Step 5: Clean up inline styles and start panel animation
@@ -344,7 +344,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
         inputEl3.style.opacity = ''
       }
       setTransitionPhase('bar-reveal')
-    }, 550)
+    }, 750)
 
     setTimeout(() => {
       setTransitionPhase('panel-opening')
@@ -382,7 +382,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
           if (scrollArea) scrollArea.scrollTo({ top: scrollArea.scrollHeight, behavior: 'smooth' })
         }, 100)
       }, 1000)
-    }, 900)
+    }, 1100)
   }, [setNodes, setEdges])
 
   useEffect(() => {
@@ -907,7 +907,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
         {/* Welcome decorations — sparkle + heading above the chat */}
         {isWelcomeMode && (
           <div ref={headingRef} className="flex flex-col items-center pointer-events-auto w-full" style={{ maxWidth: 640, margin: '0 auto' }}>
-            <div className="mb-4" style={{ transform: 'translate(12px, 24px)' }}>
+            <div className="mb-4" style={{ transform: 'translateY(24px)' }}>
               <SparkleIcon size={92} />
             </div>
             <h1 className="text-2xl font-semibold text-gray-900 mb-4">
