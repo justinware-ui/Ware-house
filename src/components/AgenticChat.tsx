@@ -336,7 +336,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
 
           addMessage({
             role: 'ai',
-            content: `Here's what I put together — I selected the best content for each persona and placed it on the canvas as a connected flow. You can swap or adjust anything:`,
+            content: `Here's what I put together — I selected the best content for each persona and placed it on the canvas as a connected flow. You can swap or adjust anything you want:`,
             proposal,
           })
 
@@ -798,9 +798,9 @@ function AiMessage({
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs overflow-hidden">
             {msg.toolGroups.map((group, gi) => {
               const key = `${msg.id}-tg-${gi}`
-              const isOpen = expandedTools[key] !== false
               const completedCount = group.tools.filter((t) => t.status === 'complete').length
               const allDone = completedCount === group.tools.length
+              const isOpen = expandedTools[key] !== undefined ? expandedTools[key] : !allDone
               return (
                 <div key={key} className="mb-2 last:mb-0">
                   <button
@@ -1051,8 +1051,9 @@ function ProposalView({
       )}
 
       {selectedCount > 0 && (
-        <div className="px-1 text-xs font-medium text-brand-500">
-          {selectedCount} content item{selectedCount !== 1 ? 's' : ''} selected
+        <div className="px-1 text-xs font-medium flex items-center gap-1.5 text-gray-900">
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full text-white text-[10px] font-bold" style={{ backgroundColor: '#FC6839' }}>{selectedCount}</span>
+          content item{selectedCount !== 1 ? 's' : ''} selected
         </div>
       )}
 

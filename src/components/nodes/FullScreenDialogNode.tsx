@@ -140,12 +140,14 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
   const [showToolbar, setShowToolbar] = useState(false)
   const [activeFormats, setActiveFormats] = useState<Set<FormatOption>>(new Set())
   const [tooltipMode, setTooltipMode] = useState(false)
-  const [tooltips, setTooltips] = useState<Record<number, string>>({})
-  const [draftTooltips, setDraftTooltips] = useState<Record<number, string>>({})
+  const [tooltips, setTooltips] = useState<Record<string | number, string>>({})
+  const [draftTooltips, setDraftTooltips] = useState<Record<string | number, string>>({})
   const [focusedButtonId, setFocusedButtonId] = useState<number | null>(null)
   const [showOverlay, setShowOverlay] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isDraggingNode = useRef(false)
+  const tooltipModeRef = useRef(false)
+  const suppressSelectionRef = useRef(false)
   const messageRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -183,6 +185,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
   const toggleFormat = useCallback((fmt: FormatOption) => {
     if (fmt === 'link') {
       setDraftTooltips({ ...tooltips })
+      tooltipModeRef.current = true
       setTooltipMode(true)
       return
     }
@@ -207,11 +210,19 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
   useEffect(() => {
     if (!showToolbar) return
     const handleSelectionChange = () => {
+      if (suppressSelectionRef.current) return
+      const sel = window.getSelection()
+      const anchor = sel?.anchorNode
+      if (!anchor || !(anchor instanceof Node)) return
+      const el = anchor.nodeType === 3 ? anchor.parentElement : anchor as Element
+      if (!el?.closest?.('[contenteditable]')) {
+        setActiveFormats(new Set())
+        return
+      }
       setActiveFormats((prev) => {
-        const next = new Set(prev)
+        const next = new Set<FormatOption>()
         for (const f of ['bold', 'italic', 'underline'] as FormatOption[]) {
           if (document.queryCommandState(f)) next.add(f)
-          else next.delete(f)
         }
         if (next.size !== prev.size || [...next].some((v) => !prev.has(v))) return next
         return prev
@@ -221,12 +232,18 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
     return () => document.removeEventListener('selectionchange', handleSelectionChange)
   }, [showToolbar])
 
-  const handleFieldFocus = () => setShowToolbar(true)
+  const handleFieldFocus = () => {
+    suppressSelectionRef.current = true
+    setActiveFormats(new Set())
+    setShowToolbar(true)
+    requestAnimationFrame(() => { suppressSelectionRef.current = false })
+  }
 
   const handleFieldBlur = (e: React.FocusEvent) => {
     if (isDraggingNode.current) return
     requestAnimationFrame(() => {
       if (isDraggingNode.current) return
+      if (tooltipModeRef.current) return
       const related = e.relatedTarget as HTMLElement | null
       if (related?.closest('[data-toolbar]') || related?.closest('[data-cta-field]') || related?.closest('[data-answer-content]')) return
       setShowToolbar(false)
@@ -333,7 +350,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
           onToggle={toggleFormat}
           onDragStart={() => { isDraggingNode.current = true }}
           onDragEnd={() => { isDraggingNode.current = false }}
-          disabledKeys={buttons.some((b) => b.text.trim() || b.image) ? undefined : new Set<FormatOption>(['link'])}
+          disabledKeys={message.trim() || buttons.some((b) => b.text.trim() || b.image) ? undefined : new Set<FormatOption>(['link'])}
         />
       )}
 
@@ -367,15 +384,48 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
         <span className="text-xs font-medium text-gray-500">Full screen dialog</span>
       </div>
 
-      {tooltipMode ? (
+      {tooltipMode && (
         <>
           <div className="mb-5 px-1">
             <p className="text-base font-semibold italic text-gray-800">
-              Create tooltips for your buttons
+              Create tooltips for your message and buttons
             </p>
           </div>
 
           <div className="flex flex-col gap-5">
+            {/* Message tooltip */}
+            {message.trim() && (
+              <div>
+                <p className="text-xs text-gray-600 mb-1">Message: {message}</p>
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <input
+                      type="text"
+                      value={draftTooltips['message'] ?? ''}
+                      onChange={(e) =>
+                        setDraftTooltips((prev) => ({ ...prev, message: e.target.value }))
+                      }
+                      placeholder="Type your tool-tip here"
+                      className="nodrag w-full text-sm text-gray-800 placeholder:text-brand-300 outline-none bg-transparent pb-2 border-b border-gray-200 focus:border-brand-400 transition-colors"
+                    />
+                  </div>
+                  <button
+                    className="text-gray-400 hover:text-gray-600 shrink-0 mt-0.5"
+                    onClick={() =>
+                      setDraftTooltips((prev) => {
+                        const next = { ...prev }
+                        delete next['message']
+                        return next
+                      })
+                    }
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Button tooltips */}
             {buttons.map((btn) => (
               <div key={btn.id}>
                 {btn.text && (
@@ -415,7 +465,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
           <div className="flex items-center justify-between mt-5">
             <button
               className="text-sm font-bold text-gray-800 hover:text-gray-600 transition-colors"
-              onClick={() => setTooltipMode(false)}
+              onClick={() => { tooltipModeRef.current = false; setTooltipMode(false) }}
             >
               Cancel
             </button>
@@ -428,6 +478,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
               disabled={!Object.values(draftTooltips).some((v) => v.trim())}
               onClick={() => {
                 setTooltips({ ...draftTooltips })
+                tooltipModeRef.current = false
                 setTooltipMode(false)
               }}
             >
@@ -435,7 +486,9 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
             </button>
           </div>
         </>
-      ) : (
+      )}
+
+      <div style={{ display: tooltipMode ? 'none' : undefined }}>
         <>
           {/* Header field */}
           <div className="mb-7 px-1">
@@ -452,14 +505,14 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
           </div>
 
           {/* Message body */}
-          <div className="mb-6 pb-2 border-b border-gray-200 focus-within:border-brand-400 transition-colors" data-answer-content>
+          <div className="mb-6 pb-2 border-b border-gray-200 focus-within:border-brand-400 transition-colors flex items-start gap-2" data-answer-content>
             <div
               ref={messageRef}
               contentEditable
               suppressContentEditableWarning
               data-cta-field
               data-placeholder="Type your message here"
-              className={`nodrag text-sm text-gray-800 outline-none min-h-[1.5em] ${!message ? 'before:content-[attr(data-placeholder)] before:pointer-events-none before:text-[#FC6839] before:opacity-100 focus:before:opacity-60' : ''}`}
+              className={`nodrag flex-1 text-sm text-gray-800 outline-none min-h-[1.5em] ${!message ? 'before:content-[attr(data-placeholder)] before:pointer-events-none before:text-[#FC6839] before:opacity-100 focus:before:opacity-60' : ''}`}
               style={{ wordBreak: 'break-word' }}
               onInput={(e) => {
                 const el = e.target as HTMLDivElement
@@ -468,6 +521,15 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
               onFocus={handleFieldFocus}
               onBlur={handleFieldBlur}
             />
+            {tooltips['message']?.trim() && (
+              <div className="relative group/tip shrink-0" style={{ marginTop: 2 }}>
+                <CircleHelp size={14} className="text-gray-800 cursor-help" />
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1.5 rounded-lg bg-gray-800 text-white text-xs opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity shadow-lg z-10" style={{ width: 'max-content', maxWidth: 320 }}>
+                  {tooltips['message']}
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Button fields */}
@@ -542,7 +604,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
             </div>
           )}
         </>
-      )}
+      </div>
 
       {/* Hidden file input */}
       <input

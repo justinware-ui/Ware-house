@@ -173,6 +173,7 @@ export default function CtaNode({ id, data }: NodeProps) {
   answersRef.current = answers
   const dragIndexRef = useRef<number | null>(null)
   const isDraggingNode = useRef(false)
+  const suppressSelectionRef = useRef(false)
   const answerOrderKey = answers.map((a) => a.id).join(',')
 
   useEffect(() => {
@@ -407,11 +408,19 @@ export default function CtaNode({ id, data }: NodeProps) {
   useEffect(() => {
     if (!showToolbar) return
     const handleSelectionChange = () => {
+      if (suppressSelectionRef.current) return
+      const sel = window.getSelection()
+      const anchor = sel?.anchorNode
+      if (!anchor || !(anchor instanceof Node)) return
+      const el = anchor.nodeType === 3 ? anchor.parentElement : anchor as Element
+      if (!el?.closest?.('[contenteditable]')) {
+        setActiveFormats(new Set())
+        return
+      }
       setActiveFormats((prev) => {
-        const next = new Set(prev)
+        const next = new Set<FormatOption>()
         for (const f of ['bold', 'italic', 'underline'] as FormatOption[]) {
           if (document.queryCommandState(f)) next.add(f)
-          else next.delete(f)
         }
         if (next.size !== prev.size || [...next].some((v) => !prev.has(v))) return next
         return prev
@@ -421,7 +430,12 @@ export default function CtaNode({ id, data }: NodeProps) {
     return () => document.removeEventListener('selectionchange', handleSelectionChange)
   }, [showToolbar])
 
-  const handleFieldFocus = () => setShowToolbar(true)
+  const handleFieldFocus = () => {
+    suppressSelectionRef.current = true
+    setActiveFormats(new Set())
+    setShowToolbar(true)
+    requestAnimationFrame(() => { suppressSelectionRef.current = false })
+  }
   const handleFieldBlur = (e: React.FocusEvent) => {
     const related = e.relatedTarget as HTMLElement | null
     if (related?.closest('[data-toolbar]') || related?.closest('[data-cta-field]')) return

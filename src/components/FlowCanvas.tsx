@@ -411,7 +411,10 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
     const headingEl = headingRef.current
     const chatWrapEl = chatWrapRef.current
     const parentEl = headingEl?.parentElement
-    if (!headingEl || !parentEl) return
+    if (!headingEl || !parentEl) {
+      setHasChatStarted(true)
+      return
+    }
 
     const parentRect = parentEl.getBoundingClientRect()
     const headingRect = headingEl.getBoundingClientRect()
@@ -930,6 +933,11 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
               : 'width 0.35s cubic-bezier(0.4, 0, 0.2, 1), height 0.35s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s ease',
           }}
         >
+          {/* Green activity dot — rendered outside overflow-hidden header */}
+          {!isWelcomeMode && hasChatStarted && (
+            <span className="absolute z-30 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-white" style={{ top: 11, right: 15 }} />
+          )}
+
           {/* Panel header */}
           {!isWelcomeMode && (
             <>
@@ -946,7 +954,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
                   ? <div style={{ transform: 'translateY(2px)', marginRight: 12 }}><SparkleIcon size={36} /></div>
                   : <div className="mr-3"><SparkleIcon size={32} /></div>
                 }
-                <span className="text-base font-semibold whitespace-nowrap" style={{ color: '#FC6839' }}>Consensus AI</span>
+                <span className="text-base font-semibold whitespace-nowrap" style={{ color: '#FC6839', marginLeft: -8 }}>Consensus AI</span>
                 <div className="flex-1" />
                 <button
                   onClick={panelAnim !== 'idle' ? undefined : (contentVisible ? handleCollapse : handleExpand)}
@@ -958,9 +966,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
                     <line x1="6.64844" y1="0.5" x2="6.64844" y2="17" stroke="currentColor"/>
                   </svg>
                 </button>
-                {hasChatStarted && !contentVisible && panelH <= COLLAPSED_H + 10 && (
-                  <span className="absolute z-20 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-white" style={{ top: 11, right: 15 }} />
-                )}
+                {/* green dot rendered outside overflow-hidden via portal-like placement */}
               </div>
             </>
           )}
