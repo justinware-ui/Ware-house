@@ -614,7 +614,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
         data-chat-input
         className={
           mode === 'full'
-            ? 'pointer-events-auto mt-9'
+            ? 'pointer-events-auto mt-[18px]'
             : 'border-t border-gray-100 px-4 py-3 bg-white'
         }
         style={
@@ -635,7 +635,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
         <div
           className="bg-white rounded-2xl flex flex-col transition-shadow duration-200"
           style={{
-            minHeight: mode === 'full' ? (effectiveHasSent ? 60 : 100) : 60,
+            minHeight: 60,
             ...(mode === 'full' ? { maxWidth: 640, margin: '0 auto', transition: 'min-height 0.5s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease, border-color 0.2s ease' } : {}),
             border: inputFocused ? '2px solid #F44C10' : '1px solid #e5e7eb',
             boxShadow: inputFocused ? '0 0 0 5px rgba(255, 150, 89, 0.5)' : '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
@@ -660,7 +660,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
               }}
               placeholder="Type or record your message"
               className="w-full resize-none outline-none text-sm text-gray-900 placeholder:text-gray-400 bg-transparent overflow-hidden"
-              rows={mode === 'full' && !effectiveHasSent ? 3 : 1}
+              rows={1}
               style={{ maxHeight: 200 }}
               onFocus={() => setInputFocused(true)}
               onBlur={() => setInputFocused(false)}
