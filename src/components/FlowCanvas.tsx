@@ -262,6 +262,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
   const [removedDemoIds, setRemovedDemoIds] = useState<string[]>([])
   const chatNodeIdsRef = useRef<Set<string>>(new Set())
   const panelResizing = useRef(false)
+  const [isResizing, setIsResizing] = useState(false)
   const panelResizeStart = useRef({ y: 0, h: 0 })
   const prevNodeCount = useRef(0)
   const [ghostText, setGhostText] = useState<string | null>(null)
@@ -456,6 +457,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
   const onPanelResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     panelResizing.current = true
+    setIsResizing(true)
     panelResizeStart.current = { y: e.clientY, h: panelH }
     document.body.style.cursor = 'row-resize'
     document.body.style.userSelect = 'none'
@@ -471,6 +473,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
     }
     const onUp = () => {
       panelResizing.current = false
+      setIsResizing(false)
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
       document.removeEventListener('mousemove', onMove)
@@ -872,7 +875,9 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
             background: panelH <= COLLAPSED_H + 10
               ? 'linear-gradient(90deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.7) 60%, rgba(255,255,255,0.3) 100%)'
               : 'rgba(255,255,255,0.8)',
-            transition: 'width 0.35s cubic-bezier(0.4, 0, 0.2, 1), height 0.35s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s ease',
+            transition: isResizing
+              ? 'background 0.3s ease'
+              : 'width 0.35s cubic-bezier(0.4, 0, 0.2, 1), height 0.35s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s ease',
           }}
         >
           {/* Panel header */}
@@ -904,7 +909,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
                   </svg>
                 </button>
                 {hasChatStarted && !contentVisible && panelH <= COLLAPSED_H + 10 && (
-                  <span className="absolute z-20 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-white" style={{ top: 10, right: 12 }} />
+                  <span className="absolute z-20 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-white" style={{ top: 11, right: 15 }} />
                 )}
               </div>
             </>

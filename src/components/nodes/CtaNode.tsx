@@ -596,7 +596,7 @@ export default function CtaNode({ id, data }: NodeProps) {
                   answerRefs.current[index] = el
                   answerRefs.current.length = answers.length
                 }}
-                className={`nodrag flex items-start gap-3 relative transition-opacity pb-2 border-b border-gray-200 focus-within:border-brand-400 ${
+                className={`nodrag flex items-center gap-3 relative transition-opacity pb-2 border-b border-gray-200 focus-within:border-brand-400 ${
                   draggingIndex !== null && draggingIndex !== index ? 'opacity-50' : ''
                 }`}
               >
@@ -742,7 +742,7 @@ export default function CtaNode({ id, data }: NodeProps) {
                 </div>
 
                 {/* Tooltip + Remove answer */}
-                <div className="flex items-center gap-2 shrink-0" style={{ marginTop: 6 }}>
+                <div className="flex items-center gap-2 shrink-0">
                   {tooltips[answer.id]?.trim() && (
                     <div className="relative group/tip">
                       <CircleHelp size={14} className="text-gray-800 cursor-help" />
