@@ -247,6 +247,16 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
   const updateNodeInternals = useUpdateNodeInternals()
   const [chatOpen, setChatOpen] = useState(false)
   const [panelHeight, setPanelHeight] = useState(600)
+
+  const COLLAPSED_W = 320
+  const COLLAPSED_H = 48
+  const PANEL_W = 440
+
+  type PanelAnim = 'idle' | 'expand-width' | 'expand-height' | 'content-in' | 'content-out' | 'collapse-height' | 'collapse-width'
+  const [panelAnim, setPanelAnim] = useState<PanelAnim>('idle')
+  const [panelW, setPanelW] = useState(COLLAPSED_W)
+  const [panelH, setPanelH] = useState(COLLAPSED_H)
+  const [contentVisible, setContentVisible] = useState(false)
   const [helperVisible, setHelperVisible] = useState(true)
   const [hasChatStarted, setHasChatStarted] = useState(false)
   const [removedDemoIds, setRemovedDemoIds] = useState<string[]>([])
@@ -259,15 +269,75 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
   const headingRef = useRef<HTMLDivElement>(null)
   const chatWrapRef = useRef<HTMLDivElement>(null)
 
-  const showWelcome = nodes.length === 0
+  type TransitionPhase = 'none' | 'stage-fading' | 'bar-reveal' | 'panel-opening' | 'done'
+  const [transitionPhase, setTransitionPhase] = useState<TransitionPhase>('none')
+  const hasTransitioned = useRef(false)
+  const pendingNodesRef = useRef<{ nodes: Node[]; edges: Edge[] } | null>(null)
+
+  const showWelcome = nodes.length === 0 && transitionPhase === 'none'
+  const isWelcomeMode = showWelcome || transitionPhase === 'stage-fading'
+
+  const startPanelTransition = useCallback(() => {
+    if (hasTransitioned.current) return
+    hasTransitioned.current = true
+    setTransitionPhase('stage-fading')
+
+    // Stage fades out, then collapsed bar appears
+    setTimeout(() => {
+      setTransitionPhase('bar-reveal')
+    }, 1100)
+
+    // Bar is visible, now start expanding
+    setTimeout(() => {
+      setTransitionPhase('panel-opening')
+      setChatOpen(true)
+
+      const fullH = reactFlowWrapper.current?.getBoundingClientRect().height
+        ? reactFlowWrapper.current.getBoundingClientRect().height - 32
+        : 600
+      setPanelHeight(fullH)
+
+      // Step 1: expand width
+      setPanelAnim('expand-width')
+      setPanelW(PANEL_W)
+
+      // Step 2: expand height
+      setTimeout(() => {
+        setPanelAnim('expand-height')
+        setPanelH(fullH)
+      }, 350)
+
+      // Step 3: content fades in
+      setTimeout(() => {
+        setPanelAnim('content-in')
+        setContentVisible(true)
+      }, 700)
+
+      // Step 4: done — place pending nodes, scroll
+      setTimeout(() => {
+        setPanelAnim('idle')
+        if (pendingNodesRef.current) {
+          const pending = pendingNodesRef.current
+          pendingNodesRef.current = null
+          setNodes(pending.nodes)
+          setEdges(pending.edges)
+        }
+        setTransitionPhase('done')
+        setTimeout(() => {
+          const scrollArea = document.querySelector('[data-scroll-area]')
+          if (scrollArea) scrollArea.scrollTo({ top: scrollArea.scrollHeight, behavior: 'smooth' })
+        }, 100)
+      }, 1000)
+    }, 1800)
+  }, [setNodes, setEdges])
 
   useEffect(() => {
     onContentChange?.(nodes.length > 0)
-    if (prevNodeCount.current === 0 && nodes.length > 0) {
-      setChatOpen(true)
+    if (prevNodeCount.current === 0 && nodes.length > 0 && !hasTransitioned.current) {
+      startPanelTransition()
     }
     prevNodeCount.current = nodes.length
-  }, [nodes.length, onContentChange])
+  }, [nodes.length, onContentChange, startPanelTransition])
 
   useEffect(() => {
     const currentChatIds = new Set(
@@ -336,10 +406,57 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
     }, 550)
   }, [])
 
+  const handleExpand = useCallback(() => {
+    setChatOpen(true)
+    const fullH = reactFlowWrapper.current?.getBoundingClientRect().height
+      ? reactFlowWrapper.current.getBoundingClientRect().height - 32
+      : panelHeight
+
+    setPanelAnim('expand-width')
+    setPanelW(PANEL_W)
+
+    setTimeout(() => {
+      setPanelAnim('expand-height')
+      setPanelH(fullH)
+      setPanelHeight(fullH)
+    }, 350)
+
+    setTimeout(() => {
+      setPanelAnim('content-in')
+      setContentVisible(true)
+    }, 700)
+
+    setTimeout(() => {
+      setPanelAnim('idle')
+      const scrollArea = document.querySelector('[data-scroll-area]')
+      if (scrollArea) scrollArea.scrollTo({ top: scrollArea.scrollHeight, behavior: 'smooth' })
+    }, 1000)
+  }, [panelHeight])
+
+  const handleCollapse = useCallback(() => {
+    setPanelAnim('content-out')
+    setContentVisible(false)
+
+    setTimeout(() => {
+      setPanelAnim('collapse-height')
+      setPanelH(COLLAPSED_H)
+    }, 300)
+
+    setTimeout(() => {
+      setPanelAnim('collapse-width')
+      setPanelW(COLLAPSED_W)
+    }, 650)
+
+    setTimeout(() => {
+      setChatOpen(false)
+      setPanelAnim('idle')
+    }, 1000)
+  }, [])
+
   const onPanelResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     panelResizing.current = true
-    panelResizeStart.current = { y: e.clientY, h: panelHeight }
+    panelResizeStart.current = { y: e.clientY, h: panelH }
     document.body.style.cursor = 'row-resize'
     document.body.style.userSelect = 'none'
 
@@ -348,7 +465,9 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
       const delta = ev.clientY - panelResizeStart.current.y
       const parentH = reactFlowWrapper.current?.getBoundingClientRect().height ?? 800
       const maxH = parentH - 32
-      setPanelHeight(Math.max(300, Math.min(maxH, panelResizeStart.current.h + delta)))
+      const newH = Math.max(300, Math.min(maxH, panelResizeStart.current.h + delta))
+      setPanelHeight(newH)
+      setPanelH(newH)
     }
     const onUp = () => {
       panelResizing.current = false
@@ -407,8 +526,8 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
     console.log('[FlowCanvas] handleCreateDemo called', { template: proposal.template, selectedCount: selectedContent.length, items: selectedContent.map(s => ({ persona: s.persona, title: s.demo.demo.title })) })
     const newNodes: Node[] = []
     const newEdges: Edge[] = []
-    const COL_GAP = 400
-    const ROW_GAP = 240
+    const COL_GAP = 550
+    const ROW_GAP = 300
 
     const wrapper = reactFlowWrapper.current
     const wrapperRect = wrapper?.getBoundingClientRect()
@@ -472,7 +591,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
             newNodes.push({
               id: cardId,
               type: 'demoCardNode',
-              position: { x: startX + COL_GAP, y: startY + pi * ROW_GAP + si * 180 },
+              position: { x: startX + COL_GAP, y: startY + pi * ROW_GAP + si * 260 },
               data: { title: sel.demo.demo.title, creator: sel.demo.demo.creator },
             })
             newEdges.push({
@@ -500,7 +619,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
           newNodes.push({
             id: cardId,
             type: 'demoCardNode',
-            position: { x: startX + COL_GAP, y: startY + i * 180 },
+            position: { x: startX + COL_GAP, y: startY + i * 260 },
             data: { title: sel.demo.demo.title, creator: sel.demo.demo.creator },
           })
           newEdges.push({
@@ -553,7 +672,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
             newNodes.push({
               id: cardId,
               type: 'demoCardNode',
-              position: { x: startX + COL_GAP * 2, y: branchY + mi * 180 },
+              position: { x: startX + COL_GAP * 2, y: branchY + mi * 260 },
               data: { title: sel.demo.demo.title, creator: sel.demo.demo.creator },
             })
             newEdges.push({
@@ -565,7 +684,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
             })
           })
 
-          yAccum += Math.max(1, ps.items.length) * 180 + 60
+          yAccum += Math.max(1, ps.items.length) * 260 + 60
         } else {
           const cardId = getNodeId()
           newNodes.push({
@@ -588,9 +707,45 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
     }
 
     console.log('[FlowCanvas] placing on canvas', { effectiveTemplate, nodesCount: newNodes.length, edgesCount: newEdges.length, nodes: newNodes.map(n => ({ id: n.id, type: n.type, data: n.data })) })
-    setNodes((nds) => [...nds, ...newNodes])
-    setEdges((eds) => [...eds, ...newEdges])
-  }, [setNodes, setEdges, screenToFlowPosition])
+
+    if (!hasTransitioned.current) {
+      pendingNodesRef.current = { nodes: newNodes, edges: newEdges }
+      startPanelTransition()
+    } else {
+      setNodes((nds) => [...nds, ...newNodes])
+      setEdges((eds) => [...eds, ...newEdges])
+    }
+  }, [setNodes, setEdges, screenToFlowPosition, startPanelTransition])
+
+  const handleCreateNode = useCallback((type: 'fullScreenDialogNode' | 'ctaNode', data?: Record<string, unknown>) => {
+    const wrapper = reactFlowWrapper.current
+    const wrapperRect = wrapper?.getBoundingClientRect()
+    const screenW = wrapperRect?.width ?? window.innerWidth
+    const screenH = wrapperRect?.height ?? window.innerHeight
+    const center = screenToFlowPosition({ x: screenW / 2, y: screenH / 2 })
+
+    const existingFSD = nodes.find((n) => n.type === type)
+    if (existingFSD && data) {
+      setNodes((nds) => nds.map((n) =>
+        n.id === existingFSD.id ? { ...n, data: { ...n.data, ...data } } : n
+      ))
+      return
+    }
+
+    const newNode: Node = {
+      id: getNodeId(),
+      type,
+      position: { x: center.x - 150, y: center.y - 100 },
+      data: data || {},
+    }
+
+    if (!hasTransitioned.current) {
+      pendingNodesRef.current = { nodes: [newNode], edges: [] }
+      startPanelTransition()
+    } else {
+      setNodes((nds) => [...nds, newNode])
+    }
+  }, [setNodes, screenToFlowPosition, nodes, startPanelTransition])
 
   const handleToggleContent = useCallback((match: ContentMatch, selected: boolean) => {
     const demoId = match.demo.id
@@ -675,58 +830,29 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
       {/* Custom controls toolbar */}
       <ControlsToolbar />
 
-      {/* Collapsed AI bar when nodes exist on stage and chat closed */}
-      {!showWelcome && !chatOpen && (
-        <div className="absolute top-4 left-4 z-10">
-          <div
-            className="relative flex items-center rounded-xl border border-gray-200 px-4 py-2 shadow-sm overflow-hidden"
-            style={{
-              background: 'linear-gradient(90deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.7) 60%, rgba(255,255,255,0.3) 100%)',
-              backdropFilter: 'blur(8px)',
-              minWidth: 320,
-            }}
-          >
-            <CornerGlow />
-            <div style={{ transform: 'translateY(2px)', marginRight: 12 }}><SparkleIcon size={36} /></div>
-            <span className="text-base font-semibold" style={{ color: '#FC6839' }}>Consensus AI</span>
-            <div className="flex-1" />
-            <button
-              onClick={() => setChatOpen(true)}
-              className="text-[#172537] hover:text-[#FC6839] transition-colors p-1 rounded-md"
-            >
-              <svg width="22" height="17" viewBox="0 0 22 17" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="0.5" y="0.5" width="21" height="16" rx="3.5" stroke="currentColor"/>
-                <line x1="6.64844" y1="0.5" x2="6.64844" y2="17" stroke="currentColor"/>
-              </svg>
-            </button>
-          </div>
-          {hasChatStarted && <span className="absolute z-20 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-white" style={{ top: 13, right: 17 }} />}
-        </div>
-      )}
-
-      {/* Persistent chat — single instance, wrapper changes based on mode */}
+      {/* Persistent chat wrapper — always mounted, single AgenticChat instance */}
       <div
         className={
-          showWelcome
+          isWelcomeMode
             ? `absolute inset-0 flex flex-col items-center pointer-events-none z-10 ${!hasChatStarted ? 'justify-center' : ''}`
-            : 'absolute top-4 left-4 z-20 flex flex-col rounded-2xl border border-gray-200 bg-white/80 shadow-lg overflow-hidden backdrop-blur-sm'
+            : 'absolute top-4 left-4 z-20'
         }
         style={
-          showWelcome
-            ? (hasChatStarted ? { paddingTop: 24 } : undefined)
+          isWelcomeMode
+            ? {
+                ...(hasChatStarted ? { paddingTop: 24 } : {}),
+                opacity: transitionPhase === 'stage-fading' ? 0 : 1,
+                transform: transitionPhase === 'stage-fading' ? 'scale(0.96)' : 'scale(1)',
+                transition: 'opacity 1.1s ease, transform 1.1s ease',
+              }
             : {
-                width: 440,
-                height: panelHeight,
-                transform: chatOpen ? 'scale(1)' : 'scale(0.95)',
-                opacity: chatOpen ? 1 : 0,
-                pointerEvents: chatOpen ? 'auto' : 'none',
-                transformOrigin: 'top left',
-                transition: 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease',
+                opacity: transitionPhase === 'bar-reveal' ? 1 : undefined,
+                transition: transitionPhase === 'bar-reveal' ? 'opacity 0.4s ease' : undefined,
               }
         }
       >
-        {/* Welcome decorations — only when stage is empty */}
-        {showWelcome && (
+        {/* Welcome decorations — sparkle + heading above the chat */}
+        {isWelcomeMode && (
           <div ref={headingRef} className="flex flex-col items-center pointer-events-auto w-full" style={{ maxWidth: 640, margin: '0 auto' }}>
             <div className="mb-4" style={{ transform: 'translateY(24px)' }}>
               <SparkleIcon size={92} />
@@ -737,58 +863,95 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
           </div>
         )}
 
-        {/* Panel header — only when in panel mode */}
-        {!showWelcome && chatOpen && (
-          <>
-            <CornerGlow />
-            <div className="relative flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-white">
-              <SparkleIcon size={32} />
-              <span className="text-base font-semibold" style={{ color: '#FC6839' }}>Consensus AI</span>
-              <div className="flex-1" />
-              <button
-                onClick={() => setChatOpen(false)}
-                className="text-[#172537] hover:text-[#FC6839] transition-colors p-1 rounded-md"
+        {/* Panel chrome wrapper — visible when not in welcome mode */}
+        <div
+          className={isWelcomeMode ? 'contents' : 'relative flex flex-col rounded-2xl border border-gray-200 shadow-lg overflow-hidden backdrop-blur-sm'}
+          style={isWelcomeMode ? undefined : {
+            width: panelW,
+            height: panelH,
+            background: panelH <= COLLAPSED_H + 10
+              ? 'linear-gradient(90deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.7) 60%, rgba(255,255,255,0.3) 100%)'
+              : 'rgba(255,255,255,0.8)',
+            transition: 'width 0.35s cubic-bezier(0.4, 0, 0.2, 1), height 0.35s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s ease',
+          }}
+        >
+          {/* Panel header */}
+          {!isWelcomeMode && (
+            <>
+              <CornerGlow />
+              <div
+                className="relative flex items-center px-4 shrink-0 bg-white rounded-t-2xl"
+                style={{
+                  height: COLLAPSED_H,
+                  minHeight: COLLAPSED_H,
+                  borderBottom: contentVisible ? '1px solid #f3f4f6' : 'none',
+                }}
               >
-                <svg width="22" height="17" viewBox="0 0 22 17" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <rect x="0.5" y="0.5" width="21" height="16" rx="3.5" stroke="currentColor"/>
-                  <line x1="6.64844" y1="0.5" x2="6.64844" y2="17" stroke="currentColor"/>
-                </svg>
-              </button>
-            </div>
-          </>
-        )}
+                {panelH <= COLLAPSED_H + 10
+                  ? <div style={{ transform: 'translateY(2px)', marginRight: 12 }}><SparkleIcon size={36} /></div>
+                  : <div className="mr-3"><SparkleIcon size={32} /></div>
+                }
+                <span className="text-base font-semibold whitespace-nowrap" style={{ color: '#FC6839' }}>Consensus AI</span>
+                <div className="flex-1" />
+                <button
+                  onClick={panelAnim !== 'idle' ? undefined : (contentVisible ? handleCollapse : handleExpand)}
+                  className="text-[#172537] hover:text-[#FC6839] transition-colors p-1 rounded-md"
+                  style={{ cursor: panelAnim !== 'idle' ? 'default' : 'pointer' }}
+                >
+                  <svg width="22" height="17" viewBox="0 0 22 17" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="0.5" y="0.5" width="21" height="16" rx="3.5" stroke="currentColor"/>
+                    <line x1="6.64844" y1="0.5" x2="6.64844" y2="17" stroke="currentColor"/>
+                  </svg>
+                </button>
+                {hasChatStarted && !contentVisible && panelH <= COLLAPSED_H + 10 && (
+                  <span className="absolute z-20 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-white" style={{ top: 10, right: 12 }} />
+                )}
+              </div>
+            </>
+          )}
 
-        {/* Chat component — always mounted, mode changes */}
-        <div ref={chatWrapRef} className={showWelcome ? 'w-full pointer-events-auto' : 'flex-1 overflow-hidden'} style={showWelcome ? { maxWidth: 640, margin: '0 auto' } : undefined}>
-          <AgenticChat mode={showWelcome ? 'full' : 'panel'} onFirstSend={handleFirstSend} onCreateDemo={handleCreateDemo} onToggleContent={handleToggleContent} removedDemoIds={removedDemoIds} inputBottom={inputBottom} />
+          {/* Chat body wrapper — content fades in panel mode, always visible in welcome mode */}
+          <div
+            className={isWelcomeMode ? 'w-full pointer-events-auto' : 'flex-1 overflow-hidden'}
+            style={isWelcomeMode
+              ? { maxWidth: 640, margin: '0 auto' }
+              : {
+                  opacity: contentVisible ? 1 : 0,
+                  transition: 'opacity 0.3s ease',
+                  pointerEvents: contentVisible ? 'auto' : 'none',
+                }
+            }
+          >
+            <div ref={chatWrapRef} className={isWelcomeMode ? '' : 'h-full overflow-hidden'}>
+              <AgenticChat mode={isWelcomeMode ? 'full' : 'panel'} onFirstSend={handleFirstSend} onCreateDemo={handleCreateDemo} onToggleContent={handleToggleContent} onCreateNode={handleCreateNode} removedDemoIds={removedDemoIds} inputBottom={inputBottom} />
+            </div>
+          </div>
+
+          {/* Resize handle — only when panel is open */}
+          {!isWelcomeMode && contentVisible && panelAnim === 'idle' && (
+            <div
+              onMouseDown={onPanelResizeStart}
+              className="h-2 cursor-row-resize flex items-center justify-center shrink-0 hover:bg-gray-100 transition-colors"
+            >
+              <div className="w-10 h-1 rounded-full bg-gray-300" />
+            </div>
+          )}
         </div>
 
-        {/* Welcome helper text — fades out after first send */}
-        {showWelcome && (
-          <p
-            className="text-xs text-gray-900 mt-4 text-center pointer-events-auto"
-            style={{
-              opacity: helperVisible ? 1 : 0,
-              transition: 'opacity 0.1s ease-out',
-            }}
-          >
-            Tell Consensus AI what you want to build or drag content and interactions on to the stage.
-          </p>
-        )}
-
-        {/* Ghost text — fades out after first send */}
-        {showWelcome && ghostText && (
-          <GhostText text={ghostText} onDone={() => setGhostText(null)} />
-        )}
-
-        {/* Vertical resize handle — only in panel mode */}
-        {!showWelcome && chatOpen && (
-          <div
-            onMouseDown={onPanelResizeStart}
-            className="h-2 cursor-row-resize flex items-center justify-center shrink-0 hover:bg-gray-100 transition-colors"
-          >
-            <div className="w-10 h-1 rounded-full bg-gray-300" />
-          </div>
+        {/* Welcome helper text & ghost */}
+        {isWelcomeMode && (
+          <>
+            <p
+              className="text-xs text-gray-900 mt-4 text-center pointer-events-auto"
+              style={{
+                opacity: helperVisible ? 1 : 0,
+                transition: 'opacity 0.1s ease-out',
+              }}
+            >
+              Tell Consensus AI what you want to build or drag content and interactions on to the stage.
+            </p>
+            {ghostText && <GhostText text={ghostText} onDone={() => setGhostText(null)} />}
+          </>
         )}
       </div>
     </div>

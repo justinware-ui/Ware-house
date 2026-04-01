@@ -131,10 +131,11 @@ function FormattingToolbar({
   )
 }
 
-export default function FullScreenDialogNode({ id }: NodeProps) {
+export default function FullScreenDialogNode({ id, data }: NodeProps) {
   const { setNodes, setEdges } = useReactFlow()
-  const [header, setHeader] = useState('')
-  const [message, setMessage] = useState('')
+  const typedData = data as { header?: string; message?: string }
+  const [header, setHeader] = useState(typedData.header ?? '')
+  const [message, setMessage] = useState(typedData.message ?? '')
   const [buttons, setButtons] = useState<ButtonEntry[]>([{ id: 0, text: '' }])
   const [showToolbar, setShowToolbar] = useState(false)
   const [activeFormats, setActiveFormats] = useState<Set<FormatOption>>(new Set())
@@ -145,6 +146,15 @@ export default function FullScreenDialogNode({ id }: NodeProps) {
   const [showOverlay, setShowOverlay] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isDraggingNode = useRef(false)
+  const messageRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (typedData.header && typedData.header !== header) setHeader(typedData.header)
+    if (typedData.message && typedData.message !== message) {
+      setMessage(typedData.message)
+      if (messageRef.current) messageRef.current.textContent = typedData.message
+    }
+  }, [typedData.header, typedData.message])
 
   const LINE_LIMIT = 65
 
@@ -417,6 +427,7 @@ export default function FullScreenDialogNode({ id }: NodeProps) {
           {/* Message body */}
           <div className="mb-6 pb-2 border-b border-gray-200 focus-within:border-brand-400 transition-colors" data-answer-content>
             <div
+              ref={messageRef}
               contentEditable
               suppressContentEditableWarning
               data-cta-field

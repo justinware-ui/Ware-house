@@ -35,7 +35,11 @@ const MAX_WIDTH = 620
 export default function Sidebar() {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>('Demos')
   const [width, setWidth] = useState(420)
-  const [favorites, setFavorites] = useState<Set<string>>(new Set())
+  const [favorites, setFavorites] = useState<Set<string>>(() => {
+    const shuffled = [...demos].sort(() => Math.random() - 0.5)
+    const count = Math.max(2, Math.floor(Math.random() * Math.ceil(demos.length / 3)) + 1)
+    return new Set(shuffled.slice(0, count).map((d) => d.id))
+  })
   const isDragging = useRef(false)
   const startX = useRef(0)
   const startWidth = useRef(0)

@@ -26,6 +26,8 @@ type ConvoStep =
   | 'proposal'
   | 'survey'
   | 'post_proposal'
+  | 'awaiting_fsd_help'
+  | 'awaiting_fsd_content'
 
 interface ChatMessage {
   id: string
@@ -58,11 +60,12 @@ interface Props {
   onFirstSend?: (text?: string) => void
   onCreateDemo?: (proposal: DemoProposal, selectedContent: SelectedContent[]) => void
   onToggleContent?: (demo: import('../lib/aiEngine').ContentMatch, selected: boolean) => void
+  onCreateNode?: (type: 'fullScreenDialogNode' | 'ctaNode', data?: Record<string, unknown>) => void
   removedDemoIds?: string[]
   inputBottom?: boolean
 }
 
-export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleContent, removedDemoIds, inputBottom }: Props) {
+export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleContent, onCreateNode, removedDemoIds, inputBottom }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const hasSent = messages.some((m) => m.role === 'user')
@@ -202,6 +205,25 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
 
     const processMessage = () => {
       addMessage({ role: 'user', content: text, actions: true })
+
+      const lower = text.toLowerCase()
+      const wantsFSD = /full\s*screen|introduction|intro\b|welcome\s*(screen|page|message)|landing/i.test(lower)
+
+      if (wantsFSD && step !== 'awaiting_pain_points' && step !== 'thinking') {
+        handleFSDRequest(text)
+        return
+      }
+
+      if (step === 'awaiting_fsd_help') {
+        handleFSDHelpResponse(text)
+        return
+      }
+
+      if (step === 'awaiting_fsd_content') {
+        handleFSDContentResponse(text)
+        return
+      }
+
       if (step === 'awaiting_purpose') {
         handlePurposeResponse(text)
       } else if (step === 'awaiting_pain_points') {
@@ -438,6 +460,61 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
     }, 2000)
   }
 
+  const handleFSDRequest = (text: string) => {
+    setTimeout(() => {
+      onCreateNode?.('fullScreenDialogNode')
+      addMessage({
+        role: 'ai',
+        content: "Done! I've placed a Full Screen Dialog on the canvas. Would you like help writing the header and description?",
+      })
+      setStep('awaiting_fsd_help')
+      scrollToBottom()
+    }, 600)
+  }
+
+  const handleFSDHelpResponse = (text: string) => {
+    const lower = text.toLowerCase()
+    const wantsHelp = /yes|sure|please|help|yeah|yep|ok|go ahead|absolutely|definitely/i.test(lower)
+    const noHelp = /no|nah|i'm good|i got it|skip|not now|later/i.test(lower)
+
+    if (wantsHelp) {
+      addMessage({
+        role: 'ai',
+        content: "Great! Tell me a bit about what this introduction should say — who is it for and what should they know upfront? I'll draft a header and description for you.",
+      })
+      setStep('awaiting_fsd_content')
+    } else if (noHelp) {
+      addMessage({
+        role: 'ai',
+        content: "No problem! The Full Screen Dialog is on the canvas — just click into it to start editing. Let me know if you need anything else.",
+      })
+      setStep('post_proposal')
+    } else {
+      addMessage({
+        role: 'ai',
+        content: "I can help write the header and description for your introduction. Just say **yes** and tell me what it should be about, or **no** if you'd rather write it yourself.",
+      })
+    }
+  }
+
+  const handleFSDContentResponse = (text: string) => {
+    setTimeout(() => {
+      const words = text.split(/\s+/).filter((w) => w.length > 3)
+      const topic = words.slice(0, 5).join(' ') || 'your product'
+      const header = `Welcome to your personalized ${topic} experience`
+      const description = `We've put together a tailored walkthrough based on what matters most to you. Explore the sections below to see how ${topic} can help you achieve your goals.`
+
+      onCreateNode?.('fullScreenDialogNode', { header, message: description })
+
+      addMessage({
+        role: 'ai',
+        content: `Here's what I came up with:\n\n**Header:** ${header}\n\n**Description:** ${description}\n\nI've updated the Full Screen Dialog on the canvas. Feel free to edit it directly or let me know if you'd like me to adjust anything.`,
+      })
+      setStep('post_proposal')
+      scrollToBottom()
+    }, 1000)
+  }
+
   const handleVote = (msgId: string, vote: 'up' | 'down') => {
     updateMessage(msgId, { voted: vote })
     if (vote === 'down') {
@@ -589,10 +666,11 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
             />
           </div>
           <div className="flex items-center justify-between px-4 pb-3">
-            <button className="text-gray-400 hover:text-gray-600 transition-colors">
+            <button onMouseDown={(e) => e.preventDefault()} className="text-gray-400 hover:text-gray-600 transition-colors">
               <Mic size={18} />
             </button>
             <button
+              onMouseDown={(e) => e.preventDefault()}
               onClick={handleSend}
               className="transition-colors"
               style={{ color: input.trim() ? '#FC6839' : '#d1d5db' }}
