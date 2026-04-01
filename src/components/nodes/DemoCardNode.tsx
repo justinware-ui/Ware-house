@@ -3,19 +3,22 @@ import { Handle, Position, useReactFlow, type NodeProps } from '@xyflow/react'
 import thumbTableHero from '../../assets/thumb-table-hero.svg'
 import thumbContent from '../../assets/thumb-content.svg'
 import { useMemo, useState, useEffect, useRef } from 'react'
+import PreviewModal from '../PreviewModal'
 
 const thumbnails = [thumbTableHero, thumbContent]
 
 const MIN_WIDTH = 340
 
 export default function DemoCardNode({ id, data }: NodeProps) {
-  const { title = 'Demo title', creator = 'Demo creator', thumb } = data as {
+  const { title = 'Demo title', creator = 'Demo creator', thumb, preview } = data as {
     title?: string
     creator?: string
     thumb?: string
+    preview?: string
   }
   const { setNodes, setEdges } = useReactFlow()
   const [width, setWidth] = useState(MIN_WIDTH)
+  const [showPreview, setShowPreview] = useState(false)
   const resizing = useRef<{ startX: number; startW: number } | null>(null)
 
   const fallbackThumb = useMemo(
@@ -44,6 +47,10 @@ export default function DemoCardNode({ id, data }: NodeProps) {
   }, [])
 
   return (
+    <>
+    {showPreview && preview && (
+      <PreviewModal url={preview} title={title} onClose={() => setShowPreview(false)} />
+    )}
     <div
       className="relative flex items-center gap-3 px-3 py-7 rounded-xl border border-gray-200 bg-white shadow-sm"
       style={{ width }}
@@ -74,7 +81,7 @@ export default function DemoCardNode({ id, data }: NodeProps) {
 
       {/* Actions */}
       <div className="flex items-center gap-2 shrink-0">
-        <button className="hover:opacity-70 transition-opacity">
+        <button className="hover:opacity-70 transition-opacity nodrag nopan" onClick={() => preview && setShowPreview(true)}>
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
             <mask id={`mask_eye_node_${id}`} style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="0" y="0" width="20" height="20">
               <rect width="20" height="20" fill="#D9D9D9"/>
@@ -111,5 +118,6 @@ export default function DemoCardNode({ id, data }: NodeProps) {
         }}
       />
     </div>
+    </>
   )
 }

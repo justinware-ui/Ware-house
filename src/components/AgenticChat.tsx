@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Mic, Send, ChevronDown, ChevronRight } from 'lucide-react'
+import PreviewModal from './PreviewModal'
 import {
   buildProposal,
   generateToolCalls,
@@ -899,9 +900,13 @@ function ContentCard({
   onToggleSelect: (key: string) => void
 }) {
   const colors = confidenceColor[match.confidence]
+  const [showPreview, setShowPreview] = useState(false)
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white overflow-visible">
+      {showPreview && (
+        <PreviewModal url={match.demo.preview} title={match.demo.title} onClose={() => setShowPreview(false)} />
+      )}
       <div className="flex items-center gap-3 px-3 py-3">
         {/* Thumbnail */}
         <img src={getDemoThumb(match.demo.title)} alt="" className="w-10 h-10 rounded-lg shrink-0" />
@@ -943,7 +948,7 @@ function ContentCard({
 
           {/* Preview icon */}
           <div className="relative group/preview flex items-center">
-            <button className="hover:opacity-70 transition-opacity">
+            <button className="hover:opacity-70 transition-opacity" onClick={() => setShowPreview(true)}>
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <mask id={`mask_eye_${infoKey}`} style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="0" y="0" width="20" height="20">
                   <rect width="20" height="20" fill="#D9D9D9"/>

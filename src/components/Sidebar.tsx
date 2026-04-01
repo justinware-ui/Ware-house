@@ -5,6 +5,7 @@ import {
   HelpCircle,
   FileText,
 } from 'lucide-react'
+import PreviewModal from './PreviewModal'
 import thumbTableHero from '../assets/thumb-table-hero.svg'
 import thumbContent from '../assets/thumb-content.svg'
 import thumbDynamicTour from '../assets/thumb-dynamic-tour.svg'
@@ -35,6 +36,7 @@ const MAX_WIDTH = 620
 export default function Sidebar() {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>('Demos')
   const [width, setWidth] = useState(420)
+  const [previewDemo, setPreviewDemo] = useState<{ url: string; title: string } | null>(null)
   const [favorites, setFavorites] = useState<Set<string>>(() => {
     const shuffled = [...demos].sort(() => Math.random() - 0.5)
     const count = Math.max(2, Math.floor(Math.random() * Math.ceil(demos.length / 3)) + 1)
@@ -83,6 +85,7 @@ export default function Sidebar() {
   }
 
   return (
+    <>
     <aside className="relative border-l border-gray-200 flex flex-col shrink-0 overflow-hidden" style={{ backgroundColor: '#F7F4F2', width }}>
       {/* Resize handle */}
       <div
@@ -180,7 +183,7 @@ export default function Sidebar() {
             draggable
             onDragStart={(e) => {
               const cardThumb = activeTab === 'Dynamic Tours' ? thumbDynamicTour : demo.thumb
-              onDragStart(e, `card-${activeTab.toLowerCase().replace(/\s+/g, '-')}`, { title: demo.title, creator: demo.creator, thumb: cardThumb })
+              onDragStart(e, `card-${activeTab.toLowerCase().replace(/\s+/g, '-')}`, { title: demo.title, creator: demo.creator, thumb: cardThumb, preview: demo.preview })
             }}
             className="flex items-center gap-3 px-3 py-3 rounded-xl border border-gray-200 bg-white hover:border-brand-300 hover:shadow-sm transition-all cursor-grab mb-2"
           >
@@ -209,7 +212,7 @@ export default function Sidebar() {
 
             {/* Actions */}
             <div className="flex items-center gap-2 shrink-0">
-              <button className="hover:opacity-70 transition-opacity">
+              <button className="hover:opacity-70 transition-opacity" onClick={(e) => { e.stopPropagation(); setPreviewDemo({ url: demo.preview, title: demo.title }) }}>
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <mask id={`mask_eye_sb_${demo.id}`} style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="0" y="0" width="20" height="20">
                     <rect width="20" height="20" fill="#D9D9D9"/>
@@ -245,5 +248,9 @@ export default function Sidebar() {
         ))}
       </div>
     </aside>
+    {previewDemo && (
+      <PreviewModal url={previewDemo.url} title={previewDemo.title} onClose={() => setPreviewDemo(null)} />
+    )}
+    </>
   )
 }

@@ -624,7 +624,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
         id: getNodeId(),
         type: 'demoCardNode',
         position: { x: startX, y: startY },
-        data: { title: sel.demo.demo.title, creator: sel.demo.demo.creator },
+        data: { title: sel.demo.demo.title, creator: sel.demo.demo.creator, preview: sel.demo.demo.preview },
       })
     }
 
@@ -648,7 +648,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
               id: cardId,
               type: 'demoCardNode',
               position: { x: startX + COL_GAP, y: startY + pi * ROW_GAP + si * 260 },
-              data: { title: sel.demo.demo.title, creator: sel.demo.demo.creator },
+              data: { title: sel.demo.demo.title, creator: sel.demo.demo.creator, preview: sel.demo.demo.preview },
             })
             newEdges.push({
               id: `e-${questionId}-${cardId}`,
@@ -676,7 +676,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
             id: cardId,
             type: 'demoCardNode',
             position: { x: startX + COL_GAP, y: startY + i * 260 },
-            data: { title: sel.demo.demo.title, creator: sel.demo.demo.creator },
+            data: { title: sel.demo.demo.title, creator: sel.demo.demo.creator, preview: sel.demo.demo.preview },
           })
           newEdges.push({
             id: `e-${questionId}-${cardId}`,
@@ -729,7 +729,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
               id: cardId,
               type: 'demoCardNode',
               position: { x: startX + COL_GAP * 2, y: branchY + mi * 260 },
-              data: { title: sel.demo.demo.title, creator: sel.demo.demo.creator },
+              data: { title: sel.demo.demo.title, creator: sel.demo.demo.creator, preview: sel.demo.demo.preview },
             })
             newEdges.push({
               id: `e-${q2Id}-${cardId}`,
@@ -747,7 +747,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
             id: cardId,
             type: 'demoCardNode',
             position: { x: startX + COL_GAP, y: branchY },
-            data: { title: ps.items[0].demo.demo.title, creator: ps.items[0].demo.demo.creator },
+            data: { title: ps.items[0].demo.demo.title, creator: ps.items[0].demo.demo.creator, preview: ps.items[0].demo.demo.preview },
           })
           newEdges.push({
             id: `e-${q1Id}-${cardId}`,
@@ -817,7 +817,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
         position: ctaNode
           ? { x: ctaNode.position.x + 400, y: ctaNode.position.y + demoCards.length * 180 }
           : { x: (demoCards[demoCards.length - 1]?.position.x ?? 400), y: (demoCards[demoCards.length - 1]?.position.y ?? 0) + 180 },
-        data: { title: match.demo.title, creator: match.demo.creator },
+        data: { title: match.demo.title, creator: match.demo.creator, preview: match.demo.preview },
       }
 
       if (ctaNode) {
