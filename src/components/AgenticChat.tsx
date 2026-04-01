@@ -551,7 +551,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
               ) : (
                 <AiMessage
                   msg={msg}
-                  pulseGlow={idx === 0 && !messages.some((m) => m.role === 'user')}
+                  pulseGlow={msg.role === 'ai' && idx === messages.length - 1 && messages[messages.length - 1].role === 'ai'}
                   expandedTools={expandedTools}
                   expandedInfo={expandedInfo}
                   onToggleTool={toggleToolGroup}
