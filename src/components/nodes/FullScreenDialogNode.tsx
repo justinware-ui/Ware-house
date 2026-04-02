@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Handle, Position, type NodeProps, useReactFlow } from '@xyflow/react'
 import {
   Copy, X, Plus, Bold, Italic, Underline, AlignJustify,
-  Image, Pilcrow, ChevronDown, CircleHelp, Sparkles, Monitor,
+  Image, Pilcrow, ChevronDown, CircleHelp, Monitor,
 } from 'lucide-react'
 
 const AddPhotoIcon = ({ className }: { className?: string }) => (
@@ -125,7 +125,18 @@ function FormattingToolbar({
 
       <div className="w-px h-6 bg-gray-200 mx-1 nodrag nopan" />
       <button className="p-1.5 rounded text-brand-500 hover:bg-brand-50 transition-colors nodrag nopan" onMouseDown={(e) => e.preventDefault()}>
-        <Sparkles size={18} />
+        <svg width="18" height="18" viewBox="2 10 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M11.4273 11.1084C11.465 10.9066 11.7551 10.9066 11.7928 11.1084L12.2104 13.3465C12.7446 16.2092 14.9911 18.4488 17.8625 18.9814L20.1073 19.3978C20.3098 19.4354 20.3098 19.7246 20.1073 19.7622L17.8625 20.1785C14.9911 20.7111 12.7446 22.9508 12.2104 25.8135L11.7928 28.0515C11.7551 28.2534 11.465 28.2534 11.4273 28.0515L11.0097 25.8135C10.4754 22.9508 8.22901 20.7111 5.35761 20.1785L3.11281 19.7622C2.91031 19.7246 2.91031 19.4354 3.11281 19.3978L5.35761 18.9814C8.22901 18.4488 10.4754 16.2092 11.0097 13.3465L11.4273 11.1084Z" fill="url(#paint0_fsd_sparkle)"/>
+          <path d="M19.1688 23.5301C19.1834 23.452 19.2956 23.452 19.3102 23.5301L19.4717 24.3958C19.6784 25.5032 20.5473 26.3695 21.6581 26.5755L22.5264 26.7366C22.6047 26.7511 22.6047 26.863 22.5264 26.8775L21.6581 27.0386C20.5473 27.2446 19.6784 28.111 19.4717 29.2184L19.3102 30.0841C19.2956 30.1622 19.1834 30.1622 19.1688 30.0841L19.0072 29.2184C18.8006 28.111 17.9316 27.2446 16.8209 27.0386L15.9525 26.8775C15.8742 26.863 15.8742 26.7511 15.9525 26.7366L16.8209 26.5755C17.9316 26.3695 18.8006 25.5032 19.0072 24.3958L19.1688 23.5301Z" fill="url(#paint1_fsd_sparkle)"/>
+          <defs>
+            <linearGradient id="paint0_fsd_sparkle" x1="2.96094" y1="21.4548" x2="22.5851" y2="21.4548" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#FFB352"/><stop offset="0.5" stopColor="#FC6839"/><stop offset="1" stopColor="#EB2E24"/>
+            </linearGradient>
+            <linearGradient id="paint1_fsd_sparkle" x1="2.96094" y1="21.4548" x2="22.5851" y2="21.4548" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#FFB352"/><stop offset="0.5" stopColor="#FC6839"/><stop offset="1" stopColor="#EB2E24"/>
+            </linearGradient>
+          </defs>
+        </svg>
       </button>
     </div>
   )
@@ -365,7 +376,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
 
       {/* Close button */}
       <button
-        className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors"
+        className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 border-2 border-white flex items-center justify-center transition-colors"
         onClick={() => {
           setNodes((nds) => nds.filter((n) => n.id !== id))
           setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id))

@@ -10,7 +10,8 @@ const thumbnails = [thumbTableHero, thumbContent]
 const MIN_WIDTH = 340
 
 export default function DemoCardNode({ id, data }: NodeProps) {
-  const { title = 'Demo title', creator = 'Demo creator', thumb, preview } = data as {
+  const { title = 'Demo title', creator = 'Demo creator', thumb, preview, demoId } = data as {
+    demoId?: string
     title?: string
     creator?: string
     thumb?: string
@@ -52,7 +53,7 @@ export default function DemoCardNode({ id, data }: NodeProps) {
       <PreviewModal url={preview} title={title} onClose={() => setShowPreview(false)} />
     )}
     <div
-      className="relative flex items-center gap-3 px-3 py-7 rounded-xl border border-gray-200 bg-white shadow-sm"
+      className="group/card relative flex items-center gap-3 px-3 py-7 rounded-xl border border-gray-200 bg-white shadow-sm transition-[box-shadow,border-color] duration-200"
       style={{ width }}
     >
       <Handle
@@ -96,10 +97,39 @@ export default function DemoCardNode({ id, data }: NodeProps) {
       {/* Close button */}
       <button
         onClick={removeNode}
-        className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors"
+        className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 border-2 border-white flex items-center justify-center transition-colors"
       >
         <X size={12} className="text-gray-600" />
       </button>
+
+      {/* Change content sparkle — visible on card hover */}
+      <div className="absolute top-1/2 -translate-y-1/2 opacity-0 group-hover/card:opacity-100 transition-opacity duration-200 nodrag nopan"
+        style={{ right: -44 }}
+      >
+        <div className="relative group/sparkle">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              document.dispatchEvent(new CustomEvent('open-replace-popover', { detail: { nodeId: id, demoId: demoId || '', title } }))
+            }}
+            className="w-8 h-8 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
+          >
+            <svg width="50" height="50" viewBox="14 8 62 62" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="19.0464" y="12.4535" width="50.4" height="50.4" rx="25.2" fill="url(#paint_card_hover_sparkle)"/>
+              <path d="M43.0806 28.0993C43.1186 27.8951 43.4112 27.8951 43.4492 28.0993L43.8704 30.3629C44.4091 33.2584 46.6746 35.5236 49.5704 36.0623L51.8342 36.4835C52.0384 36.5215 52.0384 36.814 51.8342 36.852L49.5704 37.2731C46.6746 37.8118 44.4091 40.0771 43.8704 42.9726L43.4492 45.2362C43.4112 45.4404 43.1186 45.4404 43.0806 45.2362L42.6595 42.9726C42.1207 40.0771 39.8552 37.8118 36.9595 37.2731L34.6956 36.852C34.4914 36.814 34.4914 36.5215 34.6956 36.4835L36.9595 36.0623C39.8552 35.5236 42.1207 33.2584 42.6595 30.3629L43.0806 28.0993Z" fill="white"/>
+              <path d="M50.898 40.663C50.9127 40.584 51.0259 40.584 51.0406 40.663L51.2035 41.5386C51.4119 42.6586 52.2883 43.5349 53.4084 43.7433L54.2841 43.9062C54.3631 43.9209 54.3631 44.034 54.2841 44.0487L53.4084 44.2116C52.2883 44.42 51.4119 45.2963 51.2035 46.4163L51.0406 47.2919C51.0259 47.3709 50.9127 47.3709 50.898 47.2919L50.7351 46.4163C50.5267 45.2963 49.6504 44.42 48.5302 44.2116L47.6545 44.0487C47.5755 44.034 47.5755 43.9209 47.6545 43.9062L48.5302 43.7433C49.6504 43.5349 50.5267 42.6586 50.7351 41.5386L50.898 40.663Z" fill="white"/>
+              <defs>
+                <linearGradient id="paint_card_hover_sparkle" x1="19.0464" y1="40.0309" x2="69.4464" y2="40.0309" gradientUnits="userSpaceOnUse">
+                  <stop stopColor="#FFB352"/><stop offset="0.5" stopColor="#FC6839"/><stop offset="1" stopColor="#EB2E24"/>
+                </linearGradient>
+              </defs>
+            </svg>
+          </button>
+          <div className="absolute left-1/2 -translate-x-1/2 -top-8 px-2 py-1 rounded bg-gray-800 text-white text-[11px] whitespace-nowrap opacity-0 group-hover/sparkle:opacity-100 transition-opacity pointer-events-none">
+            Change content
+          </div>
+        </div>
+      </div>
 
       <Handle
         type="source"

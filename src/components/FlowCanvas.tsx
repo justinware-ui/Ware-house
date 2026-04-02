@@ -1,6 +1,12 @@
 import { useCallback, useRef, useState, useEffect, useMemo } from 'react'
 import AgenticChat, { type SelectedContent } from './AgenticChat'
 import type { DemoProposal, ContentMatch, CanvasState } from '../lib/aiEngine'
+import { findReplacements, rejectDemo } from '../lib/aiEngine'
+import type { ConfidenceLevel } from '../lib/aiEngine'
+import { demos as allDemos } from '../data/demos'
+import PreviewModal from './PreviewModal'
+import thumbTableHero from '../assets/thumb-table-hero.svg'
+import thumbContent from '../assets/thumb-content.svg'
 import {
   ReactFlow,
   Background,
@@ -239,6 +245,334 @@ function SparkleIcon({ size = 92 }: { size?: number }) {
   )
 }
 
+interface ReplacePopoverProps {
+  nodeId: string
+  title: string
+  demoId: string
+  anchorRect: { x: number; y: number; width: number; height: number }
+  wrapperRef: React.RefObject<HTMLDivElement | null>
+  onReplace: (nodeId: string, match: ContentMatch) => void
+  onDismiss: () => void
+}
+
+const popoverThumbs = [thumbTableHero, thumbContent]
+function getPopoverThumb(t: string) {
+  let h = 0
+  for (let i = 0; i < t.length; i++) h = ((h << 5) - h + t.charCodeAt(i)) | 0
+  return popoverThumbs[Math.abs(h) % popoverThumbs.length]
+}
+
+const CONF_COLOR: Record<ConfidenceLevel, { icon: string; border: string; bg: string; text: string }> = {
+  high: { icon: '#1a7a4c', border: '#86efac', bg: '#f0fdf4', text: '#166534' },
+  medium: { icon: '#FC6839', border: '#fdba74', bg: '#fff7ed', text: '#9a3412' },
+  low: { icon: '#dc2626', border: '#fca5a5', bg: '#fef2f2', text: '#991b1b' },
+}
+const CONF_LABEL: Record<ConfidenceLevel, string> = {
+  high: 'High confidence',
+  medium: 'Medium confidence',
+  low: 'Low confidence',
+}
+
+function PopoverContentCard({
+  match,
+  cardKey,
+  expandedInfo,
+  onToggleInfo,
+  onReplace,
+}: {
+  match: ContentMatch
+  cardKey: string
+  expandedInfo: Record<string, boolean>
+  onToggleInfo: (k: string) => void
+  onReplace: (match: ContentMatch) => void
+}) {
+  const colors = CONF_COLOR[match.confidence]
+  const isInfoOpen = !!expandedInfo[cardKey]
+  const [showPreview, setShowPreview] = useState(false)
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white overflow-visible">
+      {showPreview && (
+        <PreviewModal url={match.demo.preview} title={match.demo.title} onClose={() => setShowPreview(false)} />
+      )}
+      <div className="flex items-center gap-3 px-3 py-3">
+        <img src={getPopoverThumb(match.demo.title)} alt="" className="w-10 h-10 rounded-lg shrink-0" />
+
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-gray-900 truncate">{match.demo.title}</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-xs text-gray-500">{match.demo.creator}</span>
+            <span className="text-xs text-[#FC6839] font-semibold">Show more</span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2.5 shrink-0">
+          {/* Info icon (outlined) */}
+          <div className="relative group/info flex items-center" style={{ '--info-hover': colors.icon } as React.CSSProperties}>
+            <button onClick={() => onToggleInfo(cardKey)} className="flex items-center justify-center" style={{ width: 20, height: 20 }}>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="10" cy="10" r="8.25" stroke={isInfoOpen ? colors.icon : '#172537'} strokeWidth="1.5" className="transition-colors group-hover/info:[stroke:var(--info-hover)]"/>
+                <path d="M10 9v4.5" stroke={isInfoOpen ? colors.icon : '#172537'} strokeWidth="1.5" strokeLinecap="round" className="transition-colors group-hover/info:[stroke:var(--info-hover)]"/>
+                <circle cx="10" cy="6.75" r="0.85" fill={isInfoOpen ? colors.icon : '#172537'} className="transition-colors group-hover/info:[fill:var(--info-hover)]"/>
+              </svg>
+            </button>
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-medium whitespace-nowrap opacity-0 pointer-events-none group-hover/info:opacity-100 transition-opacity shadow-lg z-50" style={{ backgroundColor: '#293748' }}>
+              {CONF_LABEL[match.confidence]}
+              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent" style={{ borderTopColor: '#293748' }} />
+            </div>
+          </div>
+
+          {/* Preview icon (outlined) */}
+          <div className="relative group/preview flex items-center">
+            <button className="hover:opacity-70 transition-opacity" onClick={() => setShowPreview(true)}>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M10 5.5C6.5 5.5 3.73 7.86 2.5 10c1.23 2.14 4 4.5 7.5 4.5s6.27-2.36 7.5-4.5c-1.23-2.14-4-4.5-7.5-4.5Z" stroke="#293748" strokeWidth="1.5" strokeLinejoin="round"/>
+                <circle cx="10" cy="10" r="2.75" stroke="#293748" strokeWidth="1.5"/>
+              </svg>
+            </button>
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-medium whitespace-nowrap opacity-0 pointer-events-none group-hover/preview:opacity-100 transition-opacity shadow-lg z-50" style={{ backgroundColor: '#293748' }}>
+              Preview
+              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent" style={{ borderTopColor: '#293748' }} />
+            </div>
+          </div>
+
+          {/* Switch / Replace icon */}
+          <div className="relative group/switch flex items-center">
+            <button className="hover:opacity-70 transition-opacity" onClick={() => onReplace(match)}>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <mask id={`mask_switch_pop_${cardKey}`} style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="0" y="0" width="20" height="20">
+                  <rect width="20" height="20" fill="#D9D9D9"/>
+                </mask>
+                <g mask={`url(#mask_switch_pop_${cardKey})`}>
+                  <path d="M10.0417 16.6667C8.18056 16.6667 6.59722 16.0209 5.29167 14.7292C3.98611 13.4375 3.33333 11.8612 3.33333 10V9.85421L2.58333 10.6042C2.43056 10.757 2.23611 10.8334 2 10.8334C1.76389 10.8334 1.56944 10.757 1.41667 10.6042C1.26389 10.4514 1.1875 10.257 1.1875 10.0209C1.1875 9.78476 1.26389 9.59032 1.41667 9.43754L3.58333 7.27087C3.66667 7.18754 3.75694 7.12837 3.85417 7.09337C3.95139 7.05893 4.05556 7.04171 4.16667 7.04171C4.27778 7.04171 4.38194 7.05893 4.47917 7.09337C4.57639 7.12837 4.66667 7.18754 4.75 7.27087L6.91667 9.43754C7.06944 9.59032 7.14583 9.78476 7.14583 10.0209C7.14583 10.257 7.06944 10.4514 6.91667 10.6042C6.76389 10.757 6.56944 10.8334 6.33333 10.8334C6.09722 10.8334 5.90278 10.757 5.75 10.6042L5 9.85421V10C5 11.3889 5.48972 12.5695 6.46917 13.5417C7.44806 14.5139 8.63889 15 10.0417 15C10.3194 15 10.5903 14.9759 10.8542 14.9275C11.1181 14.8787 11.3819 14.8056 11.6458 14.7084C11.7847 14.6528 11.9342 14.6389 12.0942 14.6667C12.2536 14.6945 12.3889 14.7639 12.5 14.875C12.75 15.125 12.8508 15.3923 12.8025 15.6767C12.7536 15.9617 12.5694 16.1598 12.25 16.2709C11.8889 16.3959 11.5244 16.4931 11.1567 16.5625C10.7883 16.632 10.4167 16.6667 10.0417 16.6667ZM15.8333 12.9584C15.7222 12.9584 15.6181 12.9409 15.5208 12.9059C15.4236 12.8714 15.3333 12.8125 15.25 12.7292L13.0833 10.5625C12.9306 10.4098 12.8542 10.2153 12.8542 9.97921C12.8542 9.7431 12.9306 9.54865 13.0833 9.39587C13.2361 9.2431 13.4306 9.16671 13.6667 9.16671C13.9028 9.16671 14.0972 9.2431 14.25 9.39587L15 10.1459V10C15 8.61115 14.5106 7.4306 13.5317 6.45837C12.5522 5.48615 11.3611 5.00004 9.95833 5.00004C9.68056 5.00004 9.40972 5.02448 9.14583 5.07337C8.88194 5.12171 8.61806 5.19449 8.35417 5.29171C8.21528 5.34726 8.06611 5.36115 7.90667 5.33337C7.74667 5.3056 7.61111 5.23615 7.5 5.12504C7.25 4.87504 7.14917 4.60754 7.1975 4.32254C7.24639 4.0381 7.43056 3.84032 7.75 3.72921C8.11111 3.60421 8.47583 3.50699 8.84417 3.43754C9.21194 3.3681 9.58333 3.33337 9.95833 3.33337C11.8194 3.33337 13.4028 3.97921 14.7083 5.27087C16.0139 6.56254 16.6667 8.13893 16.6667 10V10.1459L17.4167 9.39587C17.5694 9.2431 17.7639 9.16671 18 9.16671C18.2361 9.16671 18.4306 9.2431 18.5833 9.39587C18.7361 9.54865 18.8125 9.7431 18.8125 9.97921C18.8125 10.2153 18.7361 10.4098 18.5833 10.5625L16.4167 12.7292C16.3333 12.8125 16.2431 12.8714 16.1458 12.9059C16.0486 12.9409 15.9444 12.9584 15.8333 12.9584Z" fill="#172537"/>
+                </g>
+              </svg>
+            </button>
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-medium whitespace-nowrap opacity-0 pointer-events-none group-hover/switch:opacity-100 transition-opacity shadow-lg z-50" style={{ backgroundColor: '#293748' }}>
+              Replace
+              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent" style={{ borderTopColor: '#293748' }} />
+            </div>
+          </div>
+
+          {/* Add icon */}
+          <div className="relative group/add flex items-center">
+            <button onClick={() => onReplace(match)} className="transition-all hover:opacity-80">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="12" r="10" stroke="#FC6839" strokeWidth="1.5"/>
+                <path d="M12 8v8M8 12h8" stroke="#FC6839" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            </button>
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-medium whitespace-nowrap opacity-0 pointer-events-none group-hover/add:opacity-100 transition-opacity shadow-lg z-50" style={{ backgroundColor: '#293748' }}>
+              Add
+              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent" style={{ borderTopColor: '#293748' }} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {isInfoOpen && (
+        <div className="mx-3 mb-3 px-3 py-2.5 rounded-lg text-xs border" style={{ borderColor: colors.border, backgroundColor: colors.bg, color: colors.text }}>
+          <strong>Why this content:</strong> {match.relevanceReason}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onReplace, onDismiss }: ReplacePopoverProps) {
+  const [alternatives, setAlternatives] = useState<ContentMatch[]>([])
+  const [loading, setLoading] = useState(true)
+  const [expandedInfo, setExpandedInfo] = useState<Record<string, boolean>>({})
+  const popoverRef = useRef<HTMLDivElement>(null)
+  const [liveRect, setLiveRect] = useState(anchorRect)
+  const [popoverWidth, setPopoverWidth] = useState(380)
+  const resizing = useRef<{ startX: number; startW: number } | null>(null)
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!resizing.current) return
+      const delta = e.clientX - resizing.current.startX
+      setPopoverWidth(Math.max(320, resizing.current.startW + delta))
+    }
+    const onUp = () => { resizing.current = null }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [])
+
+  useEffect(() => {
+    let raf: number
+    const track = () => {
+      const wrapper = wrapperRef.current
+      if (!wrapper) { raf = requestAnimationFrame(track); return }
+      const el = wrapper.querySelector(`[data-id="${nodeId}"]`) as HTMLElement | null
+      if (el) {
+        const wrapperRect = wrapper.getBoundingClientRect()
+        const nodeRect = el.getBoundingClientRect()
+        setLiveRect({
+          x: nodeRect.left - wrapperRect.left,
+          y: nodeRect.top - wrapperRect.top,
+          width: nodeRect.width,
+          height: nodeRect.height,
+        })
+      }
+      raf = requestAnimationFrame(track)
+    }
+    raf = requestAnimationFrame(track)
+    return () => cancelAnimationFrame(raf)
+  }, [nodeId, wrapperRef])
+
+  useEffect(() => {
+    setLoading(true)
+    const timer = setTimeout(() => {
+      setAlternatives(findReplacements(demoId, title, 3))
+      setLoading(false)
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [demoId, title])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as HTMLElement)) {
+        onDismiss()
+      }
+    }
+    const escHandler = (e: KeyboardEvent) => { if (e.key === 'Escape') onDismiss() }
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handler)
+    }, 100)
+    document.addEventListener('keydown', escHandler)
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener('mousedown', handler)
+      document.removeEventListener('keydown', escHandler)
+    }
+  }, [onDismiss])
+
+  const toggleInfo = (k: string) => setExpandedInfo((prev) => ({ ...prev, [k]: !prev[k] }))
+
+  return (
+    <div
+      ref={popoverRef}
+      className="absolute z-50 rounded-xl border border-gray-200 bg-white shadow-xl p-2"
+      style={{
+        left: liveRect.x + liveRect.width + 12,
+        top: liveRect.y,
+        width: popoverWidth,
+        animation: 'fadeSlideIn 0.2s ease-out',
+      }}
+    >
+      {/* Right-edge resize handle */}
+      <div
+        className="absolute top-0 right-0 w-2 h-full cursor-ew-resize z-10"
+        onMouseDown={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          resizing.current = { startX: e.clientX, startW: popoverWidth }
+        }}
+      />
+      <div className="flex items-center gap-2 px-4 pt-3 pb-2">
+        <svg width="22" height="22" viewBox="14 8 62 62" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
+          <rect x="19.0464" y="12.4535" width="50.4" height="50.4" rx="25.2" fill="url(#paint_popover_sparkle)"/>
+          <path d="M43.0806 28.0993C43.1186 27.8951 43.4112 27.8951 43.4492 28.0993L43.8704 30.3629C44.4091 33.2584 46.6746 35.5236 49.5704 36.0623L51.8342 36.4835C52.0384 36.5215 52.0384 36.814 51.8342 36.852L49.5704 37.2731C46.6746 37.8118 44.4091 40.0771 43.8704 42.9726L43.4492 45.2362C43.4112 45.4404 43.1186 45.4404 43.0806 45.2362L42.6595 42.9726C42.1207 40.0771 39.8552 37.8118 36.9595 37.2731L34.6956 36.852C34.4914 36.814 34.4914 36.5215 34.6956 36.4835L36.9595 36.0623C39.8552 35.5236 42.1207 33.2584 42.6595 30.3629L43.0806 28.0993Z" fill="white"/>
+          <path d="M50.898 40.663C50.9127 40.584 51.0259 40.584 51.0406 40.663L51.2035 41.5386C51.4119 42.6586 52.2883 43.5349 53.4084 43.7433L54.2841 43.9062C54.3631 43.9209 54.3631 44.034 54.2841 44.0487L53.4084 44.2116C52.2883 44.42 51.4119 45.2963 51.2035 46.4163L51.0406 47.2919C51.0259 47.3709 50.9127 47.3709 50.898 47.2919L50.7351 46.4163C50.5267 45.2963 49.6504 44.42 48.5302 44.2116L47.6545 44.0487C47.5755 44.034 47.5755 43.9209 47.6545 43.9062L48.5302 43.7433C49.6504 43.5349 50.5267 42.6586 50.7351 41.5386L50.898 40.663Z" fill="white"/>
+          <defs>
+            <linearGradient id="paint_popover_sparkle" x1="19.0464" y1="40.0309" x2="69.4464" y2="40.0309" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#FFB352"/><stop offset="0.5" stopColor="#FC6839"/><stop offset="1" stopColor="#EB2E24"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <span className="text-sm font-semibold" style={{ color: '#FC6839' }}>Replace this content?</span>
+        <button onClick={onDismiss} className="ml-auto p-1 rounded hover:bg-gray-100 transition-colors">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1 1 13" stroke="#6F6F6F" strokeWidth="1.5" strokeLinecap="round"/></svg>
+        </button>
+      </div>
+
+      <div className="px-4 py-3">
+        <p className="text-xs text-gray-500 mb-6">
+          Here are alternatives I found for <span className="font-medium text-gray-700">&ldquo;{title.length > 40 ? title.slice(0, 37) + '...' : title}&rdquo;</span>
+        </p>
+
+        {loading ? (
+          <div className="flex items-center gap-2 py-4 justify-center text-xs text-gray-400">
+            <span className="inline-block w-4 h-4 border-2 border-gray-300 border-t-brand-500 rounded-full animate-spin" />
+            Finding alternatives...
+          </div>
+        ) : alternatives.length === 0 ? (
+          <p className="text-xs text-gray-400 py-3 text-center">No alternatives found.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {alternatives.map((alt, i) => (
+              <PopoverContentCard
+                key={alt.demo.id}
+                match={alt}
+                cardKey={`pop-${i}`}
+                expandedInfo={expandedInfo}
+                onToggleInfo={toggleInfo}
+                onReplace={(m) => onReplace(nodeId, m)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Input field */}
+      <div className="p-4">
+        <div
+          className="bg-white rounded-2xl flex flex-col transition-shadow duration-200"
+          style={{
+            border: '1px solid #e5e7eb',
+            boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+          }}
+        >
+          <div className="flex-1 px-3 pt-2.5 pb-1">
+            <textarea
+              autoFocus
+              placeholder="What kind of content are you looking for?"
+              className="w-full resize-none outline-none text-sm text-gray-900 placeholder:text-gray-400 bg-transparent overflow-hidden"
+              rows={1}
+              style={{ maxHeight: 120 }}
+              onChange={(e) => {
+                const el = e.target
+                el.style.height = 'auto'
+                el.style.height = el.scrollHeight + 'px'
+              }}
+              onFocus={(e) => {
+                const wrapper = e.target.closest('.rounded-2xl') as HTMLElement | null
+                if (wrapper) {
+                  wrapper.style.border = '2px solid #F44C10'
+                  wrapper.style.boxShadow = '0 0 0 5px rgba(255, 150, 89, 0.5)'
+                  wrapper.style.padding = '0'
+                }
+              }}
+              onBlur={(e) => {
+                const wrapper = e.target.closest('.rounded-2xl') as HTMLElement | null
+                if (wrapper) {
+                  wrapper.style.border = '1px solid #e5e7eb'
+                  wrapper.style.boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                  wrapper.style.padding = '1px'
+                }
+              }}
+            />
+          </div>
+          <div className="flex items-center justify-between px-3 pb-2">
+            <button onMouseDown={(e) => e.preventDefault()} className="text-gray-400 hover:text-gray-600 transition-colors">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            </button>
+            <button className="transition-colors" style={{ color: '#d1d5db' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  )
+}
+
 export default function FlowCanvas({ onContentChange }: { onContentChange?: (hasContent: boolean) => void }) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
@@ -284,6 +618,13 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
   const [transitionPhase, setTransitionPhase] = useState<TransitionPhase>('none')
   const hasTransitioned = useRef(false)
   const pendingNodesRef = useRef<{ nodes: Node[]; edges: Edge[] } | null>(null)
+
+  const [replaceTarget, setReplaceTarget] = useState<{
+    nodeId: string
+    title: string
+    demoId: string
+    anchorRect: { x: number; y: number; width: number; height: number }
+  } | null>(null)
 
   const showWelcome = nodes.length === 0 && transitionPhase === 'none'
   const isWelcomeMode = showWelcome || transitionPhase === 'stage-fading'
@@ -637,7 +978,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
         id: getNodeId(),
         type: 'demoCardNode',
         position: { x: startX, y: startY },
-        data: { title: sel.demo.demo.title, creator: sel.demo.demo.creator, preview: sel.demo.demo.preview },
+        data: { demoId: sel.demo.demo.id, title: sel.demo.demo.title, creator: sel.demo.demo.creator, preview: sel.demo.demo.preview },
       })
     }
 
@@ -705,7 +1046,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
             id: cardId,
             type: 'demoCardNode',
             position: { x: startX + COL_GAP, y: startY + ti * ROW_GAP },
-            data: { title: sel.demo.demo.title, creator: sel.demo.demo.creator, preview: sel.demo.demo.preview },
+            data: { demoId: sel.demo.demo.id, title: sel.demo.demo.title, creator: sel.demo.demo.creator, preview: sel.demo.demo.preview },
           })
           newEdges.push({
             id: `e-${questionId}-${cardId}`,
@@ -724,7 +1065,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
               id: cardId,
               type: 'demoCardNode',
               position: { x: startX + COL_GAP, y: startY + pi * ROW_GAP },
-              data: { title: best.demo.demo.title, creator: best.demo.demo.creator, preview: best.demo.demo.preview },
+              data: { demoId: best.demo.demo.id, title: best.demo.demo.title, creator: best.demo.demo.creator, preview: best.demo.demo.preview },
             })
             newEdges.push({
               id: `e-${questionId}-${cardId}`,
@@ -742,7 +1083,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
             id: cardId,
             type: 'demoCardNode',
             position: { x: startX + COL_GAP, y: startY + i * 260 },
-            data: { title: sel.demo.demo.title, creator: sel.demo.demo.creator, preview: sel.demo.demo.preview },
+            data: { demoId: sel.demo.demo.id, title: sel.demo.demo.title, creator: sel.demo.demo.creator, preview: sel.demo.demo.preview },
           })
           newEdges.push({
             id: `e-${questionId}-${cardId}`,
@@ -795,7 +1136,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
               id: cardId,
               type: 'demoCardNode',
               position: { x: startX + COL_GAP * 2, y: branchY + mi * 260 },
-              data: { title: sel.demo.demo.title, creator: sel.demo.demo.creator, preview: sel.demo.demo.preview },
+              data: { demoId: sel.demo.demo.id, title: sel.demo.demo.title, creator: sel.demo.demo.creator, preview: sel.demo.demo.preview },
             })
             newEdges.push({
               id: `e-${q2Id}-${cardId}`,
@@ -813,7 +1154,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
             id: cardId,
             type: 'demoCardNode',
             position: { x: startX + COL_GAP, y: branchY },
-            data: { title: ps.items[0].demo.demo.title, creator: ps.items[0].demo.demo.creator, preview: ps.items[0].demo.demo.preview },
+            data: { demoId: ps.items[0].demo.demo.id, title: ps.items[0].demo.demo.title, creator: ps.items[0].demo.demo.creator, preview: ps.items[0].demo.demo.preview },
           })
           newEdges.push({
             id: `e-${q1Id}-${cardId}`,
@@ -883,7 +1224,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
         position: ctaNode
           ? { x: ctaNode.position.x + 400, y: ctaNode.position.y + demoCards.length * 180 }
           : { x: (demoCards[demoCards.length - 1]?.position.x ?? 400), y: (demoCards[demoCards.length - 1]?.position.y ?? 0) + 180 },
-        data: { title: match.demo.title, creator: match.demo.creator, preview: match.demo.preview },
+        data: { demoId: match.demo.id, title: match.demo.title, creator: match.demo.creator, preview: match.demo.preview },
       }
 
       if (ctaNode) {
@@ -926,6 +1267,50 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
     }
   }, [setNodes, setEdges, nodes])
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { nodeId, demoId: evtDemoId, title: evtTitle } = (e as CustomEvent).detail as { nodeId: string; demoId: string; title: string }
+      let finalDemoId = evtDemoId
+      if (!finalDemoId) {
+        const found = allDemos.find((d) => d.title === evtTitle)
+        finalDemoId = found?.id || `unknown-${nodeId}`
+      }
+      const wrapper = reactFlowWrapper.current
+      if (!wrapper) return
+      const el = wrapper.querySelector(`[data-id="${nodeId}"]`) as HTMLElement | null
+      if (!el) return
+      const wrapperRect = wrapper.getBoundingClientRect()
+      const nodeRect = el.getBoundingClientRect()
+      setReplaceTarget({
+        nodeId,
+        title: evtTitle,
+        demoId: finalDemoId,
+        anchorRect: {
+          x: nodeRect.left - wrapperRect.left,
+          y: nodeRect.top - wrapperRect.top,
+          width: nodeRect.width,
+          height: nodeRect.height,
+        },
+      })
+    }
+    document.addEventListener('open-replace-popover', handler)
+    return () => document.removeEventListener('open-replace-popover', handler)
+  }, [])
+
+  const handleReplace = useCallback((nodeId: string, match: ContentMatch) => {
+    rejectDemo(replaceTarget?.demoId ?? '')
+    setNodes((nds) => nds.map((n) =>
+      n.id === nodeId
+        ? { ...n, data: { ...n.data, demoId: match.demo.id, title: match.demo.title, creator: match.demo.creator, preview: match.demo.preview } }
+        : n
+    ))
+    setReplaceTarget(null)
+  }, [setNodes, replaceTarget])
+
+  const handlePaneClick = useCallback(() => {
+    setReplaceTarget(null)
+  }, [])
+
   return (
     <div ref={reactFlowWrapper} className="flex-1 h-full relative">
       <ReactFlow
@@ -936,6 +1321,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
         onConnect={onConnect}
         onDragOver={onDragOver}
         onDrop={onDrop}
+        onPaneClick={handlePaneClick}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         defaultEdgeOptions={{
@@ -951,6 +1337,19 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
 
       {/* Custom controls toolbar */}
       <ControlsToolbar />
+
+      {/* Replace content popover */}
+      {replaceTarget && (
+        <ReplacePopover
+          nodeId={replaceTarget.nodeId}
+          title={replaceTarget.title}
+          demoId={replaceTarget.demoId}
+          anchorRect={replaceTarget.anchorRect}
+          wrapperRef={reactFlowWrapper}
+          onReplace={handleReplace}
+          onDismiss={() => setReplaceTarget(null)}
+        />
+      )}
 
       {/* Persistent chat wrapper — always mounted, single AgenticChat instance */}
       <div

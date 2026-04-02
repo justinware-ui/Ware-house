@@ -19,3 +19,26 @@
     filter: drop-shadow(0 0 6px rgba(255, 147, 86, 1)) drop-shadow(0 0 14px rgba(255, 147, 86, 0.6));
   }
 }
+
+.react-flow__node:hover > div,
+.react-flow__node.selected > div {
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12) !important;
+  border-color: #FC6839 !important;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.react-flow__node.selected {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}

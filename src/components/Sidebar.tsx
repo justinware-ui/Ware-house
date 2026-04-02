@@ -125,9 +125,17 @@ export default function Sidebar() {
       {/* Tabs */}
       <div className="pt-14 flex items-center gap-6" style={{ borderBottom: '1px solid #D6D1CB', paddingLeft: 30, paddingRight: 36 }}>
         {/* Sparkle icon */}
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 -mr-3 mb-2" style={{ transform: 'translate(8px, -8px)' }}>
-          <path d="M9.47102 6.3581C9.50322 6.1922 9.7512 6.1922 9.7834 6.3581L10.1404 8.1972C10.597 10.5498 12.5171 12.3903 14.9715 12.828L16.8902 13.1701C17.0633 13.201 17.0633 13.4387 16.8902 13.4696L14.9715 13.8117C12.5171 14.2494 10.597 16.0899 10.1404 18.4424L9.7834 20.2816C9.7512 20.4475 9.50322 20.4475 9.47102 20.2816L9.11404 18.4424C8.65742 16.0899 6.73727 14.2494 4.28294 13.8117L2.36419 13.4696C2.1911 13.4387 2.1911 13.201 2.36419 13.1701L4.28294 12.828C6.73728 12.3903 8.65742 10.5498 9.11404 8.1972L9.47102 6.3581Z" fill="#293748"/>
-          <path d="M16.0806 16.5659C16.0931 16.5018 16.189 16.5018 16.2015 16.5659L16.3395 17.2774C16.5162 18.1874 17.2589 18.8993 18.2083 19.0686L18.9505 19.201C19.0175 19.2129 19.0175 19.3049 18.9505 19.3168L18.2083 19.4492C17.2589 19.6185 16.5162 20.3304 16.3395 21.2405L16.2015 21.9519C16.189 22.0161 16.0931 22.0161 16.0806 21.9519L15.9425 21.2405C15.7659 20.3304 15.0231 19.6185 14.0737 19.4492L13.3315 19.3168C13.2646 19.3049 13.2646 19.2129 13.3315 19.201L14.0737 19.0686C15.0231 18.8993 15.7659 18.1874 15.9425 17.2774L16.0806 16.5659Z" fill="#293748"/>
+        <svg width="20" height="20" viewBox="2 10 21 21" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 -mr-3 mb-2" style={{ transform: 'translate(8px, -8px)' }}>
+          <path d="M11.4273 11.1084C11.465 10.9066 11.7551 10.9066 11.7928 11.1084L12.2104 13.3465C12.7446 16.2092 14.9911 18.4488 17.8625 18.9814L20.1073 19.3978C20.3098 19.4354 20.3098 19.7246 20.1073 19.7622L17.8625 20.1785C14.9911 20.7111 12.7446 22.9508 12.2104 25.8135L11.7928 28.0515C11.7551 28.2534 11.465 28.2534 11.4273 28.0515L11.0097 25.8135C10.4754 22.9508 8.22901 20.7111 5.35761 20.1785L3.11281 19.7622C2.91031 19.7246 2.91031 19.4354 3.11281 19.3978L5.35761 18.9814C8.22901 18.4488 10.4754 16.2092 11.0097 13.3465L11.4273 11.1084Z" fill="url(#paint0_sidebar_sparkle)"/>
+          <path d="M19.1688 23.5301C19.1834 23.452 19.2956 23.452 19.3102 23.5301L19.4717 24.3958C19.6784 25.5032 20.5473 26.3695 21.6581 26.5755L22.5264 26.7366C22.6047 26.7511 22.6047 26.863 22.5264 26.8775L21.6581 27.0386C20.5473 27.2446 19.6784 28.111 19.4717 29.2184L19.3102 30.0841C19.2956 30.1622 19.1834 30.1622 19.1688 30.0841L19.0072 29.2184C18.8006 28.111 17.9316 27.2446 16.8209 27.0386L15.9525 26.8775C15.8742 26.863 15.8742 26.7511 15.9525 26.7366L16.8209 26.5755C17.9316 26.3695 18.8006 25.5032 19.0072 24.3958L19.1688 23.5301Z" fill="url(#paint1_sidebar_sparkle)"/>
+          <defs>
+            <linearGradient id="paint0_sidebar_sparkle" x1="2.96094" y1="21.4548" x2="22.5851" y2="21.4548" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#FFB352"/><stop offset="0.5" stopColor="#FC6839"/><stop offset="1" stopColor="#EB2E24"/>
+            </linearGradient>
+            <linearGradient id="paint1_sidebar_sparkle" x1="2.96094" y1="21.4548" x2="22.5851" y2="21.4548" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#FFB352"/><stop offset="0.5" stopColor="#FC6839"/><stop offset="1" stopColor="#EB2E24"/>
+            </linearGradient>
+          </defs>
         </svg>
 
         {tabs.map((tab) => (
@@ -184,7 +192,7 @@ export default function Sidebar() {
             draggable
             onDragStart={(e) => {
               const cardThumb = activeTab === 'Dynamic Tours' ? thumbDynamicTour : demo.thumb
-              onDragStart(e, `card-${activeTab.toLowerCase().replace(/\s+/g, '-')}`, { title: demo.title, creator: demo.creator, thumb: cardThumb, preview: demo.preview })
+              onDragStart(e, `card-${activeTab.toLowerCase().replace(/\s+/g, '-')}`, { demoId: demo.id, title: demo.title, creator: demo.creator, thumb: cardThumb, preview: demo.preview })
             }}
             className="flex items-center gap-3 px-3 py-3 rounded-xl border border-gray-200 bg-white hover:border-brand-300 hover:shadow-sm transition-all cursor-grab mb-2"
           >

@@ -264,6 +264,16 @@ function scoreAndRank(
   return scored.slice(offset, offset + count)
 }
 
+export function findReplacements(
+  currentDemoId: string,
+  currentTitle: string,
+  count = 3,
+): ContentMatch[] {
+  const excludeIds = new Set([currentDemoId, ...rejectedDemoIds])
+  return scoreAndRank(currentTitle, '', demos, 0, count, excludeIds)
+    .map(({ relevanceScore: _, ...rest }) => rest)
+}
+
 // ─── Content matching ─────────────────────────────────────────────────────────
 
 export function matchContent(

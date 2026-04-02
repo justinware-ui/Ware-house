@@ -796,7 +796,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
         className={
           mode === 'full'
             ? 'pointer-events-auto mt-[18px]'
-            : 'border-t border-gray-100 px-4 py-3 bg-white'
+            : 'border-t border-gray-100 p-4 bg-white'
         }
         style={
           mode === 'full' && effectiveHasSent
@@ -1276,7 +1276,7 @@ function ProposalView({
           )}
 
           {persona.painPointMatches && persona.painPointMatches.length >= 2 ? (
-            <div className="flex flex-col gap-7">
+            <div className="flex flex-col gap-7" style={{ marginTop: 16 }}>
               {persona.painPointMatches.map((ppGroup, gi) => (
                 <div key={gi}>
                   <div className="px-1 mb-1.5">
