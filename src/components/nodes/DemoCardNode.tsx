@@ -80,7 +80,7 @@ export default function DemoCardNode({ id, data }: NodeProps) {
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-2 shrink-0" style={{ marginRight: 8 }}>
         <button className="hover:opacity-70 transition-opacity nodrag nopan" onClick={() => preview && setShowPreview(true)}>
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
             <mask id={`mask_eye_node_${id}`} style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="0" y="0" width="20" height="20">

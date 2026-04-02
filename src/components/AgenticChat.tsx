@@ -7,6 +7,12 @@ import {
   type DemoProposal,
   type ToolGroup,
   type ConfidenceLevel,
+  detectIntent,
+  extractPersonas,
+  extractPainPoints,
+  rejectDemo,
+  getRejectedIds,
+  type CanvasState,
 } from '../lib/aiEngine'
 import thumbTableHero from '../assets/thumb-table-hero.svg'
 import thumbContent from '../assets/thumb-content.svg'
@@ -64,9 +70,10 @@ interface Props {
   onCreateNode?: (type: 'fullScreenDialogNode' | 'ctaNode', data?: Record<string, unknown>) => void
   removedDemoIds?: string[]
   inputBottom?: boolean
+  canvasState?: CanvasState
 }
 
-export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleContent, onCreateNode, removedDemoIds, inputBottom }: Props) {
+export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleContent, onCreateNode, removedDemoIds, inputBottom, canvasState }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const hasSent = messages.some((m) => m.role === 'user')
@@ -80,6 +87,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
   const [showFeedbackInput, setShowFeedbackInput] = useState(false)
   const [latestProposal, setLatestProposal] = useState<DemoProposal | null>(null)
   const [globalSelected, setGlobalSelected] = useState<Record<string, boolean>>({})
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set())
   const prevRemovedRef = useRef<string[]>([])
 
   useEffect(() => {
@@ -207,32 +215,108 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
     const processMessage = () => {
       addMessage({ role: 'user', content: text, actions: true })
 
-      const lower = text.toLowerCase()
-      const wantsFSD = /full\s*screen|introduction|intro\b|welcome\s*(screen|page|message)|landing/i.test(lower)
+      // Reject generic meta-descriptions that describe the demo-building task
+      // rather than providing actual personas or topics
+      const wordCount = text.split(/\s+/).length
+      const isMetaDescription = wordCount > 15 && /\b(helping|identify|ask.*question|choose|relevant content|should include|find most important)\b/i.test(text)
+      if (isMetaDescription && step !== 'post_proposal') {
+        addMessage({
+          role: 'ai',
+          content: step === 'awaiting_pain_points'
+            ? "Could you give me the specific topics as a short list? For example: \"analytics, demo creation, tours, demo management\" — I'll use those as the answer choices and find the best content for each."
+            : "I need a bit more structure to work with. Who are the personas this demo is for? For example: \"VPs of Sales and Marketing Directors\".",
+        })
+        return
+      }
 
-      if (wantsFSD && step !== 'awaiting_pain_points' && step !== 'thinking') {
+      // FSD help sub-flows always take priority when active
+      if (step === 'awaiting_fsd_help') { handleFSDHelpResponse(text); return }
+      if (step === 'awaiting_fsd_content') { handleFSDContentResponse(text); return }
+
+      // Use intent detection for flexible routing
+      const intent = detectIntent(text, personas.length > 0, !!latestProposal)
+
+      if (intent === 'request_fsd' && step !== 'thinking') {
         handleFSDRequest(text)
         return
       }
 
-      if (step === 'awaiting_fsd_help') {
-        handleFSDHelpResponse(text)
+      // Handle "provide_both" — user gave personas + pain points in one message
+      if (intent === 'provide_both') {
+        const extracted = extractPersonas(text)
+        const updatedPersonas = extracted.map((n) => ({ name: n, painPoints: [] as string[] }))
+        const painPointsByPersona = extractPainPoints(text, updatedPersonas)
+        const withPainPoints = updatedPersonas.map((p, i) => ({
+          ...p,
+          painPoints: painPointsByPersona[i]?.length > 0 ? painPointsByPersona[i] : ['general solutions'],
+        }))
+        setPersonas(withPainPoints)
+        setStep('thinking')
+        const thinkingId = addMessage({
+          role: 'ai', content: '', thinking: true,
+          toolGroups: generateToolCalls(withPainPoints),
+        })
+        simulateToolProgress(thinkingId, withPainPoints)
         return
       }
 
-      if (step === 'awaiting_fsd_content') {
-        handleFSDContentResponse(text)
-        return
-      }
-
-      if (step === 'awaiting_purpose') {
-        handlePurposeResponse(text)
-      } else if (step === 'awaiting_pain_points') {
-        handlePainPointsResponse(text)
-      } else if (step === 'post_proposal') {
-        handleMoreContentRequest(text)
-      } else if (step === 'survey') {
-        addMessage({ role: 'ai', content: "Thanks for the feedback! I'll keep improving. Your demo is ready on the canvas — feel free to edit anything directly." })
+      // Route based on intent, with fallback to step-based logic
+      switch (intent) {
+        case 'provide_personas':
+          handlePurposeResponse(text)
+          break
+        case 'provide_pain_points':
+          if (personas.length > 0) {
+            handlePainPointsResponse(text)
+          } else {
+            // They gave pain points but no personas yet — ask for personas
+            addMessage({
+              role: 'ai',
+              content: "I'd love to work with those priorities! Who are the personas or audiences you're building this for?",
+            })
+            setStep('awaiting_purpose')
+          }
+          break
+        case 'request_more_content':
+          handleMoreContentRequest(text)
+          break
+        case 'satisfied':
+          handleSatisfied()
+          break
+        case 'create_demo':
+          handleSatisfied()
+          break
+        case 'request_changes':
+          handleChangeRequest(text)
+          break
+        case 'ask_question':
+          handleQuestion(text)
+          break
+        default:
+          // Fall back to step-based routing
+          if (step === 'awaiting_purpose') handlePurposeResponse(text)
+          else if (step === 'awaiting_pain_points') {
+            // Check if the text is specific topics or a generic description
+            const parts = text.split(/[,;.\n]/).map(s => s.trim()).filter(s => s.length > 2)
+            const avgWords = parts.reduce((s, p) => s + p.split(/\s+/).length, 0) / (parts.length || 1)
+            if (avgWords > 8) {
+              addMessage({
+                role: 'ai',
+                content: "Could you give me the specific topics as a short list? For example: \"event management, lead capture, product demos\" — I'll use those as the answer choices and find the best content for each.",
+              })
+            } else {
+              handlePainPointsResponse(text)
+            }
+          }
+          else if (step === 'post_proposal') handleMoreContentRequest(text)
+          else if (step === 'survey') {
+            addMessage({ role: 'ai', content: "Thanks for the feedback! I'll keep improving. Your demo is ready on the canvas — feel free to edit anything directly." })
+          } else {
+            addMessage({
+              role: 'ai',
+              content: "I'm not sure I understood that. Could you tell me more about the demo you're building and who it's for?",
+            })
+          }
       }
     }
 
@@ -246,10 +330,25 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
 
   const handlePurposeResponse = (text: string) => {
     const extractedPersonas = extractPersonas(text)
+    const isGeneric = extractedPersonas.length === 1 && extractedPersonas[0] === 'General audience'
+
+    if (isGeneric) {
+      setPersonas([{ name: 'General audience', painPoints: [] }])
+      setTimeout(() => {
+        addMessage({
+          role: 'ai',
+          content: "Got it! Who are the main personas or audiences this demo is for? For example: \"VPs of Sales and Marketing Directors\" or \"IT Admins and End Users\".",
+        })
+        setStep('awaiting_purpose')
+      }, 1200)
+      return
+    }
+
     setPersonas(extractedPersonas.map((n) => ({ name: n, painPoints: [] })))
 
     setTimeout(() => {
-      const personaList = extractedPersonas.map((p, i) => `${i + 1}. ${p}`).join('\n')
+      const label = extractedPersonas.length > 1 ? 'Personas' : 'Persona'
+      const personaList = extractedPersonas.map((p, i) => `${i + 1}. ${label}: ${p}`).join('\n')
       addMessage({
         role: 'ai',
         content: `Can you tell me what they care about most? Or what problem you solve for them:\n\n${personaList}`,
@@ -261,6 +360,19 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
 
   const handlePainPointsResponse = (text: string) => {
     const painPointsByPersona = extractPainPoints(text, personas)
+
+    // If every persona only got 'general solutions', the input wasn't usable topics
+    const allGeneric = painPointsByPersona.every(pp =>
+      pp.length === 1 && pp[0] === 'general solutions'
+    )
+    if (allGeneric) {
+      addMessage({
+        role: 'ai',
+        content: "Could you give me the specific topics as a short list? For example: \"event management, lead capture, product demos\" — I'll use those as the answer choices and find the best content for each.",
+      })
+      return
+    }
+
     const updatedPersonas = personas.map((p, i) => ({
       ...p,
       painPoints: painPointsByPersona[i] || ['general solutions'],
@@ -315,20 +427,21 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
             const hasPPMatches = persona.painPointMatches && persona.painPointMatches.length >= 2
             if (hasPPMatches && persona.painPointMatches) {
               persona.painPointMatches.forEach((ppGroup, gi) => {
-                const top = ppGroup.matches.slice(0, 2)
-                top.forEach((m, mi) => {
-                  const key = `${pi}-pp${gi}-${mi}`
+                // Only put the single best-performing content on stage per topic
+                const best = ppGroup.matches[0]
+                if (best) {
+                  const key = `${pi}-pp${gi}-0`
                   autoSelected[key] = true
-                  autoItems.push({ persona: persona.name, demo: m })
-                })
+                  autoItems.push({ persona: persona.name, demo: best })
+                }
               })
             } else {
-              const top = persona.matches.slice(0, 2)
-              top.forEach((m, mi) => {
-                const key = `${pi}-${mi}`
+              const best = persona.matches[0]
+              if (best) {
+                const key = `${pi}-0`
                 autoSelected[key] = true
-                autoItems.push({ persona: persona.name, demo: m })
-              })
+                autoItems.push({ persona: persona.name, demo: best })
+              }
             }
           })
 
@@ -336,7 +449,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
 
           addMessage({
             role: 'ai',
-            content: `Here's what I put together — I selected the best content for each persona and placed it on the canvas as a connected flow. You can swap or adjust anything you want:`,
+            content: `Here's what I put together — I placed the highest-performing content on the canvas for each topic. You can swap or adjust anything you want:`,
             proposal,
           })
 
@@ -382,10 +495,10 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
     const newOffset = contentOffset + 3
     setContentOffset(newOffset)
 
-    addMessage({ role: 'ai', content: '', thinking: true, toolGroups: [{ label: 'Searching for more content', tools: [{ name: 'search_library', description: 'Searching demo library for additional matches...', status: 'running' }] }] })
+    addMessage({ role: 'ai', content: '', thinking: true, toolGroups: [{ label: 'Searching for more content', tools: [{ name: 'search_library', description: 'Searching demo library for additional matches...', status: 'running' }, ...(getRejectedIds().size > 0 ? [{ name: 'filter_rejected', description: `Excluding ${getRejectedIds().size} previously rejected item${getRejectedIds().size !== 1 ? 's' : ''}`, status: 'running' as const }] : []) ] }] })
 
     setTimeout(() => {
-      const proposal = buildProposal(personas, newOffset)
+      const proposal = buildProposal(personas, newOffset, getRejectedIds())
       const hasResults = proposal.personas.some((p) => p.matches.length > 0)
 
       if (hasResults) {
@@ -403,20 +516,20 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
           const hasPPMatches = persona.painPointMatches && persona.painPointMatches.length >= 2
           if (hasPPMatches && persona.painPointMatches) {
             persona.painPointMatches.forEach((ppGroup, gi) => {
-              const top = ppGroup.matches.slice(0, 2)
-              top.forEach((m, mi) => {
-                const key = `${pi}-pp${gi}-${mi}`
+              const best = ppGroup.matches[0]
+              if (best) {
+                const key = `${pi}-pp${gi}-0`
                 autoSelected[key] = true
-                autoItems.push({ persona: persona.name, demo: m })
-              })
+                autoItems.push({ persona: persona.name, demo: best })
+              }
             })
           } else {
-            const top = persona.matches.slice(0, 2)
-            top.forEach((m, mi) => {
-              const key = `${pi}-${mi}`
+            const best = persona.matches[0]
+            if (best) {
+              const key = `${pi}-0`
               autoSelected[key] = true
-              autoItems.push({ persona: persona.name, demo: m })
-            })
+              autoItems.push({ persona: persona.name, demo: best })
+            }
           }
         })
 
@@ -516,10 +629,69 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
     }, 1000)
   }
 
+  const handleSatisfied = () => {
+    addMessage({
+      role: 'ai',
+      content: "Glad you like it! The demo is already on the canvas — feel free to edit, swap content, or rearrange elements anytime.",
+    })
+  }
+
+  const handleChangeRequest = (text: string) => {
+    const lower = text.toLowerCase()
+    if (/swap|switch|replace/i.test(lower)) {
+      addMessage({
+        role: 'ai',
+        content: "You can swap content directly by clicking the replace icon on any content card in the chat, or deselect it and pick a different one. I can also search for more options — just tell me what you're looking for.",
+      })
+    } else if (/remove|delete/i.test(lower)) {
+      addMessage({
+        role: 'ai',
+        content: "You can remove content from the canvas by clicking the X on any card, or deselect it in the chat. What would you like to change?",
+      })
+    } else {
+      addMessage({
+        role: 'ai',
+        content: "I can help with changes! You can edit content directly on the canvas, or tell me what you'd like different and I'll search for alternatives.",
+      })
+    }
+    setStep('post_proposal')
+  }
+
+  const handleQuestion = (text: string) => {
+    const lower = text.toLowerCase()
+    if (/how.*work|what.*do/i.test(lower) && /discovery|question/i.test(lower)) {
+      addMessage({
+        role: 'ai',
+        content: "A discovery question lets your viewers self-select their path. They see a question with multiple answers, and each answer leads to content tailored to that choice. It's great for personalizing the demo experience based on role, interest, or use case.",
+      })
+    } else if (/template|structure|flow/i.test(lower)) {
+      addMessage({
+        role: 'ai',
+        content: "I use three templates based on your personas:\n\n• **Single Asset** — one video or tour for one persona\n• **1 Discovery Branch** — a question that routes to different content per persona\n• **2 Discovery Branches** — two levels of questions for deeper personalization\n\nThe template is automatically chosen based on how many personas and pain points you give me.",
+      })
+    } else if (/confidence|rating|score|high|medium|low/i.test(lower)) {
+      addMessage({
+        role: 'ai',
+        content: "Content confidence is based on two factors:\n\n• **✅ High** — strong keyword match + above-average engagement\n• **🟡 Medium** — strong keyword match but lower engagement\n• **❌ Low** — indirect match and lower engagement\n\nHigher confidence means the content is more likely to resonate with your audience.",
+      })
+    } else {
+      addMessage({
+        role: 'ai',
+        content: "Great question! I can help with building demos, selecting content, and structuring discovery flows. What would you like to know more about?",
+      })
+    }
+  }
+
   const handleVote = (msgId: string, vote: 'up' | 'down') => {
     updateMessage(msgId, { voted: vote })
     if (vote === 'down') {
       setShowFeedbackInput(true)
+      // Reject all content from the current proposal so we don't resurface it
+      if (latestProposal) {
+        latestProposal.personas.forEach((p) => {
+          p.matches.forEach((m) => rejectDemo(m.demo.id))
+        })
+      }
     }
   }
 
@@ -559,9 +731,14 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
                   onToggleInfo={toggleInfo}
                   onVote={handleVote}
                   selected={globalSelected}
+                  dismissed={dismissed}
                   onToggleSelect={(key) => {
                     const nowSelected = !globalSelected[key]
                     setGlobalSelected((prev) => ({ ...prev, [key]: nowSelected }))
+
+                    if (!nowSelected) {
+                      setDismissed((prev) => new Set(prev).add(key))
+                    }
 
                     if (latestProposal && onToggleContent) {
                       const ppMatch = key.match(/^(\d+)-pp(\d+)-(\d+)$/)
@@ -574,7 +751,10 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
                         const [, pi, mi] = flatMatch.map(Number)
                         match = latestProposal.personas[pi]?.matches[mi]
                       }
-                      if (match) onToggleContent(match, nowSelected)
+                      if (match) {
+                        onToggleContent(match, nowSelected)
+                        if (!nowSelected) rejectDemo(match.demo.id)
+                      }
                     }
                   }}
                 />
@@ -756,6 +936,7 @@ function AiMessage({
   onToggleInfo,
   onVote,
   selected,
+  dismissed,
   onToggleSelect,
 }: {
   msg: ChatMessage
@@ -766,6 +947,7 @@ function AiMessage({
   onToggleInfo: (key: string) => void
   onVote: (msgId: string, vote: 'up' | 'down') => void
   selected: Record<string, boolean>
+  dismissed: Set<string>
   onToggleSelect: (key: string) => void
 }) {
   return (
@@ -848,7 +1030,7 @@ function AiMessage({
         )}
 
         {/* Proposal rendering */}
-        {msg.proposal && <ProposalView proposal={msg.proposal} expandedInfo={expandedInfo} onToggleInfo={onToggleInfo} selected={selected} onToggleSelect={onToggleSelect} />}
+        {msg.proposal && <ProposalView proposal={msg.proposal} expandedInfo={expandedInfo} onToggleInfo={onToggleInfo} selected={selected} dismissed={dismissed} onToggleSelect={onToggleSelect} />}
 
         {/* Vote buttons */}
         {msg.showVote && (
@@ -1028,12 +1210,14 @@ function ProposalView({
   expandedInfo,
   onToggleInfo,
   selected,
+  dismissed,
   onToggleSelect,
 }: {
   proposal: DemoProposal
   expandedInfo: Record<string, boolean>
   onToggleInfo: (key: string) => void
   selected: Record<string, boolean>
+  dismissed: Set<string>
   onToggleSelect: (key: string) => void
 }) {
 
@@ -1059,9 +1243,9 @@ function ProposalView({
 
       {/* Per-persona content */}
       {proposal.personas.map((persona, pi) => (
-        <div key={pi}>
+        <div key={pi} style={pi > 0 ? { marginTop: 16 } : undefined}>
           <div className="px-1 mb-2">
-            <div className="text-sm font-semibold text-gray-900">{persona.name}</div>
+            <div className="text-sm font-semibold text-gray-900">{proposal.personas.length > 1 ? 'Personas' : 'Persona'}: {persona.name}</div>
             {persona.painPoints.length > 0 && (
               <div className="text-xs text-gray-500 mt-0.5">
                 Focus: {persona.painPoints.join(', ')}
@@ -1073,7 +1257,7 @@ function ProposalView({
           {proposal.template === '2_disco_branch' && proposal.secondDiscoveryQuestions && (
             <div className="bg-white rounded-xl p-3 border border-gray-200 mb-2">
               <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
-                Follow-up Question for {persona.name}
+                Follow-up Question for {proposal.personas.length > 1 ? 'Personas' : 'Persona'}: {persona.name}
               </div>
               <div className="text-sm text-gray-900">
                 &ldquo;{proposal.secondDiscoveryQuestions.find((q) => q.persona === persona.name)?.question}&rdquo;
@@ -1092,7 +1276,7 @@ function ProposalView({
           )}
 
           {persona.painPointMatches && persona.painPointMatches.length >= 2 ? (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-7">
               {persona.painPointMatches.map((ppGroup, gi) => (
                 <div key={gi}>
                   <div className="px-1 mb-1.5">
@@ -1101,6 +1285,7 @@ function ProposalView({
                   <div className="flex flex-col gap-2">
                     {ppGroup.matches.map((match, mi) => {
                       const infoKey = `${pi}-pp${gi}-${mi}`
+                      if (dismissed.has(infoKey)) return null
                       return (
                         <ContentCard
                           key={mi}
@@ -1121,6 +1306,7 @@ function ProposalView({
             <div className="flex flex-col gap-2">
               {persona.matches.map((match, mi) => {
                 const infoKey = `${pi}-${mi}`
+                if (dismissed.has(infoKey)) return null
                 return (
                   <ContentCard
                     key={mi}
@@ -1141,33 +1327,3 @@ function ProposalView({
   )
 }
 
-function extractPersonas(text: string): string[] {
-  const patterns = [
-    /for\s+(.+?)(?:,\s*and\s+|\s+and\s+|,\s*)(.+?)(?:,\s*and\s+|\s+and\s+|,\s*)(.+?)(?:\.|$)/i,
-    /for\s+(.+?)(?:\s+and\s+|,\s*)(.+?)(?:\.|$)/i,
-    /for\s+(.+?)(?:\.|$)/i,
-  ]
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern)
-    if (match) {
-      return match.slice(1).map((s) => s.trim()).filter(Boolean)
-    }
-  }
-
-  const sentences = text.split(/[.,;]/).map((s) => s.trim()).filter((s) => s.length > 3)
-  if (sentences.length > 0) {
-    return sentences.slice(0, 3)
-  }
-  return ['General audience']
-}
-
-function extractPainPoints(text: string, personas: { name: string }[]): string[][] {
-  const numberedParts = text.split(/\d+[.)]\s*/).filter(Boolean)
-  if (numberedParts.length >= personas.length) {
-    return personas.map((_, i) => [numberedParts[i]?.trim() || 'general solutions'])
-  }
-
-  const parts = text.split(/(?:and|,)\s+/).filter(Boolean)
-  return personas.map((_, i) => [parts[i]?.trim() || text.trim()])
-}

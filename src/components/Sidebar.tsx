@@ -27,6 +27,7 @@ const demos = realDemos.map((d) => ({
   title: d.title,
   creator: d.creator,
   type: d.type,
+  preview: d.preview,
   thumb: thumbnails[Math.floor(Math.random() * thumbnails.length)],
 }))
 

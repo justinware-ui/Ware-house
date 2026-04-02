@@ -26,7 +26,8 @@ export default function PreviewModal({ url, title, onClose }: PreviewModalProps)
     >
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
-        className="relative z-10 w-[90vw] max-w-5xl h-[80vh] rounded-2xl overflow-hidden bg-white shadow-2xl flex flex-col"
+        className="relative z-10 w-[95vw] max-w-[1440px] rounded-2xl overflow-hidden bg-white shadow-2xl flex flex-col"
+        style={{ height: 'calc(90vh - 160px)' }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-gray-50 shrink-0">

@@ -430,10 +430,19 @@ export default function CtaNode({ id, data }: NodeProps) {
     return () => document.removeEventListener('selectionchange', handleSelectionChange)
   }, [showToolbar])
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      if ((e as CustomEvent).detail !== id) setShowToolbar(false)
+    }
+    document.addEventListener('toolbar-open', handler)
+    return () => document.removeEventListener('toolbar-open', handler)
+  }, [id])
+
   const handleFieldFocus = () => {
     suppressSelectionRef.current = true
     setActiveFormats(new Set())
     setShowToolbar(true)
+    document.dispatchEvent(new CustomEvent('toolbar-open', { detail: id }))
     requestAnimationFrame(() => { suppressSelectionRef.current = false })
   }
   const handleFieldBlur = (e: React.FocusEvent) => {
