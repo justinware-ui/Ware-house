@@ -734,27 +734,53 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
                   dismissed={dismissed}
                   onToggleSelect={(key) => {
                     const nowSelected = !globalSelected[key]
-                    setGlobalSelected((prev) => ({ ...prev, [key]: nowSelected }))
-
-                    if (!nowSelected) {
-                      setDismissed((prev) => new Set(prev).add(key))
-                    }
 
                     if (latestProposal && onToggleContent) {
                       const ppMatch = key.match(/^(\d+)-pp(\d+)-(\d+)$/)
                       const flatMatch = key.match(/^(\d+)-(\d+)$/)
                       let match: import('../lib/aiEngine').ContentMatch | undefined
+
                       if (ppMatch) {
                         const [, pi, gi, mi] = ppMatch.map(Number)
                         match = latestProposal.personas[pi]?.painPointMatches?.[gi]?.matches[mi]
+
+                        if (nowSelected) {
+                          const group = latestProposal.personas[pi]?.painPointMatches?.[gi]
+                          if (group) {
+                            const updatedSelected = { ...globalSelected, [key]: true }
+                            group.matches.forEach((_, otherMi) => {
+                              if (otherMi === mi) return
+                              const otherKey = `${pi}-pp${gi}-${otherMi}`
+                              if (globalSelected[otherKey]) {
+                                updatedSelected[otherKey] = false
+                                const otherMatch = group.matches[otherMi]
+                                if (otherMatch) {
+                                  onToggleContent(otherMatch, false)
+                                  rejectDemo(otherMatch.demo.id)
+                                }
+                              }
+                            })
+                            setGlobalSelected(updatedSelected)
+                          } else {
+                            setGlobalSelected((prev) => ({ ...prev, [key]: true }))
+                          }
+                        } else {
+                          setGlobalSelected((prev) => ({ ...prev, [key]: false }))
+                        }
                       } else if (flatMatch) {
                         const [, pi, mi] = flatMatch.map(Number)
                         match = latestProposal.personas[pi]?.matches[mi]
+                        setGlobalSelected((prev) => ({ ...prev, [key]: nowSelected }))
+                      } else {
+                        setGlobalSelected((prev) => ({ ...prev, [key]: nowSelected }))
                       }
+
                       if (match) {
                         onToggleContent(match, nowSelected)
                         if (!nowSelected) rejectDemo(match.demo.id)
                       }
+                    } else {
+                      setGlobalSelected((prev) => ({ ...prev, [key]: nowSelected }))
                     }
                   }}
                 />

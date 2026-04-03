@@ -528,12 +528,12 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
         <span className="text-xs font-medium text-gray-500">Full screen dialog</span>
       </div>
 
-      <div className="relative">
+      <div>
         {tooltipMode && (
-          <div className="absolute inset-0 z-10 bg-white px-0 py-0">
+          <div className="bg-white px-0 py-0">
             <div className="mb-5 px-1">
               <p className="text-base font-semibold italic text-gray-800">
-                Create tooltips for your message and buttons
+                Create a tooltip for your message
               </p>
             </div>
 
@@ -570,41 +570,6 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                 </div>
               )}
 
-              {/* Button tooltips */}
-              {buttons.map((btn) => (
-                <div key={btn.id}>
-                  {btn.text && (
-                    <p className="text-xs text-gray-600 mb-1">
-                      Button: {btn.text}
-                    </p>
-                  )}
-                  <div className="flex items-start gap-3 pb-2 border-b border-gray-200 focus-within:border-brand-400 transition-colors">
-                    <div className="flex-1 min-w-0">
-                      <input
-                        type="text"
-                        value={draftTooltips[btn.id] ?? ''}
-                        onChange={(e) =>
-                          setDraftTooltips((prev) => ({ ...prev, [btn.id]: e.target.value }))
-                        }
-                        placeholder="Type your tool-tip here"
-                        className="nodrag w-full text-sm text-gray-800 placeholder:text-[#FC6839] outline-none bg-transparent"
-                      />
-                    </div>
-                    <button
-                      className="text-gray-400 hover:text-gray-600 shrink-0 mt-0.5"
-                      onClick={() =>
-                        setDraftTooltips((prev) => {
-                          const next = { ...prev }
-                          delete next[btn.id]
-                          return next
-                        })
-                      }
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                </div>
-              ))}
             </div>
 
             <div className="flex items-center justify-between mt-5">
@@ -633,7 +598,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
           </div>
         )}
 
-        <div style={tooltipMode ? { visibility: 'hidden' as const } : undefined}>
+        <div style={tooltipMode ? { height: 0, overflow: 'hidden' as const, visibility: 'hidden' as const } : undefined}>
         <>
           {/* Header field */}
           <div className="mb-7 px-1" style={{ marginTop: 6 }}>
@@ -784,17 +749,8 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                   />
                 </div>
 
-                {/* Tooltip + Remove button */}
+                {/* Remove button */}
                 <div className="flex items-center gap-2 shrink-0" style={{ marginTop: 6 }}>
-                  {tooltips[btn.id]?.trim() && (
-                    <div className="relative group/tip">
-                      <CircleHelp size={14} className="text-gray-800 cursor-help" />
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1.5 rounded-lg bg-gray-800 text-white text-xs opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity shadow-lg" style={{ width: 'max-content', maxWidth: 320 }}>
-                        {tooltips[btn.id]}
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
-                      </div>
-                    </div>
-                  )}
                   {buttons.length >= 2 && (
                     <button
                       className="text-gray-400 hover:text-gray-600"

@@ -245,6 +245,14 @@ function SparkleIcon({ size = 92 }: { size?: number }) {
   )
 }
 
+interface PopoverCache {
+  alternatives: ContentMatch[]
+  messages: PopoverMessage[]
+  votes: Record<string, 'up' | 'down'>
+  activeDemoId?: string
+  originalTitle?: string
+}
+
 interface ReplacePopoverProps {
   nodeId: string
   title: string
@@ -252,7 +260,10 @@ interface ReplacePopoverProps {
   anchorRect: { x: number; y: number; width: number; height: number }
   wrapperRef: React.RefObject<HTMLDivElement | null>
   onReplace: (nodeId: string, match: ContentMatch) => void
+  onDeselect: (nodeId: string) => void
   onDismiss: () => void
+  cachedState?: PopoverCache
+  onSaveState?: (nodeId: string, state: PopoverCache) => void
 }
 
 const popoverThumbs = [thumbTableHero, thumbContent]
@@ -279,19 +290,21 @@ function PopoverContentCard({
   expandedInfo,
   onToggleInfo,
   onReplace,
+  isSelected,
 }: {
   match: ContentMatch
   cardKey: string
   expandedInfo: Record<string, boolean>
   onToggleInfo: (k: string) => void
   onReplace: (match: ContentMatch) => void
+  isSelected?: boolean
 }) {
   const colors = CONF_COLOR[match.confidence]
   const isInfoOpen = !!expandedInfo[cardKey]
   const [showPreview, setShowPreview] = useState(false)
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white overflow-visible">
+    <div className="rounded-xl border bg-white overflow-visible" style={{ borderColor: isSelected ? '#FC6839' : '#e5e7eb' }}>
       {showPreview && (
         <PreviewModal url={match.demo.preview} title={match.demo.title} onClose={() => setShowPreview(false)} />
       )}
@@ -336,16 +349,28 @@ function PopoverContentCard({
             </div>
           </div>
 
-          {/* Add icon */}
+          {/* Add / Selected icon */}
           <div className="relative group/add flex items-center">
             <button onClick={() => onReplace(match)} className="transition-all hover:opacity-80">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="12" cy="12" r="10" stroke="#FC6839" strokeWidth="1.5"/>
-                <path d="M12 8v8M8 12h8" stroke="#FC6839" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
+              {isSelected ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect width="24" height="24" rx="12" fill="#61B08B"/>
+                  <mask id={`mask_sel_pop_${cardKey}`} style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="4" y="4" width="16" height="16">
+                    <rect x="4" y="4" width="16" height="16" fill="#D9D9D9"/>
+                  </mask>
+                  <g mask={`url(#mask_sel_pop_${cardKey})`}>
+                    <path d="M10.3664 15.7167C10.2775 15.7167 10.1942 15.7027 10.1164 15.6747C10.0386 15.6472 9.96642 15.6001 9.89976 15.5334L7.03309 12.6667C6.91087 12.5445 6.85242 12.3861 6.85776 12.1914C6.86353 11.9972 6.92753 11.8389 7.04976 11.7167C7.17198 11.5945 7.32753 11.5334 7.51642 11.5334C7.70531 11.5334 7.86087 11.5945 7.98309 11.7167L10.3664 14.1001L16.0164 8.45006C16.1386 8.32783 16.2971 8.26672 16.4918 8.26672C16.686 8.26672 16.8442 8.32783 16.9664 8.45006C17.0886 8.57228 17.1498 8.7305 17.1498 8.92472C17.1498 9.11939 17.0886 9.27783 16.9664 9.40006L10.8331 15.5334C10.7664 15.6001 10.6942 15.6472 10.6164 15.6747C10.5386 15.7027 10.4553 15.7167 10.3664 15.7167Z" fill="white"/>
+                  </g>
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="12" cy="12" r="10" stroke="#FC6839" strokeWidth="1.5"/>
+                  <path d="M12 8v8M8 12h8" stroke="#FC6839" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+              )}
             </button>
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-medium whitespace-nowrap opacity-0 pointer-events-none group-hover/add:opacity-100 transition-opacity shadow-lg z-50" style={{ backgroundColor: '#293748' }}>
-              Add
+              {isSelected ? 'Selected' : 'Add'}
               <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent" style={{ borderTopColor: '#293748' }} />
             </div>
           </div>
@@ -368,17 +393,18 @@ interface PopoverMessage {
   loading?: boolean
 }
 
-function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onReplace, onDismiss }: ReplacePopoverProps) {
-  const [alternatives, setAlternatives] = useState<ContentMatch[]>([])
-  const [loading, setLoading] = useState(true)
+function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onReplace, onDeselect, onDismiss, cachedState, onSaveState }: ReplacePopoverProps) {
+  const [alternatives, setAlternatives] = useState<ContentMatch[]>(cachedState?.alternatives ?? [])
+  const [loading, setLoading] = useState(!cachedState)
   const [expandedInfo, setExpandedInfo] = useState<Record<string, boolean>>({})
   const popoverRef = useRef<HTMLDivElement>(null)
   const [liveRect, setLiveRect] = useState(anchorRect)
   const [popoverWidth, setPopoverWidth] = useState(380)
   const resizing = useRef<{ startX: number; startW: number } | null>(null)
   const [inputText, setInputText] = useState('')
-  const [messages, setMessages] = useState<PopoverMessage[]>([])
-  const [votes, setVotes] = useState<Record<string, 'up' | 'down'>>({})
+  const [messages, setMessages] = useState<PopoverMessage[]>(cachedState?.messages ?? [])
+  const [votes, setVotes] = useState<Record<string, 'up' | 'down'>>(cachedState?.votes ?? {})
+  const [activeDemoId, setActiveDemoId] = useState(cachedState?.activeDemoId ?? demoId)
   const [inputFocused, setInputFocused] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -474,14 +500,35 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
     return () => cancelAnimationFrame(raf)
   }, [nodeId, wrapperRef])
 
+  const initialDemoId = useRef(demoId)
+  const initialTitle = useRef(cachedState?.originalTitle ?? title)
+  const hadCache = useRef(!!cachedState)
+  const stateRef = useRef({ alternatives, messages, votes, activeDemoId, originalTitle: initialTitle.current })
+  useEffect(() => { stateRef.current = { alternatives, messages, votes, activeDemoId, originalTitle: initialTitle.current } }, [alternatives, messages, votes, activeDemoId])
+  const nodeIdRef = useRef(nodeId)
   useEffect(() => {
+    const prevId = nodeIdRef.current
+    nodeIdRef.current = nodeId
+    if (prevId !== nodeId && onSaveState) {
+      onSaveState(nodeId, stateRef.current)
+    }
+  }, [nodeId, onSaveState])
+  useEffect(() => {
+    return () => {
+      if (onSaveState) onSaveState(nodeIdRef.current, stateRef.current)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  useEffect(() => {
+    if (hadCache.current) return
     setLoading(true)
     const timer = setTimeout(() => {
-      setAlternatives(findReplacements(demoId, title, 3))
+      setAlternatives(findReplacements(initialDemoId.current, initialTitle.current, 3))
       setLoading(false)
     }, 400)
     return () => clearTimeout(timer)
-  }, [demoId, title])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -579,8 +626,8 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
         <div className="absolute top-0 left-0 right-0 h-3 z-10 pointer-events-none transition-opacity duration-200" style={{ background: 'radial-gradient(ellipse 70% 100% at 50% 0%, rgba(0,0,0,0.06) 0%, transparent 100%)', opacity: canScrollUp ? 1 : 0 }} />
         <div className="absolute bottom-0 left-0 right-0 h-3 z-10 pointer-events-none transition-opacity duration-200" style={{ background: 'radial-gradient(ellipse 70% 100% at 50% 100%, rgba(0,0,0,0.06) 0%, transparent 100%)', opacity: canScrollDown ? 1 : 0 }} />
       <div ref={scrollAreaRef} className="h-full overflow-y-auto px-4 py-4 flex flex-col" style={{ maxHeight: 400 }} onScroll={updateScrollShadows}>
-        <p className="text-xs text-gray-500 mb-6">
-          Here are alternatives I found for <span className="font-medium text-gray-700">&ldquo;{title.length > 40 ? title.slice(0, 37) + '...' : title}&rdquo;</span>
+        <p className="text-sm text-gray-900 mb-6">
+          Here are alternatives I found for <span className="font-medium">&ldquo;{initialTitle.current.length > 40 ? initialTitle.current.slice(0, 37) + '...' : initialTitle.current}&rdquo;</span>
         </p>
 
         {loading ? (
@@ -599,7 +646,16 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
                 cardKey={`pop-${i}`}
                 expandedInfo={expandedInfo}
                 onToggleInfo={toggleInfo}
-                onReplace={(m) => onReplace(nodeId, m)}
+                onReplace={(m) => {
+                  if (m.demo.id === activeDemoId) {
+                    setActiveDemoId('')
+                    onDeselect(nodeId)
+                  } else {
+                    setActiveDemoId(m.demo.id)
+                    onReplace(nodeId, m)
+                  }
+                }}
+                isSelected={alt.demo.id === activeDemoId}
               />
             ))}
           </div>
@@ -676,7 +732,16 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
                               cardKey={`msg-${mi}-${ri}`}
                               expandedInfo={expandedInfo}
                               onToggleInfo={toggleInfo}
-                              onReplace={(m) => onReplace(nodeId, m)}
+                              onReplace={(m) => {
+                                if (m.demo.id === activeDemoId) {
+                                  setActiveDemoId('')
+                                  onDeselect(nodeId)
+                                } else {
+                                  setActiveDemoId(m.demo.id)
+                                  onReplace(nodeId, m)
+                                }
+                              }}
+                              isSelected={r.demo.id === activeDemoId}
                             />
                           ))}
                         </div>
@@ -768,7 +833,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
-  const { screenToFlowPosition } = useReactFlow()
+  const { screenToFlowPosition, getNodes, getEdges } = useReactFlow()
   const updateNodeInternals = useUpdateNodeInternals()
   const [chatOpen, setChatOpen] = useState(false)
   const [panelHeight, setPanelHeight] = useState(600)
@@ -786,6 +851,8 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
   const [hasChatStarted, setHasChatStarted] = useState(false)
   const [removedDemoIds, setRemovedDemoIds] = useState<string[]>([])
   const chatNodeIdsRef = useRef<Set<string>>(new Set())
+  const vacatedSlotsRef = useRef<Map<string, { ctaNodeId: string; sourceHandle: string; position: { x: number; y: number } }>>(new Map())
+  const popoverCacheRef = useRef<Map<string, { alternatives: ContentMatch[]; messages: PopoverMessage[]; votes: Record<string, 'up' | 'down'> }>>(new Map())
 
   const canvasState = useMemo<CanvasState>(() => ({
     hasDemoCards: nodes.some((n) => n.type === 'demoCardNode'),
@@ -1404,21 +1471,90 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
   const handleToggleContent = useCallback((match: ContentMatch, selected: boolean) => {
     const demoId = match.demo.id
     const cardNodeId = `chat-${demoId}`
+    const currentNodes = getNodes()
+    const currentEdges = getEdges()
 
     if (selected) {
-      const ctaNode = nodes.find((n) => n.type === 'ctaNode')
-      const demoCards = nodes.filter((n) => n.type === 'demoCardNode')
+      const ctaNodes = currentNodes.filter((n) => n.type === 'ctaNode')
+      const demoCards = currentNodes.filter((n) => n.type === 'demoCardNode')
+
+      // Check for a vacated slot from a previously removed card
+      let slot: { ctaNodeId: string; sourceHandle: string; position: { x: number; y: number } } | undefined
+
+      // First: look for any vacated slot keyed by exact category
+      const categoryKey = match.demo.title
+      if (vacatedSlotsRef.current.has(categoryKey)) {
+        slot = vacatedSlotsRef.current.get(categoryKey)
+        vacatedSlotsRef.current.delete(categoryKey)
+      }
+
+      // Second: look for any vacated slot whose CTA node is on stage
+      if (!slot) {
+        const ctaIds = new Set(ctaNodes.map((n) => n.id))
+        for (const [key, val] of vacatedSlotsRef.current.entries()) {
+          if (ctaIds.has(val.ctaNodeId)) {
+            slot = val
+            vacatedSlotsRef.current.delete(key)
+            break
+          }
+        }
+      }
+
+      // Third: if still no slot, check for orphaned answer handles on any CTA node
+      if (!slot && ctaNodes.length > 0) {
+        for (const cta of ctaNodes) {
+          const answers: string[] = (cta.data as { answers?: string[] }).answers ?? []
+          for (let ai = 0; ai < answers.length; ai++) {
+            const handle = `answer-${ai}`
+            const hasEdge = currentEdges.some((e) => e.source === cta.id && e.sourceHandle === handle)
+            if (!hasEdge) {
+              const usedPositions = demoCards
+                .filter((dc) => currentEdges.some((e) => e.source === cta.id && e.target === dc.id))
+                .map((dc) => dc.position)
+              const avgY = usedPositions.length > 0
+                ? usedPositions.reduce((sum, p) => sum + p.y, 0) / usedPositions.length
+                : cta.position.y
+              slot = {
+                ctaNodeId: cta.id,
+                sourceHandle: handle,
+                position: { x: cta.position.x + 550, y: avgY + ai * 180 },
+              }
+              break
+            }
+          }
+          if (slot) break
+        }
+      }
+
+      const ctaNode = ctaNodes[0]
 
       const newNode: Node = {
         id: cardNodeId,
         type: 'demoCardNode',
-        position: ctaNode
-          ? { x: ctaNode.position.x + 400, y: ctaNode.position.y + demoCards.length * 180 }
-          : { x: (demoCards[demoCards.length - 1]?.position.x ?? 400), y: (demoCards[demoCards.length - 1]?.position.y ?? 0) + 180 },
+        position: slot
+          ? slot.position
+          : ctaNode
+            ? { x: ctaNode.position.x + 400, y: ctaNode.position.y + demoCards.length * 180 }
+            : { x: (demoCards[demoCards.length - 1]?.position.x ?? 400), y: (demoCards[demoCards.length - 1]?.position.y ?? 0) + 180 },
         data: { demoId: match.demo.id, title: match.demo.title, creator: match.demo.creator, preview: match.demo.preview },
       }
 
-      if (ctaNode) {
+      if (slot) {
+        setNodes((nds) => [...nds, newNode])
+        const slotRef = slot
+        setTimeout(() => {
+          setEdges((eds) => [
+            ...eds,
+            {
+              id: `e-${slotRef.ctaNodeId}-${cardNodeId}`,
+              source: slotRef.ctaNodeId,
+              sourceHandle: slotRef.sourceHandle,
+              target: cardNodeId,
+              type: 'deletable',
+            },
+          ])
+        }, 50)
+      } else if (ctaNode) {
         const currentAnswers: string[] = (ctaNode.data as { answers?: string[] }).answers ?? []
         const answerLabel = match.demo.title.length > 45
           ? match.demo.title.slice(0, 42) + '...'
@@ -1453,10 +1589,22 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
         setNodes((nds) => [...nds, newNode])
       }
     } else {
-      setNodes((nds) => nds.filter((n) => n.id !== cardNodeId))
-      setEdges((eds) => eds.filter((e) => e.source !== cardNodeId && e.target !== cardNodeId))
+      const targetNode = currentNodes.find((n) => (n.data as { demoId?: string }).demoId === demoId)
+      if (targetNode) {
+        const incomingEdge = currentEdges.find((e) => e.target === targetNode.id && e.sourceHandle)
+        if (incomingEdge && incomingEdge.sourceHandle) {
+          const categoryKey = (targetNode.data as { title?: string }).title ?? demoId
+          vacatedSlotsRef.current.set(categoryKey, {
+            ctaNodeId: incomingEdge.source,
+            sourceHandle: incomingEdge.sourceHandle,
+            position: { ...targetNode.position },
+          })
+        }
+        setNodes((nds) => nds.filter((n) => n.id !== targetNode.id))
+        setEdges((eds) => eds.filter((e) => e.source !== targetNode.id && e.target !== targetNode.id))
+      }
     }
-  }, [setNodes, setEdges, nodes])
+  }, [getNodes, getEdges, setNodes, setEdges])
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -1489,15 +1637,73 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
     return () => document.removeEventListener('open-replace-popover', handler)
   }, [setNodes])
 
+  const handlePopoverDeselect = useCallback((nodeId: string) => {
+    const currentNodes = getNodes()
+    const currentEdges = getEdges()
+    const targetNode = currentNodes.find((n) => n.id === nodeId)
+    if (!targetNode) return
+
+    const incomingEdge = currentEdges.find((e) => e.target === targetNode.id && e.sourceHandle)
+    if (incomingEdge && incomingEdge.sourceHandle) {
+      const slotKey = `popover-${nodeId}`
+      vacatedSlotsRef.current.set(slotKey, {
+        ctaNodeId: incomingEdge.source,
+        sourceHandle: incomingEdge.sourceHandle,
+        position: { ...targetNode.position },
+      })
+    }
+
+    setNodes((nds) => nds.filter((n) => n.id !== targetNode.id))
+    setEdges((eds) => eds.filter((e) => e.source !== targetNode.id && e.target !== targetNode.id))
+    setReplaceTarget((prev) => prev ? { ...prev, demoId: '' } : null)
+  }, [getNodes, getEdges, setNodes, setEdges])
+
   const handleReplace = useCallback((nodeId: string, match: ContentMatch) => {
     rejectDemo(replaceTarget?.demoId ?? '')
-    setNodes((nds) => nds.map((n) =>
-      n.id === nodeId
-        ? { ...n, selected: false, data: { ...n.data, demoId: match.demo.id, title: match.demo.title, creator: match.demo.creator, preview: match.demo.preview } }
-        : n
-    ))
-    setReplaceTarget(null)
-  }, [setNodes, replaceTarget])
+
+    const currentNodes = getNodes()
+    const existingNode = currentNodes.find((n) => n.id === nodeId)
+
+    if (existingNode) {
+      setNodes((nds) => nds.map((n) =>
+        n.id === nodeId
+          ? { ...n, data: { ...n.data, demoId: match.demo.id, title: match.demo.title, creator: match.demo.creator, preview: match.demo.preview } }
+          : n
+      ))
+      setReplaceTarget((prev) => prev ? { ...prev, demoId: match.demo.id, title: match.demo.title } : null)
+    } else {
+      const slotKey = `popover-${nodeId}`
+      const slot = vacatedSlotsRef.current.get(slotKey)
+      const newCardId = getNodeId()
+      const position = slot ? slot.position : { x: 0, y: 0 }
+
+      const newNode: Node = {
+        id: newCardId,
+        type: 'demoCardNode',
+        position,
+        data: { demoId: match.demo.id, title: match.demo.title, creator: match.demo.creator, preview: match.demo.preview },
+      }
+      setNodes((nds) => [...nds, newNode])
+
+      if (slot) {
+        setTimeout(() => {
+          setEdges((eds) => [
+            ...eds,
+            {
+              id: `e-${slot.ctaNodeId}-${newCardId}`,
+              source: slot.ctaNodeId,
+              sourceHandle: slot.sourceHandle,
+              target: newCardId,
+              type: 'deletable',
+            },
+          ])
+        }, 100)
+        vacatedSlotsRef.current.delete(slotKey)
+      }
+
+      setReplaceTarget((prev) => prev ? { ...prev, nodeId: newCardId, demoId: match.demo.id, title: match.demo.title } : null)
+    }
+  }, [setNodes, setEdges, getNodes, replaceTarget])
 
   const handlePaneClick = useCallback(() => {
     setReplaceTarget(null)
@@ -1540,10 +1746,13 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
           anchorRect={replaceTarget.anchorRect}
           wrapperRef={reactFlowWrapper}
           onReplace={handleReplace}
+          onDeselect={handlePopoverDeselect}
           onDismiss={() => {
             setReplaceTarget(null)
             setNodes((nds) => nds.map((n) => ({ ...n, selected: false })))
           }}
+          cachedState={popoverCacheRef.current.get(replaceTarget.nodeId)}
+          onSaveState={(nid, state) => { popoverCacheRef.current.set(nid, state) }}
         />
       )}
 
