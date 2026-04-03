@@ -44,6 +44,9 @@ export default function Sidebar() {
     return new Set(shuffled.slice(0, count).map((d) => d.id))
   })
   const [searchFocused, setSearchFocused] = useState(false)
+  const [canScrollUp, setCanScrollUp] = useState(false)
+  const [canScrollDown, setCanScrollDown] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
   const startX = useRef(0)
   const startWidth = useRef(0)
@@ -77,6 +80,17 @@ export default function Sidebar() {
       document.removeEventListener('mouseup', onMouseUp)
     }
   }, [])
+
+  const updateScrollShadows = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    setCanScrollUp(el.scrollTop > 4)
+    setCanScrollDown(el.scrollTop + el.clientHeight < el.scrollHeight - 4)
+  }, [])
+
+  useEffect(() => {
+    updateScrollShadows()
+  }, [updateScrollShadows])
 
   const onDragStart = (event: React.DragEvent, interactionType: string, nodeData?: Record<string, string>) => {
     event.dataTransfer.setData('application/reactflow', interactionType)
@@ -195,7 +209,10 @@ export default function Sidebar() {
       </div>
 
       {/* Demo list */}
-      <div className="flex-1 overflow-y-auto px-9 pt-1 pb-1 mb-6">
+      <div className="relative flex-1 overflow-hidden mb-6">
+        <div className="absolute top-0 left-0 right-0 h-3 z-10 pointer-events-none transition-opacity duration-200" style={{ background: 'radial-gradient(ellipse 70% 100% at 50% 0%, rgba(0,0,0,0.06) 0%, transparent 100%)', opacity: canScrollUp ? 1 : 0 }} />
+        <div className="absolute bottom-0 left-0 right-0 h-3 z-10 pointer-events-none transition-opacity duration-200" style={{ background: 'radial-gradient(ellipse 70% 100% at 50% 100%, rgba(0,0,0,0.06) 0%, transparent 100%)', opacity: canScrollDown ? 1 : 0 }} />
+      <div ref={scrollRef} className="h-full overflow-y-auto px-9 pt-1 pb-1" onScroll={updateScrollShadows}>
         {demos.map((demo) => (
           <div
             key={demo.id}
@@ -265,6 +282,7 @@ export default function Sidebar() {
             </div>
           </div>
         ))}
+      </div>
       </div>
     </aside>
     {previewDemo && (
