@@ -103,8 +103,8 @@ export default function DemoCardNode({ id, data }: NodeProps) {
       </button>
 
       {/* Change content sparkle — visible on card hover */}
-      <div className="absolute top-1/2 -translate-y-1/2 opacity-0 group-hover/card:opacity-100 transition-opacity duration-200 nodrag nopan"
-        style={{ right: -44 }}
+      <div className="absolute left-1/2 -translate-x-1/2 opacity-0 group-hover/card:opacity-100 transition-opacity duration-200 nodrag nopan"
+        style={{ top: 'calc(100% + 16px)' }}
       >
         <div className="relative group/sparkle">
           <button
