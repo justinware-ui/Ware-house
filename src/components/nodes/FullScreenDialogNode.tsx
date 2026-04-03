@@ -1,10 +1,11 @@
 import { useState, useCallback, useMemo, useRef, useLayoutEffect, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Handle, Position, type NodeProps, useReactFlow } from '@xyflow/react'
+import { Handle, Position, type NodeProps, useReactFlow, useUpdateNodeInternals } from '@xyflow/react'
 import {
   Copy, X, Plus, Bold, Italic, Underline, AlignJustify,
   Image, Pilcrow, ChevronDown, CircleHelp, Monitor,
 } from 'lucide-react'
+import InteractionPreviewModal from '../InteractionPreviewModal'
 
 const AddPhotoIcon = ({ className }: { className?: string }) => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
@@ -143,23 +144,35 @@ function FormattingToolbar({
 }
 
 export default function FullScreenDialogNode({ id, data }: NodeProps) {
-  const { setNodes, setEdges } = useReactFlow()
+  const { setNodes, setEdges, getNodes } = useReactFlow()
+  const updateNodeInternals = useUpdateNodeInternals()
   const typedData = data as { header?: string; message?: string }
   const [header, setHeader] = useState(typedData.header ?? '')
   const [message, setMessage] = useState(typedData.message ?? '')
   const [buttons, setButtons] = useState<ButtonEntry[]>([{ id: 0, text: '' }])
+  const [showPreview, setShowPreview] = useState(false)
   const [showToolbar, setShowToolbar] = useState(false)
   const [activeFormats, setActiveFormats] = useState<Set<FormatOption>>(new Set())
   const [tooltipMode, setTooltipMode] = useState(false)
   const [tooltips, setTooltips] = useState<Record<string | number, string>>({})
   const [draftTooltips, setDraftTooltips] = useState<Record<string | number, string>>({})
   const [focusedButtonId, setFocusedButtonId] = useState<number | null>(null)
+  const [focusedField, setFocusedField] = useState<'message' | 'button' | null>(null)
+  const [messageImage, setMessageImage] = useState<AnswerImage | null>(null)
+  const [resizingImage, setResizingImage] = useState<{ startX: number; startY: number; startW: number; startH: number } | null>(null)
+  const [draggingImage, setDraggingImage] = useState<{ startX: number; startY: number; startOffX: number; startOffY: number } | null>(null)
   const [showOverlay, setShowOverlay] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isDraggingNode = useRef(false)
   const tooltipModeRef = useRef(false)
   const suppressSelectionRef = useRef(false)
   const messageRef = useRef<HTMLDivElement>(null)
+  const messageContainerRef = useRef<HTMLDivElement>(null)
+
+  const buttonOrderKey = buttons.map((b) => b.id).join(',')
+  useEffect(() => {
+    updateNodeInternals(id)
+  }, [tooltipMode, buttonOrderKey, id, updateNodeInternals])
 
   useEffect(() => {
     if (typedData.header && typedData.header !== header) setHeader(typedData.header)
@@ -193,7 +206,16 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
   const updateButtonText = (btnId: number, text: string) =>
     setButtons((prev) => prev.map((b) => (b.id === btnId ? { ...b, text } : b)))
 
+  const handleImageClick = () => {
+    setShowOverlay(true)
+    setTimeout(() => fileInputRef.current?.click(), 100)
+  }
+
   const toggleFormat = useCallback((fmt: FormatOption) => {
+    if (fmt === 'image') {
+      handleImageClick()
+      return
+    }
     if (fmt === 'link') {
       setDraftTooltips({ ...tooltips })
       tooltipModeRef.current = true
@@ -293,6 +315,28 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
     }
   }, [])
 
+  const handleDuplicate = useCallback(() => {
+    const nodes = getNodes()
+    const sourceNode = nodes.find((n) => n.id === id)
+    if (!sourceNode) return
+    const el = document.querySelector(`[data-id="${id}"]`) as HTMLElement | null
+    const nodeW = el?.offsetWidth ?? 300
+    const nodeH = el?.offsetHeight ?? 200
+    const newId = `${sourceNode.type}_${Date.now()}`
+    const newNode = {
+      id: newId,
+      type: sourceNode.type,
+      position: {
+        x: sourceNode.position.x + nodeW / 2,
+        y: sourceNode.position.y + nodeH / 2,
+      },
+      data: { header, message },
+      selected: true,
+      zIndex: 1000,
+    }
+    setNodes((nds) => nds.map((n) => ({ ...n, selected: false })).concat(newNode))
+  }, [id, getNodes, setNodes, header, message])
+
   const longestLine = useMemo(() => {
     const allTexts = [
       header || 'Type your header here',
@@ -312,7 +356,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || focusedButtonId === null) return
+    if (!file) return
     setShowOverlay(false)
     const reader = new FileReader()
     reader.onload = (ev) => {
@@ -321,25 +365,23 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
       img.onload = () => {
         const maxW = (manualWidth ?? cardWidth) - 32
         const scale = Math.min(1, maxW / img.width)
-        setButtons((prev) =>
-          prev.map((b) =>
-            b.id === focusedButtonId
-              ? {
-                  ...b,
-                  image: {
-                    src,
-                    width: Math.round(img.width * scale),
-                    height: Math.round(img.height * scale),
-                    naturalWidth: img.width,
-                    naturalHeight: img.height,
-                    float: 'left' as const,
-                    offsetX: 0,
-                    offsetY: 0,
-                  },
-                }
-              : b,
-          ),
-        )
+        const newImage: AnswerImage = {
+          src,
+          width: Math.round(img.width * scale),
+          height: Math.round(img.height * scale),
+          naturalWidth: img.width,
+          naturalHeight: img.height,
+          float: 'left',
+          offsetX: 0,
+          offsetY: 0,
+        }
+        if (focusedField === 'message') {
+          setMessageImage(newImage)
+        } else if (focusedButtonId !== null) {
+          setButtons((prev) =>
+            prev.map((b) => b.id === focusedButtonId ? { ...b, image: newImage } : b),
+          )
+        }
       }
       img.src = src
     }
@@ -347,9 +389,69 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
     e.target.value = ''
   }
 
+  const handleMsgImageDragStart = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!messageImage) return
+    setDraggingImage({ startX: e.clientX, startY: e.clientY, startOffX: messageImage.offsetX, startOffY: messageImage.offsetY })
+  }
+
+  useEffect(() => {
+    if (!draggingImage) return
+    const onMove = (e: MouseEvent) => {
+      if (!messageImage) return
+      const containerEl = messageContainerRef.current
+      const dx = e.clientX - draggingImage.startX
+      const dy = e.clientY - draggingImage.startY
+      let newOffX = draggingImage.startOffX + dx
+      let newOffY = draggingImage.startOffY + dy
+      if (containerEl) {
+        const containerW = containerEl.offsetWidth
+        const containerH = containerEl.offsetHeight
+        newOffX = Math.max(0, Math.min(newOffX, containerW - messageImage.width - 16))
+        newOffY = Math.max(0, Math.min(newOffY, Math.max(0, containerH - messageImage.height)))
+      } else {
+        newOffX = Math.max(0, newOffX)
+        newOffY = Math.max(0, newOffY)
+      }
+      setMessageImage((prev) => prev ? { ...prev, offsetX: newOffX, offsetY: newOffY, float: newOffX > 50 ? 'right' : 'left' } : prev)
+    }
+    const onUp = () => setDraggingImage(null)
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+    return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp) }
+  }, [draggingImage, messageImage])
+
+  const handleMsgResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!messageImage) return
+    setResizingImage({ startX: e.clientX, startY: e.clientY, startW: messageImage.width, startH: messageImage.height })
+  }
+
+  useEffect(() => {
+    if (!resizingImage) return
+    const onMove = (e: MouseEvent) => {
+      if (!messageImage) return
+      const dx = e.clientX - resizingImage.startX
+      const dy = e.clientY - resizingImage.startY
+      let newW = Math.max(40, resizingImage.startW + dx)
+      let newH = Math.max(40, resizingImage.startH + dy)
+      if (e.shiftKey) {
+        const ratio = messageImage.naturalWidth / messageImage.naturalHeight
+        newH = Math.round(newW / ratio)
+      }
+      setMessageImage((prev) => prev ? { ...prev, width: newW, height: newH } : prev)
+    }
+    const onUp = () => setResizingImage(null)
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+    return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp) }
+  }, [resizingImage, messageImage])
+
   return (
     <div
-      className="bg-white border border-gray-200 rounded-2xl px-6 py-5 shadow-sm relative transition-[width] duration-150"
+      className="bg-white border border-gray-200 rounded-2xl px-6 py-5 shadow-sm relative transition-[width,box-shadow,border-color] duration-150"
       style={{ width: tooltipMode ? Math.max(manualWidth ?? cardWidth, 320) : (manualWidth ?? cardWidth) }}
     >
       <span
@@ -386,16 +488,25 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
       </button>
 
       {/* Preview button */}
-      <button className="absolute top-2 text-gray-400 hover:text-gray-600" style={{ right: 46 }}>
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 14.667c.833 0 1.542-.292 2.125-.875.584-.584.875-1.292.875-2.125 0-.834-.291-1.542-.875-2.126A2.893 2.893 0 0 0 12 8.667c-.833 0-1.542.292-2.125.874A2.893 2.893 0 0 0 9 11.667c0 .833.292 1.541.875 2.125A2.893 2.893 0 0 0 12 14.667Zm0-1.2a1.63 1.63 0 0 1-1.275-.525 1.63 1.63 0 0 1-.525-1.275c0-.5.175-.925.525-1.275.35-.35.775-.525 1.275-.525s.925.175 1.275.525c.35.35.525.775.525 1.275s-.175.925-.525 1.275a1.63 1.63 0 0 1-1.275.525Zm0 3.2c-1.544 0-2.956-.408-4.233-1.225a8.455 8.455 0 0 1-2.9-3.309.304.304 0 0 1-.067-.233.89.89 0 0 1 .017-.258.304.304 0 0 1 .067-.234 8.455 8.455 0 0 1 2.9-3.308C9.044 7.075 10.456 6.667 12 6.667s2.955.408 4.233 1.225a8.458 8.458 0 0 1 2.9 3.308c.034.055.056.125.067.234a.89.89 0 0 1-.017.258.304.304 0 0 1-.067.233 8.458 8.458 0 0 1-2.9 3.309c-1.278.817-2.689 1.225-4.233 1.225Zm0-1.334c1.256 0 2.408-.33 3.459-.992a7.2 7.2 0 0 0 2.408-2.674A7.2 7.2 0 0 0 15.459 9c-1.05-.661-2.203-.992-3.459-.992-1.255 0-2.408.33-3.459.991A7.2 7.2 0 0 0 6.133 11.667a7.2 7.2 0 0 0 2.408 2.674c1.05.661 2.204.992 3.459.992Z" fill="currentColor"/>
+      <button className="absolute top-3 hover:opacity-70 transition-opacity" style={{ right: 50 }} onClick={() => setShowPreview(true)}>
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <mask id={`mask_eye_fsd_${id}`} style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="0" y="0" width="20" height="20"><rect width="20" height="20" fill="#D9D9D9"/></mask>
+          <g mask={`url(#mask_eye_fsd_${id})`}><path d="M9.99935 13.3334C11.041 13.3334 11.9266 12.9689 12.656 12.24C13.3849 11.5106 13.7493 10.625 13.7493 9.58337C13.7493 8.54171 13.3849 7.65615 12.656 6.92671C11.9266 6.19782 11.041 5.83337 9.99935 5.83337C8.95768 5.83337 8.07213 6.19782 7.34268 6.92671C6.61379 7.65615 6.24935 8.54171 6.24935 9.58337C6.24935 10.625 6.61379 11.5106 7.34268 12.24C8.07213 12.9689 8.95768 13.3334 9.99935 13.3334ZM9.99935 11.8334C9.37435 11.8334 8.84324 11.6145 8.40602 11.1767C7.96824 10.7395 7.74935 10.2084 7.74935 9.58337C7.74935 8.95837 7.96824 8.42698 8.40602 7.98921C8.84324 7.55198 9.37435 7.33337 9.99935 7.33337C10.6243 7.33337 11.1557 7.55198 11.5935 7.98921C12.0307 8.42698 12.2493 8.95837 12.2493 9.58337C12.2493 10.2084 12.0307 10.7395 11.5935 11.1767C11.1557 11.6145 10.6243 11.8334 9.99935 11.8334ZM9.99935 15.8334C8.06879 15.8334 6.3049 15.3231 4.70768 14.3025C3.11046 13.2814 1.90213 11.9028 1.08268 10.1667C1.04102 10.0973 1.01324 10.0103 0.999349 9.90587C0.98546 9.80199 0.978516 9.69448 0.978516 9.58337C0.978516 9.47226 0.98546 9.36449 0.999349 9.26004C1.01324 9.15615 1.04102 9.06949 1.08268 9.00004C1.90213 7.26393 3.11046 5.8856 4.70768 4.86504C6.3049 3.84393 8.06879 3.33337 9.99935 3.33337C11.9299 3.33337 13.6938 3.84393 15.291 4.86504C16.8882 5.8856 18.0966 7.26393 18.916 9.00004C18.9577 9.06949 18.9855 9.15615 18.9993 9.26004C19.0132 9.36449 19.0202 9.47226 19.0202 9.58337C19.0202 9.69448 19.0132 9.80199 18.9993 9.90587C18.9855 10.0103 18.9577 10.0973 18.916 10.1667C18.0966 11.9028 16.8882 13.2814 15.291 14.3025C13.6938 15.3231 11.9299 15.8334 9.99935 15.8334ZM9.99935 14.1667C11.5688 14.1667 13.0099 13.7534 14.3227 12.9267C15.6349 12.1006 16.6382 10.9862 17.3327 9.58337C16.6382 8.1806 15.6349 7.06587 14.3227 6.23921C13.0099 5.4131 11.5688 5.00004 9.99935 5.00004C8.4299 5.00004 6.98879 5.4131 5.67602 6.23921C4.36379 7.06587 3.36046 8.1806 2.66602 9.58337C3.36046 10.9862 4.36379 12.1006 5.67602 12.9267C6.98879 13.7534 8.4299 14.1667 9.99935 14.1667Z" fill="#293748"/></g>
         </svg>
       </button>
 
+      {showPreview && (
+        <InteractionPreviewModal
+          data={{ type: 'fullscreen', header, message, buttons: buttons.map((b) => b.text) }}
+          onClose={() => setShowPreview(false)}
+        />
+      )}
+
       {/* Duplicate button */}
-      <button className="absolute top-2 right-5 text-gray-400 hover:text-gray-600">
-        <svg width="17" height="17" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M6.75 13.5c-.412 0-.766-.147-1.059-.44A1.445 1.445 0 0 1 5.25 12V3c0-.412.147-.766.44-1.06.294-.293.647-.44 1.06-.44h6.75c.412 0 .766.147 1.06.44.293.294.44.648.44 1.06v9c0 .412-.147.766-.44 1.06-.294.293-.648.44-1.06.44H6.75ZM6.75 12h6.75V3H6.75v9ZM3.75 16.5c-.412 0-.766-.147-1.06-.44A1.445 1.445 0 0 1 2.25 15V5.25c0-.212.072-.391.216-.535A.726.726 0 0 1 3 4.5c.212 0 .391.072.535.215a.727.727 0 0 1 .215.535V15h7.5c.212 0 .391.072.535.216a.726.726 0 0 1 .215.534c0 .213-.072.391-.215.534a.726.726 0 0 1-.535.216H3.75Z" fill="currentColor"/>
+      <button className="absolute top-3 right-4 hover:opacity-70 transition-opacity" onClick={handleDuplicate}>
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <mask id={`mask_dup_fsd_${id}`} style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="0" y="0" width="20" height="20"><rect width="20" height="20" fill="#D9D9D9"/></mask>
+          <g mask={`url(#mask_dup_fsd_${id})`}><path d="M7.5 15C7.04167 15 6.64944 14.8369 6.32333 14.5108C5.99667 14.1842 5.83333 13.7917 5.83333 13.3333V3.33332C5.83333 2.87499 5.99667 2.48249 6.32333 2.15582C6.64944 1.82971 7.04167 1.66666 7.5 1.66666H15C15.4583 1.66666 15.8508 1.82971 16.1775 2.15582C16.5036 2.48249 16.6667 2.87499 16.6667 3.33332V13.3333C16.6667 13.7917 16.5036 14.1842 16.1775 14.5108C15.8508 14.8369 15.4583 15 15 15H7.5ZM7.5 13.3333H15V3.33332H7.5V13.3333ZM4.16667 18.3333C3.70833 18.3333 3.31583 18.1703 2.98917 17.8442C2.66306 17.5175 2.5 17.125 2.5 16.6667V5.83332C2.5 5.59721 2.58 5.39916 2.74 5.23916C2.89944 5.07971 3.09722 4.99999 3.33333 4.99999C3.56944 4.99999 3.7675 5.07971 3.9275 5.23916C4.08694 5.39916 4.16667 5.59721 4.16667 5.83332V16.6667H12.5C12.7361 16.6667 12.9342 16.7467 13.0942 16.9067C13.2536 17.0661 13.3333 17.2639 13.3333 17.5C13.3333 17.7361 13.2536 17.9339 13.0942 18.0933C12.9342 18.2533 12.7361 18.3333 12.5 18.3333H4.16667Z" fill="#293748"/></g>
         </svg>
       </button>
 
@@ -426,7 +537,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                         setDraftTooltips((prev) => ({ ...prev, message: e.target.value }))
                       }
                       placeholder="Type your tool-tip here"
-                      className="nodrag w-full text-sm text-gray-800 placeholder:text-brand-300 outline-none bg-transparent pb-2 border-b border-gray-200 focus:border-brand-400 transition-colors"
+                      className="nodrag w-full text-sm text-gray-800 placeholder:text-[#FC6839] outline-none bg-transparent pb-2 border-b border-gray-200 focus:border-brand-400 transition-colors"
                     />
                   </div>
                   <button
@@ -462,7 +573,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                         setDraftTooltips((prev) => ({ ...prev, [btn.id]: e.target.value }))
                       }
                       placeholder="Type your tool-tip here"
-                      className="nodrag w-full text-sm text-gray-800 placeholder:text-brand-300 outline-none bg-transparent pb-2 border-b border-gray-200 focus:border-brand-400 transition-colors"
+                      className="nodrag w-full text-sm text-gray-800 placeholder:text-[#FC6839] outline-none bg-transparent pb-2 border-b border-gray-200 focus:border-brand-400 transition-colors"
                     />
                   </div>
                   <button
@@ -508,10 +619,10 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
         </>
       )}
 
-      <div style={{ display: tooltipMode ? 'none' : undefined }}>
+      <div style={tooltipMode ? { opacity: 0, pointerEvents: 'none' as const } : undefined}>
         <>
           {/* Header field */}
-          <div className="mb-7 px-1">
+          <div className="mb-7 px-1" style={{ marginTop: 6 }}>
             <input
               type="text"
               value={header}
@@ -525,22 +636,99 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
           </div>
 
           {/* Message body */}
-          <div className="mb-6 pb-2 border-b border-gray-200 focus-within:border-brand-400 transition-colors flex items-start gap-2" data-answer-content>
-            <div
-              ref={messageRef}
-              contentEditable
-              suppressContentEditableWarning
-              data-cta-field
-              data-placeholder="Type your message here"
-              className={`nodrag flex-1 text-sm text-gray-800 outline-none min-h-[1.5em] ${!message ? 'before:content-[attr(data-placeholder)] before:pointer-events-none before:text-[#FC6839] before:opacity-100 focus:before:opacity-60' : ''}`}
-              style={{ wordBreak: 'break-word' }}
-              onInput={(e) => {
-                const el = e.target as HTMLDivElement
-                setMessage(el.textContent || '')
-              }}
-              onFocus={handleFieldFocus}
-              onBlur={handleFieldBlur}
-            />
+          <div ref={messageContainerRef} className="mb-6 pb-2 border-b border-gray-200 focus-within:border-brand-400 transition-colors flex items-start gap-2" data-answer-content>
+            <div className="flex-1 min-w-0 overflow-hidden">
+              {messageImage && (
+                <div
+                  className="relative inline-block nodrag group/img"
+                  style={{
+                    float: messageImage.float,
+                    width: messageImage.width,
+                    height: messageImage.height,
+                    margin: 0,
+                    marginTop: messageImage.offsetY,
+                    marginBottom: 12,
+                    ...(messageImage.float === 'left' ? { marginRight: 12 } : { marginLeft: 12 }),
+                  }}
+                >
+                  <img
+                    src={messageImage.src}
+                    alt=""
+                    className="w-full h-full object-cover rounded cursor-move"
+                    draggable={false}
+                    onMouseDown={handleMsgImageDragStart}
+                  />
+                  {/* Resize handles */}
+                  <div onMouseDown={handleMsgResizeStart} className="absolute" style={{ cursor: 'nwse-resize', top: 0, left: 0 }}>
+                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect y="6" width="6" height="13.008" rx="2" transform="rotate(-90 0 6)" fill="#FC6839"/><rect width="6" height="13.008" rx="2" fill="#FC6839"/></svg>
+                  </div>
+                  <div onMouseDown={handleMsgResizeStart} className="absolute" style={{ cursor: 'nesw-resize', top: 0, right: 0 }}>
+                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="7.008" width="6" height="13.008" rx="2" fill="#FC6839"/><rect x="13.008" width="6" height="13.008" rx="2" transform="rotate(90 13.008 0)" fill="#FC6839"/></svg>
+                  </div>
+                  <div onMouseDown={handleMsgResizeStart} className="absolute" style={{ cursor: 'nesw-resize', bottom: 0, left: 0 }}>
+                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="6" y="13.008" width="6" height="13.008" rx="2" transform="rotate(180 6 13.008)" fill="#FC6839"/><rect y="13.008" width="6" height="13.008" rx="2" transform="rotate(-90 0 13.008)" fill="#FC6839"/></svg>
+                  </div>
+                  <div onMouseDown={handleMsgResizeStart} className="absolute" style={{ cursor: 'nwse-resize', bottom: 0, right: 0 }}>
+                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="13.008" y="7.008" width="6" height="13.008" rx="2" transform="rotate(90 13.008 7.008)" fill="#FC6839"/><rect x="13.008" y="13.008" width="6" height="13.008" rx="2" transform="rotate(180 13.008 13.008)" fill="#FC6839"/></svg>
+                  </div>
+                  {/* Hover quick actions */}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity pointer-events-none">
+                    <div className="bg-black/30 absolute inset-0 rounded pointer-events-none" />
+                    <div className="relative z-10 flex items-center bg-white rounded-full border border-[#D6D1CB] px-2 py-2 gap-1 shadow-lg pointer-events-auto">
+                      <div className="relative group/replace">
+                        <button
+                          className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[#73716F26] transition-colors cursor-pointer"
+                          onClick={() => {
+                            setFocusedField('message')
+                            setShowOverlay(true)
+                            setTimeout(() => fileInputRef.current?.click(), 100)
+                          }}
+                        >
+                          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <mask id={`mask_msg_replace_${id}`} style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="0" y="0" width="20" height="20"><rect width="20" height="20" fill="#D9D9D9"/></mask>
+                            <g mask={`url(#mask_msg_replace_${id})`}><path d="M10.0417 16.6667C8.18056 16.6667 6.59722 16.0209 5.29167 14.7292C3.98611 13.4375 3.33333 11.8612 3.33333 10V9.85421L2.58333 10.6042C2.43056 10.757 2.23611 10.8334 2 10.8334C1.76389 10.8334 1.56944 10.757 1.41667 10.6042C1.26389 10.4514 1.1875 10.257 1.1875 10.0209C1.1875 9.78476 1.26389 9.59032 1.41667 9.43754L3.58333 7.27087C3.66667 7.18754 3.75694 7.12837 3.85417 7.09337C3.95139 7.05893 4.05556 7.04171 4.16667 7.04171C4.27778 7.04171 4.38194 7.05893 4.47917 7.09337C4.57639 7.12837 4.66667 7.18754 4.75 7.27087L6.91667 9.43754C7.06944 9.59032 7.14583 9.78476 7.14583 10.0209C7.14583 10.257 7.06944 10.4514 6.91667 10.6042C6.76389 10.757 6.56944 10.8334 6.33333 10.8334C6.09722 10.8334 5.90278 10.757 5.75 10.6042L5 9.85421V10C5 11.3889 5.48972 12.5695 6.46917 13.5417C7.44806 14.5139 8.63889 15 10.0417 15C10.3194 15 10.5903 14.9759 10.8542 14.9275C11.1181 14.8787 11.3819 14.8056 11.6458 14.7084C11.7847 14.6528 11.9342 14.6389 12.0942 14.6667C12.2536 14.6945 12.3889 14.7639 12.5 14.875C12.75 15.125 12.8508 15.3923 12.8025 15.6767C12.7536 15.9617 12.5694 16.1598 12.25 16.2709C11.8889 16.3959 11.5244 16.4931 11.1567 16.5625C10.7883 16.632 10.4167 16.6667 10.0417 16.6667ZM15.8333 12.9584C15.7222 12.9584 15.6181 12.9409 15.5208 12.9059C15.4236 12.8714 15.3333 12.8125 15.25 12.7292L13.0833 10.5625C12.9306 10.4098 12.8542 10.2153 12.8542 9.97921C12.8542 9.7431 12.9306 9.54865 13.0833 9.39587C13.2361 9.2431 13.4306 9.16671 13.6667 9.16671C13.9028 9.16671 14.0972 9.2431 14.25 9.39587L15 10.1459V10C15 8.61115 14.5106 7.4306 13.5317 6.45837C12.5522 5.48615 11.3611 5.00004 9.95833 5.00004C9.68056 5.00004 9.40972 5.02448 9.14583 5.07337C8.88194 5.12171 8.61806 5.19449 8.35417 5.29171C8.21528 5.34726 8.06611 5.36115 7.90667 5.33337C7.74667 5.3056 7.61111 5.23615 7.5 5.12504C7.25 4.87504 7.14917 4.60754 7.1975 4.32254C7.24639 4.0381 7.43056 3.84032 7.75 3.72921C8.11111 3.60421 8.47583 3.50699 8.84417 3.43754C9.21194 3.3681 9.58333 3.33337 9.95833 3.33337C11.8194 3.33337 13.4028 3.97921 14.7083 5.27087C16.0139 6.56254 16.6667 8.13893 16.6667 10V10.1459L17.4167 9.39587C17.5694 9.2431 17.7639 9.16671 18 9.16671C18.2361 9.16671 18.4306 9.2431 18.5833 9.39587C18.7361 9.54865 18.8125 9.7431 18.8125 9.97921C18.8125 10.2153 18.7361 10.4098 18.5833 10.5625L16.4167 12.7292C16.3333 12.8125 16.2431 12.8714 16.1458 12.9059C16.0486 12.9409 15.9444 12.9584 15.8333 12.9584Z" fill="#172537"/></g>
+                          </svg>
+                        </button>
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded bg-gray-800 text-white text-[10px] whitespace-nowrap opacity-0 pointer-events-none group-hover/replace:opacity-100 transition-opacity">
+                          Replace
+                          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+                        </div>
+                      </div>
+                      <div className="relative group/remove">
+                        <button
+                          className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[#73716F26] transition-colors cursor-pointer"
+                          onClick={() => setMessageImage(null)}
+                        >
+                          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M9 10.05L5.325 13.725a.706.706 0 0 1-.525.206.706.706 0 0 1-.525-.206.706.706 0 0 1-.206-.525c0-.213.069-.388.206-.525L7.95 9 4.275 5.325a.706.706 0 0 1-.206-.525c0-.213.069-.388.206-.525a.706.706 0 0 1 .525-.206c.213 0 .388.069.525.206L9 7.95l3.675-3.675a.706.706 0 0 1 .525-.206c.213 0 .388.069.525.206a.706.706 0 0 1 .206.525.706.706 0 0 1-.206.525L10.05 9l3.675 3.675a.706.706 0 0 1 .206.525.706.706 0 0 1-.206.525.706.706 0 0 1-.525.206.706.706 0 0 1-.525-.206L9 10.05Z" fill="#293748"/>
+                          </svg>
+                        </button>
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded bg-gray-800 text-white text-[10px] whitespace-nowrap opacity-0 pointer-events-none group-hover/remove:opacity-100 transition-opacity">
+                          Remove
+                          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div
+                ref={messageRef}
+                contentEditable
+                suppressContentEditableWarning
+                data-cta-field
+                data-placeholder="Type your message here"
+                className={`nodrag text-sm text-gray-800 outline-none min-h-[1.5em] ${!message ? 'before:content-[attr(data-placeholder)] before:pointer-events-none before:text-[#FC6839] before:opacity-100 focus:before:opacity-60' : ''}`}
+                style={{ wordBreak: 'break-word' }}
+                onInput={(e) => {
+                  const el = e.target as HTMLDivElement
+                  setMessage(el.textContent || '')
+                }}
+                onFocus={() => { handleFieldFocus(); setFocusedField('message') }}
+                onBlur={handleFieldBlur}
+              />
+              {messageImage && <div style={{ clear: 'both' }} />}
+            </div>
             {tooltips['message']?.trim() && (
               <div className="relative group/tip shrink-0" style={{ marginTop: 2 }}>
                 <CircleHelp size={14} className="text-gray-800 cursor-help" />
@@ -568,10 +756,10 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                     placeholder="Type your button text here"
                     className="nodrag w-full text-sm text-[#FC6839] placeholder:text-[#FC6839] placeholder:opacity-100 focus:placeholder:opacity-60 outline-none bg-transparent"
                     data-cta-field
-                    onFocus={() => { handleFieldFocus(); setFocusedButtonId(btn.id) }}
+                    onFocus={() => { handleFieldFocus(); setFocusedButtonId(btn.id); setFocusedField('button') }}
                     onBlur={(e) => {
                       handleFieldBlur(e as unknown as React.FocusEvent)
-                      setFocusedButtonId(null)
+                      setFocusedButtonId(null); setFocusedField(null)
                     }}
                   />
                 </div>

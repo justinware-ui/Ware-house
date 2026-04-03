@@ -274,6 +274,16 @@ export function findReplacements(
     .map(({ relevanceScore: _, ...rest }) => rest)
 }
 
+export function searchContent(
+  query: string,
+  excludeIds: Set<string> = new Set(),
+  count = 5,
+): ContentMatch[] {
+  const allExcluded = new Set([...excludeIds, ...rejectedDemoIds])
+  return scoreAndRank(query, '', demos, 0, count, allExcluded)
+    .map(({ relevanceScore: _, ...rest }) => rest)
+}
+
 // ─── Content matching ─────────────────────────────────────────────────────────
 
 export function matchContent(

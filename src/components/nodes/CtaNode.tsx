@@ -5,6 +5,7 @@ import {
   Copy, X, Plus, Bold, Italic, Underline, AlignJustify,
   Image, Pilcrow, ChevronDown, CircleHelp, HelpCircle,
 } from 'lucide-react'
+import InteractionPreviewModal from '../InteractionPreviewModal'
 const AddPhotoIcon = ({ className }: { className?: string }) => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
     <path d="M3.538 13.666c-.337 0-.622-.117-.855-.35a1.163 1.163 0 0 1-.35-.855V3.538c0-.337.117-.622.35-.855.234-.234.518-.35.855-.35H8.538v1H3.538a.2.2 0 0 0-.147.058.2.2 0 0 0-.058.147v8.923a.2.2 0 0 0 .058.148.2.2 0 0 0 .147.057h8.923a.2.2 0 0 0 .148-.057.2.2 0 0 0 .057-.148V7.461h1v4.999c0 .337-.117.622-.35.856-.234.233-.518.35-.856.35H3.538ZM4.256 11.128h7.487l-2.327-3.103-2 2.597-1.417-1.802-1.743 2.308ZM11.333 6V4.666H10V3.666h1.333V2.333h1v1.333h1.334v1h-1.334V6h-1Z" fill="currentColor"/>
@@ -143,7 +144,7 @@ function FormattingToolbar({
 }
 
 export default function CtaNode({ id, data }: NodeProps) {
-  const { setNodes, setEdges } = useReactFlow()
+  const { setNodes, setEdges, getNodes } = useReactFlow()
   const updateNodeInternals = useUpdateNodeInternals()
   const typedData = data as { question?: string; answers?: string[] }
   const [question, setQuestion] = useState(typedData.question ?? '')
@@ -168,6 +169,7 @@ export default function CtaNode({ id, data }: NodeProps) {
     }
   }, [dataAnswersLen])
 
+  const [showPreview, setShowPreview] = useState(false)
   const [showToolbar, setShowToolbar] = useState(false)
   const [activeFormats, setActiveFormats] = useState<Set<FormatOption>>(new Set())
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
@@ -488,6 +490,28 @@ export default function CtaNode({ id, data }: NodeProps) {
     }
   }, [])
 
+  const handleDuplicate = useCallback(() => {
+    const nodes = getNodes()
+    const sourceNode = nodes.find((n) => n.id === id)
+    if (!sourceNode) return
+    const el = document.querySelector(`[data-id="${id}"]`) as HTMLElement | null
+    const nodeW = el?.offsetWidth ?? 300
+    const nodeH = el?.offsetHeight ?? 200
+    const newId = `${sourceNode.type}_${Date.now()}`
+    const newNode = {
+      id: newId,
+      type: sourceNode.type,
+      position: {
+        x: sourceNode.position.x + nodeW / 2,
+        y: sourceNode.position.y + nodeH / 2,
+      },
+      data: { question, answers: answers.map((a) => a.value) },
+      selected: true,
+      zIndex: 1000,
+    }
+    setNodes((nds) => nds.map((n) => ({ ...n, selected: false })).concat(newNode))
+  }, [id, getNodes, setNodes, question, answers])
+
   const longestLine = useMemo(() => {
     const allTexts = [
       question || 'Type your question here',
@@ -506,7 +530,7 @@ export default function CtaNode({ id, data }: NodeProps) {
 
   return (
     <div
-      className="bg-white border border-gray-200 rounded-2xl px-6 py-5 shadow-sm relative transition-[width] duration-150"
+      className="bg-white border border-gray-200 rounded-2xl px-6 py-5 shadow-sm relative transition-[width,box-shadow,border-color] duration-150"
       style={{ width: tooltipMode ? Math.max(manualWidth ?? cardWidth, 320) : (manualWidth ?? cardWidth) }}
     >
       <span
@@ -543,16 +567,25 @@ export default function CtaNode({ id, data }: NodeProps) {
       </button>
 
       {/* Preview button */}
-      <button className="absolute top-2 text-gray-400 hover:text-gray-600" style={{ right: 46 }}>
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 14.667c.833 0 1.542-.292 2.125-.875.584-.584.875-1.292.875-2.125 0-.834-.291-1.542-.875-2.126A2.893 2.893 0 0 0 12 8.667c-.833 0-1.542.292-2.125.874A2.893 2.893 0 0 0 9 11.667c0 .833.292 1.541.875 2.125A2.893 2.893 0 0 0 12 14.667Zm0-1.2a1.63 1.63 0 0 1-1.275-.525 1.63 1.63 0 0 1-.525-1.275c0-.5.175-.925.525-1.275.35-.35.775-.525 1.275-.525s.925.175 1.275.525c.35.35.525.775.525 1.275s-.175.925-.525 1.275a1.63 1.63 0 0 1-1.275.525Zm0 3.2c-1.544 0-2.956-.408-4.233-1.225a8.455 8.455 0 0 1-2.9-3.309.304.304 0 0 1-.067-.233.89.89 0 0 1 .017-.258.304.304 0 0 1 .067-.234 8.455 8.455 0 0 1 2.9-3.308C9.044 7.075 10.456 6.667 12 6.667s2.955.408 4.233 1.225a8.458 8.458 0 0 1 2.9 3.308c.034.055.056.125.067.234a.89.89 0 0 1-.017.258.304.304 0 0 1-.067.233 8.458 8.458 0 0 1-2.9 3.309c-1.278.817-2.689 1.225-4.233 1.225Zm0-1.334c1.256 0 2.408-.33 3.459-.992a7.2 7.2 0 0 0 2.408-2.674A7.2 7.2 0 0 0 15.459 9c-1.05-.661-2.203-.992-3.459-.992-1.255 0-2.408.33-3.459.991A7.2 7.2 0 0 0 6.133 11.667a7.2 7.2 0 0 0 2.408 2.674c1.05.661 2.204.992 3.459.992Z" fill="currentColor"/>
+      <button className="absolute top-3 hover:opacity-70 transition-opacity" style={{ right: 50 }} onClick={() => setShowPreview(true)}>
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <mask id={`mask_eye_cta_${id}`} style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="0" y="0" width="20" height="20"><rect width="20" height="20" fill="#D9D9D9"/></mask>
+          <g mask={`url(#mask_eye_cta_${id})`}><path d="M9.99935 13.3334C11.041 13.3334 11.9266 12.9689 12.656 12.24C13.3849 11.5106 13.7493 10.625 13.7493 9.58337C13.7493 8.54171 13.3849 7.65615 12.656 6.92671C11.9266 6.19782 11.041 5.83337 9.99935 5.83337C8.95768 5.83337 8.07213 6.19782 7.34268 6.92671C6.61379 7.65615 6.24935 8.54171 6.24935 9.58337C6.24935 10.625 6.61379 11.5106 7.34268 12.24C8.07213 12.9689 8.95768 13.3334 9.99935 13.3334ZM9.99935 11.8334C9.37435 11.8334 8.84324 11.6145 8.40602 11.1767C7.96824 10.7395 7.74935 10.2084 7.74935 9.58337C7.74935 8.95837 7.96824 8.42698 8.40602 7.98921C8.84324 7.55198 9.37435 7.33337 9.99935 7.33337C10.6243 7.33337 11.1557 7.55198 11.5935 7.98921C12.0307 8.42698 12.2493 8.95837 12.2493 9.58337C12.2493 10.2084 12.0307 10.7395 11.5935 11.1767C11.1557 11.6145 10.6243 11.8334 9.99935 11.8334ZM9.99935 15.8334C8.06879 15.8334 6.3049 15.3231 4.70768 14.3025C3.11046 13.2814 1.90213 11.9028 1.08268 10.1667C1.04102 10.0973 1.01324 10.0103 0.999349 9.90587C0.98546 9.80199 0.978516 9.69448 0.978516 9.58337C0.978516 9.47226 0.98546 9.36449 0.999349 9.26004C1.01324 9.15615 1.04102 9.06949 1.08268 9.00004C1.90213 7.26393 3.11046 5.8856 4.70768 4.86504C6.3049 3.84393 8.06879 3.33337 9.99935 3.33337C11.9299 3.33337 13.6938 3.84393 15.291 4.86504C16.8882 5.8856 18.0966 7.26393 18.916 9.00004C18.9577 9.06949 18.9855 9.15615 18.9993 9.26004C19.0132 9.36449 19.0202 9.47226 19.0202 9.58337C19.0202 9.69448 19.0132 9.80199 18.9993 9.90587C18.9855 10.0103 18.9577 10.0973 18.916 10.1667C18.0966 11.9028 16.8882 13.2814 15.291 14.3025C13.6938 15.3231 11.9299 15.8334 9.99935 15.8334ZM9.99935 14.1667C11.5688 14.1667 13.0099 13.7534 14.3227 12.9267C15.6349 12.1006 16.6382 10.9862 17.3327 9.58337C16.6382 8.1806 15.6349 7.06587 14.3227 6.23921C13.0099 5.4131 11.5688 5.00004 9.99935 5.00004C8.4299 5.00004 6.98879 5.4131 5.67602 6.23921C4.36379 7.06587 3.36046 8.1806 2.66602 9.58337C3.36046 10.9862 4.36379 12.1006 5.67602 12.9267C6.98879 13.7534 8.4299 14.1667 9.99935 14.1667Z" fill="#293748"/></g>
         </svg>
       </button>
 
+      {showPreview && (
+        <InteractionPreviewModal
+          data={{ type: 'discovery', question, answers: answers.map((a) => a.value) }}
+          onClose={() => setShowPreview(false)}
+        />
+      )}
+
       {/* Duplicate button */}
-      <button className="absolute top-2 right-5 text-gray-400 hover:text-gray-600">
-        <svg width="17" height="17" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M6.75 13.5c-.412 0-.766-.147-1.059-.44A1.445 1.445 0 0 1 5.25 12V3c0-.412.147-.766.44-1.06.294-.293.647-.44 1.06-.44h6.75c.412 0 .766.147 1.06.44.293.294.44.648.44 1.06v9c0 .412-.147.766-.44 1.06-.294.293-.648.44-1.06.44H6.75ZM6.75 12h6.75V3H6.75v9ZM3.75 16.5c-.412 0-.766-.147-1.06-.44A1.445 1.445 0 0 1 2.25 15V5.25c0-.212.072-.391.216-.535A.726.726 0 0 1 3 4.5c.212 0 .391.072.535.215a.727.727 0 0 1 .215.535V15h7.5c.212 0 .391.072.535.216a.726.726 0 0 1 .215.534c0 .213-.072.391-.215.534a.726.726 0 0 1-.535.216H3.75Z" fill="currentColor"/>
+      <button className="absolute top-3 right-4 hover:opacity-70 transition-opacity" onClick={handleDuplicate}>
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <mask id={`mask_dup_cta_${id}`} style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="0" y="0" width="20" height="20"><rect width="20" height="20" fill="#D9D9D9"/></mask>
+          <g mask={`url(#mask_dup_cta_${id})`}><path d="M7.5 15C7.04167 15 6.64944 14.8369 6.32333 14.5108C5.99667 14.1842 5.83333 13.7917 5.83333 13.3333V3.33332C5.83333 2.87499 5.99667 2.48249 6.32333 2.15582C6.64944 1.82971 7.04167 1.66666 7.5 1.66666H15C15.4583 1.66666 15.8508 1.82971 16.1775 2.15582C16.5036 2.48249 16.6667 2.87499 16.6667 3.33332V13.3333C16.6667 13.7917 16.5036 14.1842 16.1775 14.5108C15.8508 14.8369 15.4583 15 15 15H7.5ZM7.5 13.3333H15V3.33332H7.5V13.3333ZM4.16667 18.3333C3.70833 18.3333 3.31583 18.1703 2.98917 17.8442C2.66306 17.5175 2.5 17.125 2.5 16.6667V5.83332C2.5 5.59721 2.58 5.39916 2.74 5.23916C2.89944 5.07971 3.09722 4.99999 3.33333 4.99999C3.56944 4.99999 3.7675 5.07971 3.9275 5.23916C4.08694 5.39916 4.16667 5.59721 4.16667 5.83332V16.6667H12.5C12.7361 16.6667 12.9342 16.7467 13.0942 16.9067C13.2536 17.0661 13.3333 17.2639 13.3333 17.5C13.3333 17.7361 13.2536 17.9339 13.0942 18.0933C12.9342 18.2533 12.7361 18.3333 12.5 18.3333H4.16667Z" fill="#293748"/></g>
         </svg>
       </button>
 
@@ -588,7 +621,7 @@ export default function CtaNode({ id, data }: NodeProps) {
                         setDraftTooltips((prev) => ({ ...prev, [answer.id]: e.target.value }))
                       }
                       placeholder="Type your tool-tip here"
-                      className="nodrag w-full text-sm text-gray-800 placeholder:text-brand-300 outline-none bg-transparent pb-2 border-b border-gray-200 focus:border-brand-400 transition-colors"
+                      className="nodrag w-full text-sm text-gray-800 placeholder:text-[#FC6839] outline-none bg-transparent pb-2 border-b border-gray-200 focus:border-brand-400 transition-colors"
                     />
                   </div>
                   <button
@@ -635,7 +668,7 @@ export default function CtaNode({ id, data }: NodeProps) {
       ) : (
         <>
           {/* Question */}
-          <div className="mb-6 px-1">
+          <div className="mb-6 px-1" style={{ marginTop: 6 }}>
             <textarea
               value={question}
               onChange={(e) => updateQuestion(e.target.value)}

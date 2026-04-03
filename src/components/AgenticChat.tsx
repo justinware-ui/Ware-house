@@ -1085,7 +1085,7 @@ function ContentCard({
   const [showPreview, setShowPreview] = useState(false)
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white overflow-visible">
+    <div className="rounded-xl border bg-white overflow-visible" style={{ borderColor: isSelected ? '#FC6839' : '#e5e7eb' }}>
       {showPreview && (
         <PreviewModal url={match.demo.preview} title={match.demo.title} onClose={() => setShowPreview(false)} />
       )}
@@ -1142,24 +1142,6 @@ function ContentCard({
             </button>
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-medium whitespace-nowrap opacity-0 pointer-events-none group-hover/preview:opacity-100 transition-opacity shadow-lg z-50" style={{ backgroundColor: '#293748' }}>
               Preview
-              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent" style={{ borderTopColor: '#293748' }} />
-            </div>
-          </div>
-
-          {/* Switch icon */}
-          <div className="relative group/switch flex items-center">
-            <button className="hover:opacity-70 transition-opacity">
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <mask id={`mask_switch_${infoKey}`} style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="0" y="0" width="20" height="20">
-                  <rect width="20" height="20" fill="#D9D9D9"/>
-                </mask>
-                <g mask={`url(#mask_switch_${infoKey})`}>
-                  <path d="M10.0417 16.6667C8.18056 16.6667 6.59722 16.0209 5.29167 14.7292C3.98611 13.4375 3.33333 11.8612 3.33333 10V9.85421L2.58333 10.6042C2.43056 10.757 2.23611 10.8334 2 10.8334C1.76389 10.8334 1.56944 10.757 1.41667 10.6042C1.26389 10.4514 1.1875 10.257 1.1875 10.0209C1.1875 9.78476 1.26389 9.59032 1.41667 9.43754L3.58333 7.27087C3.66667 7.18754 3.75694 7.12837 3.85417 7.09337C3.95139 7.05893 4.05556 7.04171 4.16667 7.04171C4.27778 7.04171 4.38194 7.05893 4.47917 7.09337C4.57639 7.12837 4.66667 7.18754 4.75 7.27087L6.91667 9.43754C7.06944 9.59032 7.14583 9.78476 7.14583 10.0209C7.14583 10.257 7.06944 10.4514 6.91667 10.6042C6.76389 10.757 6.56944 10.8334 6.33333 10.8334C6.09722 10.8334 5.90278 10.757 5.75 10.6042L5 9.85421V10C5 11.3889 5.48972 12.5695 6.46917 13.5417C7.44806 14.5139 8.63889 15 10.0417 15C10.3194 15 10.5903 14.9759 10.8542 14.9275C11.1181 14.8787 11.3819 14.8056 11.6458 14.7084C11.7847 14.6528 11.9342 14.6389 12.0942 14.6667C12.2536 14.6945 12.3889 14.7639 12.5 14.875C12.75 15.125 12.8508 15.3923 12.8025 15.6767C12.7536 15.9617 12.5694 16.1598 12.25 16.2709C11.8889 16.3959 11.5244 16.4931 11.1567 16.5625C10.7883 16.632 10.4167 16.6667 10.0417 16.6667ZM15.8333 12.9584C15.7222 12.9584 15.6181 12.9409 15.5208 12.9059C15.4236 12.8714 15.3333 12.8125 15.25 12.7292L13.0833 10.5625C12.9306 10.4098 12.8542 10.2153 12.8542 9.97921C12.8542 9.7431 12.9306 9.54865 13.0833 9.39587C13.2361 9.2431 13.4306 9.16671 13.6667 9.16671C13.9028 9.16671 14.0972 9.2431 14.25 9.39587L15 10.1459V10C15 8.61115 14.5106 7.4306 13.5317 6.45837C12.5522 5.48615 11.3611 5.00004 9.95833 5.00004C9.68056 5.00004 9.40972 5.02448 9.14583 5.07337C8.88194 5.12171 8.61806 5.19449 8.35417 5.29171C8.21528 5.34726 8.06611 5.36115 7.90667 5.33337C7.74667 5.3056 7.61111 5.23615 7.5 5.12504C7.25 4.87504 7.14917 4.60754 7.1975 4.32254C7.24639 4.0381 7.43056 3.84032 7.75 3.72921C8.11111 3.60421 8.47583 3.50699 8.84417 3.43754C9.21194 3.3681 9.58333 3.33337 9.95833 3.33337C11.8194 3.33337 13.4028 3.97921 14.7083 5.27087C16.0139 6.56254 16.6667 8.13893 16.6667 10V10.1459L17.4167 9.39587C17.5694 9.2431 17.7639 9.16671 18 9.16671C18.2361 9.16671 18.4306 9.2431 18.5833 9.39587C18.7361 9.54865 18.8125 9.7431 18.8125 9.97921C18.8125 10.2153 18.7361 10.4098 18.5833 10.5625L16.4167 12.7292C16.3333 12.8125 16.2431 12.8714 16.1458 12.9059C16.0486 12.9409 15.9444 12.9584 15.8333 12.9584Z" fill="#172537"/>
-                </g>
-              </svg>
-            </button>
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-medium whitespace-nowrap opacity-0 pointer-events-none group-hover/switch:opacity-100 transition-opacity shadow-lg z-50" style={{ backgroundColor: '#293748' }}>
-              Replace
               <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent" style={{ borderTopColor: '#293748' }} />
             </div>
           </div>
@@ -1234,24 +1216,24 @@ function ProposalView({
         </div>
       )}
 
-      {selectedCount > 0 && (
-        <div className="px-1 text-xs font-medium flex items-center gap-1.5 text-gray-900">
-          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full text-white text-[10px] font-bold" style={{ backgroundColor: '#FC6839' }}>{selectedCount}</span>
-          content item{selectedCount !== 1 ? 's' : ''} selected
-        </div>
-      )}
-
       {/* Per-persona content */}
       {proposal.personas.map((persona, pi) => (
         <div key={pi} style={pi > 0 ? { marginTop: 16 } : undefined}>
-          <div className="px-1 mb-2">
-            <div className="text-sm font-semibold text-gray-900">{proposal.personas.length > 1 ? 'Personas' : 'Persona'}: {persona.name}</div>
+          <div className="px-1">
+            <div className="text-sm text-gray-900"><span className="font-semibold">{proposal.personas.length > 1 ? 'Personas' : 'Persona'}:</span> {persona.name}</div>
             {persona.painPoints.length > 0 && (
-              <div className="text-xs text-gray-500 mt-0.5">
-                Focus: {persona.painPoints.join(', ')}
+              <div className="text-sm text-gray-900 mt-0.5">
+                <span className="font-semibold">Focus:</span> {persona.painPoints.join(', ')}
               </div>
             )}
           </div>
+
+          {pi === 0 && selectedCount > 0 && (
+            <div className="px-1 text-xs font-medium flex items-center gap-1.5 text-gray-900" style={{ marginTop: 16, marginBottom: 24 }}>
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full text-white text-[10px] font-bold" style={{ backgroundColor: '#FC6839' }}>{selectedCount}</span>
+              content item{selectedCount !== 1 ? 's' : ''} selected
+            </div>
+          )}
 
           {/* Second discovery question for 2-branch template */}
           {proposal.template === '2_disco_branch' && proposal.secondDiscoveryQuestions && (
@@ -1276,11 +1258,11 @@ function ProposalView({
           )}
 
           {persona.painPointMatches && persona.painPointMatches.length >= 2 ? (
-            <div className="flex flex-col gap-7" style={{ marginTop: 16 }}>
+            <div className="flex flex-col gap-7">
               {persona.painPointMatches.map((ppGroup, gi) => (
                 <div key={gi}>
                   <div className="px-1 mb-1.5">
-                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{ppGroup.painPoint}</div>
+                    <div className="font-semibold text-gray-900 uppercase tracking-wider" style={{ fontSize: 9 }}>{ppGroup.painPoint}</div>
                   </div>
                   <div className="flex flex-col gap-2">
                     {ppGroup.matches.map((match, mi) => {

@@ -113,6 +113,7 @@ export default function DemoCardNode({ id, data }: NodeProps) {
               document.dispatchEvent(new CustomEvent('open-replace-popover', { detail: { nodeId: id, demoId: demoId || '', title } }))
             }}
             className="w-8 h-8 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
+            style={{ animation: 'pulse-glow 3s ease-in-out infinite' }}
           >
             <svg width="50" height="50" viewBox="14 8 62 62" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="19.0464" y="12.4535" width="50.4" height="50.4" rx="25.2" fill="url(#paint_card_hover_sparkle)"/>

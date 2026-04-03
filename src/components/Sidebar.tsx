@@ -43,6 +43,7 @@ export default function Sidebar() {
     const count = Math.max(2, Math.floor(Math.random() * Math.ceil(demos.length / 3)) + 1)
     return new Set(shuffled.slice(0, count).map((d) => d.id))
   })
+  const [searchFocused, setSearchFocused] = useState(false)
   const isDragging = useRef(false)
   const startX = useRef(0)
   const startWidth = useRef(0)
@@ -172,7 +173,14 @@ export default function Sidebar() {
         </button>
 
         {/* Search field */}
-        <div className="flex-1 min-w-0 flex items-center gap-2 h-10 px-4 bg-white rounded-full" style={{ border: '1px solid #D0CBC6' }}>
+        <div
+          className="flex-1 min-w-0 flex items-center gap-2 h-10 px-4 bg-white rounded-full transition-shadow duration-200"
+          style={{
+            border: searchFocused ? '2px solid #F44C10' : '1px solid #D0CBC6',
+            boxShadow: searchFocused ? '0 0 0 5px rgba(255, 150, 89, 0.5)' : 'none',
+            padding: searchFocused ? '0 15px' : '0 16px',
+          }}
+        >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
             <path d="M12.6 13.5333L8.86667 9.8C8.53333 10.0667 8.15 10.2778 7.71667 10.4333C7.28333 10.5889 6.82222 10.6667 6.33333 10.6667C5.12222 10.6667 4.09733 10.2473 3.25867 9.4087C2.41956 8.5696 2 7.5444 2 6.3333C2 5.1222 2.41956 4.0971 3.25867 3.258C4.09733 2.4193 5.12222 2 6.33333 2C7.54444 2 8.56956 2.4193 9.40867 3.258C10.2473 4.0971 10.6667 5.1222 10.6667 6.3333C10.6667 6.8222 10.5889 7.2833 10.4333 7.7167C10.2778 8.15 10.0667 8.5333 9.8 8.8667L13.55 12.6167C13.6722 12.7389 13.7333 12.8889 13.7333 13.0667C13.7333 13.2444 13.6667 13.4 13.5333 13.5333C13.4111 13.6556 13.2556 13.7167 13.0667 13.7167C12.8778 13.7167 12.7222 13.6556 12.6 13.5333ZM6.33333 9.3333C7.16667 9.3333 7.87511 9.0418 8.45867 8.4587C9.04178 7.8751 9.33333 7.1667 9.33333 6.3333C9.33333 5.5 9.04178 4.7916 8.45867 4.208C7.87511 3.6249 7.16667 3.3333 6.33333 3.3333C5.5 3.3333 4.79156 3.6249 4.208 4.208C3.62489 4.7916 3.33333 5.5 3.33333 6.3333C3.33333 7.1667 3.62489 7.8751 4.208 8.4587C4.79156 9.0418 5.5 9.3333 6.33333 9.3333Z" fill="#172537"/>
           </svg>
@@ -180,6 +188,8 @@ export default function Sidebar() {
             type="text"
             placeholder="Search"
             className="text-sm outline-none bg-transparent flex-1 min-w-0 text-gray-700 placeholder:text-gray-400"
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
           />
         </div>
       </div>
@@ -194,7 +204,7 @@ export default function Sidebar() {
               const cardThumb = activeTab === 'Dynamic Tours' ? thumbDynamicTour : demo.thumb
               onDragStart(e, `card-${activeTab.toLowerCase().replace(/\s+/g, '-')}`, { demoId: demo.id, title: demo.title, creator: demo.creator, thumb: cardThumb, preview: demo.preview })
             }}
-            className="flex items-center gap-3 px-3 py-3 rounded-xl border border-gray-200 bg-white hover:border-brand-300 hover:shadow-sm transition-all cursor-grab mb-2"
+            className="flex items-center gap-3 px-3 py-3 rounded-xl border border-gray-200 bg-white hover:border-[#FC6839] hover:shadow-sm transition-all cursor-grab mb-2"
           >
             {/* Drag handle */}
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
