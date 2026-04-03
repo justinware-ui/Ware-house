@@ -619,7 +619,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
         </>
       )}
 
-      <div style={tooltipMode ? { opacity: 0, pointerEvents: 'none' as const } : undefined}>
+      <div style={tooltipMode ? { opacity: 0, pointerEvents: 'none' as const, position: 'absolute' as const, left: 0, right: 0, top: 0 } : undefined}>
         <>
           {/* Header field */}
           <div className="mb-7 px-1" style={{ marginTop: 6 }}>

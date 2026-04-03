@@ -576,7 +576,7 @@ export default function CtaNode({ id, data }: NodeProps) {
 
       {showPreview && (
         <InteractionPreviewModal
-          data={{ type: 'discovery', question, answers: answers.map((a) => a.value) }}
+          data={{ type: 'discovery', question, answers: answers.map((a) => a.value), tooltips: Object.fromEntries(answers.map((a, i) => [i, tooltips[a.id] ?? ''])) }}
           onClose={() => setShowPreview(false)}
         />
       )}

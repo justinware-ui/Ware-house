@@ -1,11 +1,12 @@
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { X } from 'lucide-react'
+import { X, CircleHelp } from 'lucide-react'
 
 interface DiscoveryQuestionData {
   type: 'discovery'
   question: string
   answers: string[]
+  tooltips?: Record<number, string>
 }
 
 interface FullScreenDialogData {
@@ -50,7 +51,7 @@ export default function InteractionPreviewModal({ data, onClose }: InteractionPr
         </button>
 
         {data.type === 'discovery' ? (
-          <DiscoveryPreview question={data.question} answers={data.answers} />
+          <DiscoveryPreview question={data.question} answers={data.answers} tooltips={data.tooltips} />
         ) : (
           <FullScreenPreview header={data.header} message={data.message} buttons={data.buttons} />
         )}
@@ -60,21 +61,35 @@ export default function InteractionPreviewModal({ data, onClose }: InteractionPr
   )
 }
 
-function DiscoveryPreview({ question, answers }: { question: string; answers: string[] }) {
+function DiscoveryPreview({ question, answers, tooltips }: { question: string; answers: string[]; tooltips?: Record<number, string> }) {
   return (
     <div className="px-10 py-10">
       <p className="text-lg font-semibold text-gray-900 mb-8">
         {question || 'What do you like better?'}
       </p>
       <div className="flex flex-col gap-3">
-        {answers.filter((a) => a.trim()).map((answer, i) => (
-          <button
-            key={i}
-            className="w-full text-left px-5 py-4 rounded-xl border border-gray-200 text-sm text-gray-800 hover:border-[#FC6839] hover:bg-orange-50 transition-colors cursor-pointer"
-          >
-            {answer}
-          </button>
-        ))}
+        {answers.filter((a) => a.trim()).map((answer, i) => {
+          const tip = tooltips?.[i]?.trim()
+          return (
+            <button
+              key={i}
+              className="w-full text-left px-5 py-4 rounded-xl border border-gray-200 text-sm text-gray-800 hover:border-[#FC6839] hover:bg-orange-50 transition-colors cursor-pointer"
+            >
+              <span className="inline-flex items-center">
+                <span>{answer}</span>
+                {tip && (
+                  <span className="relative group/tip inline-flex items-center" style={{ marginLeft: 8 }}>
+                    <CircleHelp size={14} className="text-gray-800 cursor-help" />
+                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1.5 rounded-lg bg-gray-800 text-white text-xs opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity shadow-lg whitespace-nowrap" style={{ maxWidth: 320 }}>
+                      {tip}
+                      <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+                    </span>
+                  </span>
+                )}
+              </span>
+            </button>
+          )
+        })}
         {answers.filter((a) => a.trim()).length === 0 && (
           <>
             <div className="w-full px-5 py-4 rounded-xl border border-gray-200 text-sm text-gray-400">1</div>
