@@ -146,10 +146,15 @@ function FormattingToolbar({
 export default function FullScreenDialogNode({ id, data }: NodeProps) {
   const { setNodes, setEdges, getNodes } = useReactFlow()
   const updateNodeInternals = useUpdateNodeInternals()
-  const typedData = data as { header?: string; message?: string }
+  const typedData = data as { header?: string; message?: string; buttons?: string[] }
   const [header, setHeader] = useState(typedData.header ?? '')
   const [message, setMessage] = useState(typedData.message ?? '')
-  const [buttons, setButtons] = useState<ButtonEntry[]>([{ id: 0, text: '' }])
+  const [buttons, setButtons] = useState<ButtonEntry[]>(() => {
+    if (typedData.buttons && typedData.buttons.length > 0) {
+      return typedData.buttons.map((t, i) => ({ id: i, text: t }))
+    }
+    return [{ id: 0, text: '' }]
+  })
   const [showPreview, setShowPreview] = useState(false)
   const [showToolbar, setShowToolbar] = useState(false)
   const [activeFormats, setActiveFormats] = useState<Set<FormatOption>>(new Set())
@@ -178,7 +183,9 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
     if (typedData.header && typedData.header !== header) setHeader(typedData.header)
     if (typedData.message && typedData.message !== message) {
       setMessage(typedData.message)
-      if (messageRef.current) messageRef.current.textContent = typedData.message
+    }
+    if (typedData.message && messageRef.current && !messageRef.current.textContent) {
+      messageRef.current.textContent = typedData.message
     }
   }, [typedData.header, typedData.message])
 
@@ -330,12 +337,12 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
         x: sourceNode.position.x + nodeW / 2,
         y: sourceNode.position.y + nodeH / 2,
       },
-      data: { header, message },
+      data: { header, message, buttons: buttons.map((b) => b.text) },
       selected: true,
       zIndex: 1000,
     }
     setNodes((nds) => nds.map((n) => ({ ...n, selected: false })).concat(newNode))
-  }, [id, getNodes, setNodes, header, message])
+  }, [id, getNodes, setNodes, header, message, buttons])
 
   const longestLine = useMemo(() => {
     const allTexts = [
@@ -465,6 +472,12 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
         className="!bg-brand-500 !border-brand-500"
         style={{ width: 12, height: 12, left: 0 }}
       />
+      <Handle
+        type="source"
+        position={Position.Right}
+        className="!bg-brand-500 !border-brand-500"
+        style={{ width: 12, height: 12, right: 0 }}
+      />
 
       {showToolbar && !tooltipMode && (
         <FormattingToolbar
@@ -515,111 +528,112 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
         <span className="text-xs font-medium text-gray-500">Full screen dialog</span>
       </div>
 
-      {tooltipMode && (
-        <>
-          <div className="mb-5 px-1">
-            <p className="text-base font-semibold italic text-gray-800">
-              Create tooltips for your message and buttons
-            </p>
-          </div>
+      <div className="relative">
+        {tooltipMode && (
+          <div className="absolute inset-0 z-10 bg-white px-0 py-0">
+            <div className="mb-5 px-1">
+              <p className="text-base font-semibold italic text-gray-800">
+                Create tooltips for your message and buttons
+              </p>
+            </div>
 
-          <div className="flex flex-col gap-5">
-            {/* Message tooltip */}
-            {message.trim() && (
-              <div>
-                <p className="text-xs text-gray-600 mb-1">Message: {message}</p>
-                <div className="flex items-start gap-3">
-                  <div className="flex-1 min-w-0">
-                    <input
-                      type="text"
-                      value={draftTooltips['message'] ?? ''}
-                      onChange={(e) =>
-                        setDraftTooltips((prev) => ({ ...prev, message: e.target.value }))
+            <div className="flex flex-col gap-5">
+              {/* Message tooltip */}
+              {message.trim() && (
+                <div>
+                  <p className="text-xs text-gray-600 mb-1">Message: {message}</p>
+                  <div className="flex items-start gap-3 pb-2 border-b border-gray-200 focus-within:border-brand-400 transition-colors">
+                    <div className="flex-1 min-w-0">
+                      <input
+                        type="text"
+                        value={draftTooltips['message'] ?? ''}
+                        onChange={(e) =>
+                          setDraftTooltips((prev) => ({ ...prev, message: e.target.value }))
+                        }
+                        placeholder="Type your tool-tip here"
+                        className="nodrag w-full text-sm text-gray-800 placeholder:text-[#FC6839] outline-none bg-transparent"
+                      />
+                    </div>
+                    <button
+                      className="text-gray-400 hover:text-gray-600 shrink-0 mt-0.5"
+                      onClick={() =>
+                        setDraftTooltips((prev) => {
+                          const next = { ...prev }
+                          delete next['message']
+                          return next
+                        })
                       }
-                      placeholder="Type your tool-tip here"
-                      className="nodrag w-full text-sm text-gray-800 placeholder:text-[#FC6839] outline-none bg-transparent pb-2 border-b border-gray-200 focus:border-brand-400 transition-colors"
-                    />
+                    >
+                      <X size={14} />
+                    </button>
                   </div>
-                  <button
-                    className="text-gray-400 hover:text-gray-600 shrink-0 mt-0.5"
-                    onClick={() =>
-                      setDraftTooltips((prev) => {
-                        const next = { ...prev }
-                        delete next['message']
-                        return next
-                      })
-                    }
-                  >
-                    <X size={14} />
-                  </button>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Button tooltips */}
-            {buttons.map((btn) => (
-              <div key={btn.id}>
-                {btn.text && (
-                  <p className="text-xs text-gray-600 mb-1">
-                    Button: {btn.text}
-                  </p>
-                )}
-                <div className="flex items-start gap-3">
-                  <div className="flex-1 min-w-0">
-                    <input
-                      type="text"
-                      value={draftTooltips[btn.id] ?? ''}
-                      onChange={(e) =>
-                        setDraftTooltips((prev) => ({ ...prev, [btn.id]: e.target.value }))
+              {/* Button tooltips */}
+              {buttons.map((btn) => (
+                <div key={btn.id}>
+                  {btn.text && (
+                    <p className="text-xs text-gray-600 mb-1">
+                      Button: {btn.text}
+                    </p>
+                  )}
+                  <div className="flex items-start gap-3 pb-2 border-b border-gray-200 focus-within:border-brand-400 transition-colors">
+                    <div className="flex-1 min-w-0">
+                      <input
+                        type="text"
+                        value={draftTooltips[btn.id] ?? ''}
+                        onChange={(e) =>
+                          setDraftTooltips((prev) => ({ ...prev, [btn.id]: e.target.value }))
+                        }
+                        placeholder="Type your tool-tip here"
+                        className="nodrag w-full text-sm text-gray-800 placeholder:text-[#FC6839] outline-none bg-transparent"
+                      />
+                    </div>
+                    <button
+                      className="text-gray-400 hover:text-gray-600 shrink-0 mt-0.5"
+                      onClick={() =>
+                        setDraftTooltips((prev) => {
+                          const next = { ...prev }
+                          delete next[btn.id]
+                          return next
+                        })
                       }
-                      placeholder="Type your tool-tip here"
-                      className="nodrag w-full text-sm text-gray-800 placeholder:text-[#FC6839] outline-none bg-transparent pb-2 border-b border-gray-200 focus:border-brand-400 transition-colors"
-                    />
+                    >
+                      <X size={14} />
+                    </button>
                   </div>
-                  <button
-                    className="text-gray-400 hover:text-gray-600 shrink-0 mt-0.5"
-                    onClick={() =>
-                      setDraftTooltips((prev) => {
-                        const next = { ...prev }
-                        delete next[btn.id]
-                        return next
-                      })
-                    }
-                  >
-                    <X size={14} />
-                  </button>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
 
-          <div className="flex items-center justify-between mt-5">
-            <button
-              className="text-sm font-bold text-gray-800 hover:text-gray-600 transition-colors"
-              onClick={() => { tooltipModeRef.current = false; setTooltipMode(false) }}
-            >
-              Cancel
-            </button>
-            <button
-              className={`text-sm font-semibold transition-colors ${
-                Object.values(draftTooltips).some((v) => v.trim())
-                  ? 'text-brand-500 hover:text-brand-600'
-                  : 'text-gray-300 cursor-not-allowed'
-              }`}
-              disabled={!Object.values(draftTooltips).some((v) => v.trim())}
-              onClick={() => {
-                setTooltips({ ...draftTooltips })
-                tooltipModeRef.current = false
-                setTooltipMode(false)
-              }}
-            >
-              Apply
-            </button>
+            <div className="flex items-center justify-between mt-5">
+              <button
+                className="text-sm font-bold text-gray-800 hover:text-gray-600 transition-colors"
+                onClick={() => { tooltipModeRef.current = false; setTooltipMode(false) }}
+              >
+                Cancel
+              </button>
+              <button
+                className={`text-sm font-semibold transition-colors ${
+                  Object.values(draftTooltips).some((v) => v.trim())
+                    ? 'text-brand-500 hover:text-brand-600'
+                    : 'text-gray-300 cursor-not-allowed'
+                }`}
+                disabled={!Object.values(draftTooltips).some((v) => v.trim())}
+                onClick={() => {
+                  setTooltips({ ...draftTooltips })
+                  tooltipModeRef.current = false
+                  setTooltipMode(false)
+                }}
+              >
+                Apply
+              </button>
+            </div>
           </div>
-        </>
-      )}
+        )}
 
-      <div style={tooltipMode ? { opacity: 0, pointerEvents: 'none' as const, position: 'absolute' as const, left: 0, right: 0, top: 0 } : undefined}>
+        <div style={tooltipMode ? { visibility: 'hidden' as const } : undefined}>
         <>
           {/* Header field */}
           <div className="mb-7 px-1" style={{ marginTop: 6 }}>
@@ -713,7 +727,13 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                 </div>
               )}
               <div
-                ref={messageRef}
+                ref={(el) => {
+                  (messageRef as React.MutableRefObject<HTMLDivElement | null>).current = el
+                  if (el && !el.dataset.initialized && message) {
+                    el.textContent = message
+                    el.dataset.initialized = 'true'
+                  }
+                }}
                 contentEditable
                 suppressContentEditableWarning
                 data-cta-field
@@ -785,16 +805,6 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                   )}
                 </div>
 
-                {/* Per-button source handle */}
-                <div className="absolute top-1/2 -translate-y-1/2" style={{ right: -30 }}>
-                  <Handle
-                    type="source"
-                    position={Position.Right}
-                    id={`button-${btn.id}`}
-                    className="!bg-brand-500 !border-brand-500 !relative !transform-none !top-0 !right-0"
-                    style={{ width: 12, height: 12 }}
-                  />
-                </div>
               </div>
             ))}
           </div>
@@ -812,6 +822,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
             </div>
           )}
         </>
+      </div>
       </div>
 
       {/* Hidden file input */}
