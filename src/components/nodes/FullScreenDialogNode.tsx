@@ -169,6 +169,11 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
   const [resizingImage, setResizingImage] = useState<{ startX: number; startY: number; startW: number; startH: number } | null>(null)
   const [draggingImage, setDraggingImage] = useState<{ startX: number; startY: number; startOffX: number; startOffY: number } | null>(null)
   const [showOverlay, setShowOverlay] = useState(false)
+  const [draggingBtnIndex, setDraggingBtnIndex] = useState<number | null>(null)
+  const dragBtnIndexRef = useRef<number | null>(null)
+  const buttonRefs = useRef<(HTMLDivElement | null)[]>([])
+  const buttonsRef = useRef(buttons)
+  buttonsRef.current = buttons
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isDraggingNode = useRef(false)
   const tooltipModeRef = useRef(false)
@@ -217,6 +222,50 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
 
   const updateButtonUrl = (btnId: number, url: string) =>
     setButtons((prev) => prev.map((b) => (b.id === btnId ? { ...b, url } : b)))
+
+  useEffect(() => {
+    const onMouseMove = (ev: MouseEvent) => {
+      if (dragBtnIndexRef.current === null) return
+      const y = ev.clientY
+      const currentIdx = dragBtnIndexRef.current
+      const len = buttonsRef.current.length
+      for (let i = 0; i < len; i++) {
+        const el = buttonRefs.current[i]
+        if (!el || i === currentIdx) continue
+        const rect = el.getBoundingClientRect()
+        const mid = rect.top + rect.height / 2
+        if ((i < currentIdx && y < mid) || (i > currentIdx && y > mid)) {
+          setButtons((prev) => {
+            const next = [...prev]
+            const [item] = next.splice(currentIdx, 1)
+            next.splice(i, 0, item)
+            return next
+          })
+          dragBtnIndexRef.current = i
+          setDraggingBtnIndex(i)
+          break
+        }
+      }
+    }
+    const onMouseUp = () => {
+      if (dragBtnIndexRef.current === null) return
+      dragBtnIndexRef.current = null
+      setDraggingBtnIndex(null)
+    }
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+    return () => {
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+    }
+  }, [])
+
+  const handleBtnGrabStart = (index: number, e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragBtnIndexRef.current = index
+    setDraggingBtnIndex(index)
+  }
 
   const handleImageClick = () => {
     setShowOverlay(true)
@@ -736,19 +785,43 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
           </div>
 
           {/* Button fields */}
-          <div className="flex flex-col gap-5">
-            {buttons.map((btn) => (
-              <div key={btn.id} className="flex flex-col">
+          <div className="flex flex-col gap-5" style={{ paddingBottom: buttons.length >= 2 ? 16 : 0 }}>
+            {buttons.map((btn, index) => (
+              <div
+                key={btn.id}
+                ref={(el) => {
+                  buttonRefs.current[index] = el
+                  buttonRefs.current.length = buttons.length
+                }}
+                className={`flex flex-col transition-opacity ${
+                  draggingBtnIndex !== null && draggingBtnIndex !== index ? 'opacity-50' : ''
+                }`}
+              >
                 <div
-                  className="nodrag flex items-start gap-3 relative pb-2 border-b border-gray-200 focus-within:border-brand-400 transition-colors"
+                  className="nodrag flex items-center gap-3 relative pb-2 border-b border-gray-200 focus-within:border-brand-400 transition-colors"
                 >
+                  {buttons.length >= 2 && (
+                    <div
+                      className="nodrag nopan shrink-0 cursor-grab select-none p-1"
+                      onMouseDown={(e) => handleBtnGrabStart(index, e)}
+                    >
+                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M7.5 16.666c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.459.163-.851.49-1.178.326-.326.718-.489 1.177-.489s.851.163 1.177.49c.326.326.49.718.49 1.177s-.164.851-.49 1.177c-.326.327-.718.49-1.177.49Zm5 0c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.459.164-.851.49-1.178.326-.326.718-.489 1.177-.489s.851.163 1.177.49c.327.326.49.718.49 1.177s-.163.851-.49 1.177c-.326.327-.718.49-1.177.49ZM7.5 11.666c-.459 0-.851-.163-1.177-.49a1.604 1.604 0 0 1-.49-1.177c0-.458.163-.851.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.326.326.49.718.49 1.177 0 .459-.164.851-.49 1.178-.326.326-.718.489-1.177.489Zm5 0c-.459 0-.851-.163-1.177-.49a1.604 1.604 0 0 1-.49-1.177c0-.458.164-.851.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.327.326.49.718.49 1.177 0 .459-.163.851-.49 1.178-.326.326-.718.489-1.177.489ZM7.5 6.666c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.458.163-.85.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.326.327.49.718.49 1.177 0 .459-.164.851-.49 1.178-.326.326-.718.489-1.177.489Zm5 0c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.458.164-.85.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.327.327.49.718.49 1.177 0 .459-.163.851-.49 1.178-.326.326-.718.489-1.177.489Z" fill="#8D8A87"/>
+                      </svg>
+                    </div>
+                  )}
+
                   <div className="flex-1 min-w-0" data-answer-content>
                     <input
                       type="text"
                       value={btn.text}
                       onChange={(e) => updateButtonText(btn.id, e.target.value)}
                       placeholder="Type your button text here"
-                      className="nodrag w-full text-sm text-[#FC6839] placeholder:text-[#FC6839] placeholder:opacity-100 focus:placeholder:opacity-60 outline-none bg-transparent"
+                      className={`nodrag w-full text-sm outline-none bg-transparent ${
+                        index === 0
+                          ? 'text-[#FC6839] placeholder:text-[#FC6839] placeholder:opacity-100 focus:placeholder:opacity-60'
+                          : 'text-gray-500 placeholder:text-gray-400 placeholder:opacity-100 focus:placeholder:opacity-60'
+                      }`}
                       data-cta-field
                       onFocus={() => { handleFieldFocus(); setFocusedButtonId(btn.id); setFocusedField('button') }}
                       onBlur={(e) => {
@@ -758,7 +831,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                     />
                   </div>
 
-                  <div className="flex items-center shrink-0" style={{ gap: 10, marginTop: 6 }}>
+                  <div className="flex items-center shrink-0" style={{ gap: 10, marginTop: 2 }}>
                     {buttons.length >= 2 && (
                       <button
                         className="text-gray-400 hover:text-gray-600"
@@ -788,8 +861,8 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
             ))}
           </div>
 
-          {/* Add button */}
-          {buttons.length < 2 && (
+          {/* Add button — only for CTA variant */}
+          {isCta && buttons.length < 2 && (
             <div className="flex justify-end mt-4">
               <button
                 onClick={addButton}
