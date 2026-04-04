@@ -30,7 +30,7 @@ export default function PreviewModal({ url, title, onClose }: PreviewModalProps)
         style={{ height: 'calc(90vh - 160px)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-gray-50 shrink-0">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-transparent shrink-0">
           <span className="text-sm font-semibold text-gray-800 truncate">{title || 'Preview'}</span>
           <div className="flex items-center gap-2">
             <a

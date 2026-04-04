@@ -304,22 +304,22 @@ function PopoverContentCard({
   const [showPreview, setShowPreview] = useState(false)
 
   return (
-    <div className="rounded-xl border bg-white overflow-visible" style={{ borderColor: isSelected ? '#FC6839' : '#e5e7eb' }}>
+    <div className="border bg-white overflow-visible" style={{ borderColor: isSelected ? '#FC6839' : '#D0CBC6', borderRadius: 8 }}>
       {showPreview && (
         <PreviewModal url={match.demo.preview} title={match.demo.title} onClose={() => setShowPreview(false)} />
       )}
-      <div className="flex items-center gap-3 px-3 py-3">
-        <img src={getPopoverThumb(match.demo.title)} alt="" className="w-10 h-10 rounded-lg shrink-0" />
+      <div className="flex items-center" style={{ padding: 16, gap: 12 }}>
+        <img src={getPopoverThumb(match.demo.title)} alt="" className="shrink-0 object-cover" style={{ width: 31, height: 31, borderRadius: 4 }} />
 
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-900 truncate">{match.demo.title}</p>
+          <p className="text-sm font-semibold truncate" style={{ color: '#172537' }}>{match.demo.title}</p>
           <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-xs text-gray-500">{match.demo.creator}</span>
-            <span className="text-xs text-[#FC6839] font-semibold">Show more</span>
+            <span className="text-xs" style={{ color: '#6F6F6F' }}>{match.demo.creator}</span>
+            <span className="text-xs font-semibold" style={{ color: '#FC6839' }}>Show more</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex items-center shrink-0" style={{ gap: 10 }}>
           {/* Info icon (outlined) */}
           <div className="relative group/info flex items-center" style={{ '--info-hover': colors.icon } as React.CSSProperties}>
             <button onClick={() => onToggleInfo(cardKey)} className="flex items-center justify-center" style={{ width: 20, height: 20 }}>
@@ -338,9 +338,13 @@ function PopoverContentCard({
           {/* Preview icon */}
           <div className="relative group/preview flex items-center">
             <button className="hover:opacity-70 transition-opacity" onClick={() => setShowPreview(true)}>
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <mask id={`mask_eye_pop_${cardKey}`} style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="0" y="0" width="20" height="20"><rect width="20" height="20" fill="#D9D9D9"/></mask>
-                <g mask={`url(#mask_eye_pop_${cardKey})`}><path d="M9.99935 13.3334C11.041 13.3334 11.9266 12.9689 12.656 12.24C13.3849 11.5106 13.7493 10.625 13.7493 9.58337C13.7493 8.54171 13.3849 7.65615 12.656 6.92671C11.9266 6.19782 11.041 5.83337 9.99935 5.83337C8.95768 5.83337 8.07213 6.19782 7.34268 6.92671C6.61379 7.65615 6.24935 8.54171 6.24935 9.58337C6.24935 10.625 6.61379 11.5106 7.34268 12.24C8.07213 12.9689 8.95768 13.3334 9.99935 13.3334ZM9.99935 11.8334C9.37435 11.8334 8.84324 11.6145 8.40602 11.1767C7.96824 10.7395 7.74935 10.2084 7.74935 9.58337C7.74935 8.95837 7.96824 8.42698 8.40602 7.98921C8.84324 7.55198 9.37435 7.33337 9.99935 7.33337C10.6243 7.33337 11.1557 7.55198 11.5935 7.98921C12.0307 8.42698 12.2493 8.95837 12.2493 9.58337C12.2493 10.2084 12.0307 10.7395 11.5935 11.1767C11.1557 11.6145 10.6243 11.8334 9.99935 11.8334ZM9.99935 15.8334C8.06879 15.8334 6.3049 15.3231 4.70768 14.3025C3.11046 13.2814 1.90213 11.9028 1.08268 10.1667C1.04102 10.0973 1.01324 10.0103 0.999349 9.90587C0.98546 9.80199 0.978516 9.69448 0.978516 9.58337C0.978516 9.47226 0.98546 9.36449 0.999349 9.26004C1.01324 9.15615 1.04102 9.06949 1.08268 9.00004C1.90213 7.26393 3.11046 5.8856 4.70768 4.86504C6.3049 3.84393 8.06879 3.33337 9.99935 3.33337C11.9299 3.33337 13.6938 3.84393 15.291 4.86504C16.8882 5.8856 18.0966 7.26393 18.916 9.00004C18.9577 9.06949 18.9855 9.15615 18.9993 9.26004C19.0132 9.36449 19.0202 9.47226 19.0202 9.58337C19.0202 9.69448 19.0132 9.80199 18.9993 9.90587C18.9855 10.0103 18.9577 10.0973 18.916 10.1667C18.0966 11.9028 16.8882 13.2814 15.291 14.3025C13.6938 15.3231 11.9299 15.8334 9.99935 15.8334ZM9.99935 14.1667C11.5688 14.1667 13.0099 13.7534 14.3227 12.9267C15.6349 12.1006 16.6382 10.9862 17.3327 9.58337C16.6382 8.1806 15.6349 7.06587 14.3227 6.23921C13.0099 5.4131 11.5688 5.00004 9.99935 5.00004C8.4299 5.00004 6.98879 5.4131 5.67602 6.23921C4.36379 7.06587 3.36046 8.1806 2.66602 9.58337C3.36046 10.9862 4.36379 12.1006 5.67602 12.9267C6.98879 13.7534 8.4299 14.1667 9.99935 14.1667Z" fill="#293748"/></g>
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <mask id={`mask_eye_pop_${cardKey}`} style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="0" y="0" width="18" height="18">
+                  <rect width="18" height="18" fill="#D9D9D9"/>
+                </mask>
+                <g mask={`url(#mask_eye_pop_${cardKey})`}>
+                  <path d="M8.99961 12C9.93711 12 10.7341 11.672 11.3906 11.016C12.0466 10.3595 12.3746 9.5625 12.3746 8.625C12.3746 7.6875 12.0466 6.8905 11.3906 6.234C10.7341 5.578 9.93711 5.25 8.99961 5.25C8.06211 5.25 7.26511 5.578 6.60861 6.234C5.95261 6.8905 5.62461 7.6875 5.62461 8.625C5.62461 9.5625 5.95261 10.3595 6.60861 11.016C7.26511 11.672 8.06211 12 8.99961 12ZM8.99961 10.65C8.43711 10.65 7.95911 10.453 7.56561 10.059C7.17161 9.6655 6.97461 9.1875 6.97461 8.625C6.97461 8.0625 7.17161 7.58425 7.56561 7.19025C7.95911 6.79675 8.43711 6.6 8.99961 6.6C9.56211 6.6 10.0404 6.79675 10.4344 7.19025C10.8279 7.58425 11.0246 8.0625 11.0246 8.625C11.0246 9.1875 10.8279 9.6655 10.4344 10.059C10.0404 10.453 9.56211 10.65 8.99961 10.65ZM8.99961 14.25C7.26211 14.25 5.67461 13.7908 4.23711 12.8723C2.79961 11.9533 1.71211 10.7125 0.974609 9.15C0.937109 9.0875 0.912109 9.00925 0.899609 8.91525C0.887109 8.82175 0.880859 8.725 0.880859 8.625C0.880859 8.525 0.887109 8.428 0.899609 8.334C0.912109 8.2405 0.937109 8.1625 0.974609 8.1C1.71211 6.5375 2.79961 5.297 4.23711 4.3785C5.67461 3.4595 7.26211 3 8.99961 3C10.7371 3 12.3246 3.4595 13.7621 4.3785C15.1996 5.297 16.2871 6.5375 17.0246 8.1C17.0621 8.1625 17.0871 8.2405 17.0996 8.334C17.1121 8.428 17.1184 8.525 17.1184 8.625C17.1184 8.725 17.1121 8.82175 17.0996 8.91525C17.0871 9.00925 17.0621 9.0875 17.0246 9.15C16.2871 10.7125 15.1996 11.9533 13.7621 12.8723C12.3246 13.7908 10.7371 14.25 8.99961 14.25ZM8.99961 12.75C10.4121 12.75 11.7091 12.378 12.8906 11.634C14.0716 10.8905 14.9746 9.8875 15.5996 8.625C14.9746 7.3625 14.0716 6.35925 12.8906 5.61525C11.7091 4.87175 10.4121 4.5 8.99961 4.5C7.58711 4.5 6.29011 4.87175 5.10861 5.61525C3.92761 6.35925 3.02461 7.3625 2.39961 8.625C3.02461 9.8875 3.92761 10.8905 5.10861 11.634C6.29011 12.378 7.58711 12.75 8.99961 12.75Z" fill="#293748"/>
+                </g>
               </svg>
             </button>
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-medium whitespace-nowrap opacity-0 pointer-events-none group-hover/preview:opacity-100 transition-opacity shadow-lg z-50" style={{ backgroundColor: '#293748' }}>
@@ -353,19 +357,24 @@ function PopoverContentCard({
           <div className="relative group/add flex items-center">
             <button onClick={() => onReplace(match)} className="transition-all hover:opacity-80">
               {isSelected ? (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <rect width="24" height="24" rx="12" fill="#61B08B"/>
-                  <mask id={`mask_sel_pop_${cardKey}`} style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="4" y="4" width="16" height="16">
-                    <rect x="4" y="4" width="16" height="16" fill="#D9D9D9"/>
+                <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="1" y="1" width="28" height="28" rx="14" fill="#61B08B" stroke="#61B08B" strokeWidth="2"/>
+                  <mask id={`mask_sel_pop_${cardKey}`} style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="5" y="5" width="20" height="20">
+                    <rect x="5" y="5" width="20" height="20" fill="#D9D9D9"/>
                   </mask>
                   <g mask={`url(#mask_sel_pop_${cardKey})`}>
-                    <path d="M10.3664 15.7167C10.2775 15.7167 10.1942 15.7027 10.1164 15.6747C10.0386 15.6472 9.96642 15.6001 9.89976 15.5334L7.03309 12.6667C6.91087 12.5445 6.85242 12.3861 6.85776 12.1914C6.86353 11.9972 6.92753 11.8389 7.04976 11.7167C7.17198 11.5945 7.32753 11.5334 7.51642 11.5334C7.70531 11.5334 7.86087 11.5945 7.98309 11.7167L10.3664 14.1001L16.0164 8.45006C16.1386 8.32783 16.2971 8.26672 16.4918 8.26672C16.686 8.26672 16.8442 8.32783 16.9664 8.45006C17.0886 8.57228 17.1498 8.7305 17.1498 8.92472C17.1498 9.11939 17.0886 9.27783 16.9664 9.40006L10.8331 15.5334C10.7664 15.6001 10.6942 15.6472 10.6164 15.6747C10.5386 15.7027 10.4553 15.7167 10.3664 15.7167Z" fill="white"/>
+                    <path d="M13.0831 19.6459C12.9719 19.6459 12.8678 19.6284 12.7706 19.5934C12.6733 19.559 12.5831 19.5001 12.4998 19.4167L9.41642 16.3334C9.26364 16.1806 9.19031 15.9826 9.19697 15.7392C9.2042 15.4965 9.28419 15.2987 9.43697 15.1459C9.58975 14.9931 9.7842 14.9167 10.0203 14.9167C10.2564 14.9167 10.4509 14.9931 10.6037 15.1459L13.0831 17.6251L20.1453 10.5626C20.2981 10.4098 20.4962 10.3334 20.7395 10.3334C20.9823 10.3334 21.1801 10.4098 21.3328 10.5626C21.4856 10.7153 21.562 10.9131 21.562 11.1559C21.562 11.3993 21.4856 11.5973 21.3328 11.7501L13.6664 19.4167C13.5831 19.5001 13.4928 19.559 13.3956 19.5934C13.2984 19.6284 13.1942 19.6459 13.0831 19.6459Z" fill="white"/>
                   </g>
                 </svg>
               ) : (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="12" cy="12" r="10" stroke="#FC6839" strokeWidth="1.5"/>
-                  <path d="M12 8v8M8 12h8" stroke="#FC6839" strokeWidth="1.5" strokeLinecap="round"/>
+                <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="1" y="1" width="28" height="28" rx="14" stroke="#FC6839" strokeWidth="2" fill="none"/>
+                  <mask id={`mask_add_pop_${cardKey}`} style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="6" y="6" width="18" height="18">
+                    <rect x="6" y="6" width="18" height="18" fill="#D9D9D9"/>
+                  </mask>
+                  <g mask={`url(#mask_add_pop_${cardKey})`}>
+                    <path d="M15 20.25C14.7875 20.25 14.6095 20.178 14.466 20.034C14.322 19.8905 14.25 19.7125 14.25 19.5V15.75H10.5C10.2875 15.75 10.1093 15.678 9.96525 15.534C9.82175 15.3905 9.75 15.2125 9.75 15C9.75 14.7875 9.82175 14.6093 9.96525 14.4653C10.1093 14.3218 10.2875 14.25 10.5 14.25H14.25V10.5C14.25 10.2875 14.322 10.1093 14.466 9.96525C14.6095 9.82175 14.7875 9.75 15 9.75C15.2125 9.75 15.3908 9.82175 15.5348 9.96525C15.6783 10.1093 15.75 10.2875 15.75 10.5V14.25H19.5C19.7125 14.25 19.8905 14.3218 20.034 14.4653C20.178 14.6093 20.25 14.7875 20.25 15C20.25 15.2125 20.178 15.3905 20.034 15.534C19.8905 15.678 19.7125 15.75 19.5 15.75H15.75V19.5C15.75 19.7125 15.6783 19.8905 15.5348 20.034C15.3908 20.178 15.2125 20.25 15 20.25Z" fill="#F44C10"/>
+                  </g>
                 </svg>
               )}
             </button>
@@ -378,7 +387,7 @@ function PopoverContentCard({
       </div>
 
       {isInfoOpen && (
-        <div className="mx-3 mb-3 px-3 py-2.5 rounded-lg text-xs border" style={{ borderColor: colors.border, backgroundColor: colors.bg, color: colors.text }}>
+        <div className="px-3 py-2.5 rounded-lg text-xs border" style={{ margin: '0 16px 16px', borderColor: colors.border, backgroundColor: colors.bg, color: colors.text }}>
           <strong>Why this content:</strong> {match.relevanceReason}
         </div>
       )}
@@ -638,7 +647,7 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
         ) : alternatives.length === 0 ? (
           <p className="text-xs text-gray-400 py-3 text-center">No alternatives found.</p>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col" style={{ gap: 12 }}>
             {alternatives.map((alt, i) => (
               <PopoverContentCard
                 key={alt.demo.id}
@@ -724,7 +733,7 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
                     <>
                       <p className="text-sm text-gray-700">{msg.text}</p>
                       {msg.results && (
-                        <div className="flex flex-col gap-2 mt-2">
+                        <div className="flex flex-col mt-2" style={{ gap: 12 }}>
                           {msg.results.map((r, ri) => (
                             <PopoverContentCard
                               key={r.demo.id}
@@ -776,10 +785,11 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
       {/* Input field */}
       <div className="p-4">
         <div
-          className="bg-white rounded-2xl flex flex-col transition-shadow duration-200"
+          className="bg-white flex flex-col transition-shadow duration-200"
           style={{
-            border: inputFocused ? '2px solid #F44C10' : '1px solid #e5e7eb',
-            boxShadow: inputFocused ? '0 0 0 5px rgba(255, 150, 89, 0.5)' : '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+            borderRadius: 6,
+            border: inputFocused ? '2px solid #F44C10' : '1px solid #D0CBC6',
+            boxShadow: inputFocused ? '0 0 0 5px rgba(255, 150, 89, 0.5)' : 'none',
             padding: inputFocused ? 0 : 1,
           }}
         >
