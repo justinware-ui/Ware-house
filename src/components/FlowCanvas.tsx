@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState, useEffect, useMemo } from 'react'
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
 import { dingHigh, dingLow } from '../lib/audioDing'
+import { getRandomEncouragement } from '../lib/encouragements'
 import AudioWaveform from './AudioWaveform'
 import AgenticChat, { type SelectedContent } from './AgenticChat'
 import type { DemoProposal, ContentMatch, CanvasState } from '../lib/aiEngine'
@@ -935,6 +936,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
   const updateNodeInternals = useUpdateNodeInternals()
   const [chatOpen, setChatOpen] = useState(false)
   const [panelHeight, setPanelHeight] = useState(600)
+  const encouragement = useMemo(() => getRandomEncouragement(), [])
 
   const COLLAPSED_W = 320
   const COLLAPSED_H = 84
@@ -1821,8 +1823,8 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
             <div className="mb-4" style={{ transform: 'translateY(24px)' }}>
               <SparkleIcon size={92} />
             </div>
-            <h1 className="text-2xl font-semibold text-gray-900 mb-4">
-              Let&apos;s build something together!
+            <h1 className="text-2xl font-semibold text-gray-900 mb-4 text-center">
+              {encouragement}
             </h1>
           </div>
         )}
