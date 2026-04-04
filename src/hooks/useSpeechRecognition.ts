@@ -39,16 +39,13 @@ export function useSpeechRecognition(onTranscript: (text: string) => void) {
   const restartTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const callbackRef = useRef(onTranscript)
   callbackRef.current = onTranscript
+  const resultOffsetRef = useRef(0)
+  const pendingResetRef = useRef(false)
 
   const isSupported = typeof window !== 'undefined' &&
     (!!window.SpeechRecognition || !!window.webkitSpeechRecognition)
 
-  const cleanup = useCallback(() => {
-    activeRef.current = false
-    if (restartTimer.current) clearTimeout(restartTimer.current)
-    restartTimer.current = null
-    try { recognitionRef.current?.abort() } catch { /* */ }
-    recognitionRef.current = null
+  const cleanupAudio = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop())
     streamRef.current = null
     analyserRef.current = null
@@ -56,8 +53,19 @@ export function useSpeechRecognition(onTranscript: (text: string) => void) {
       audioCtxRef.current.close().catch(() => {})
     }
     audioCtxRef.current = null
-    setIsListening(false)
   }, [])
+
+  const cleanup = useCallback(() => {
+    activeRef.current = false
+    if (restartTimer.current) clearTimeout(restartTimer.current)
+    restartTimer.current = null
+    try { recognitionRef.current?.abort() } catch { /* */ }
+    recognitionRef.current = null
+    cleanupAudio()
+    setIsListening(false)
+    resultOffsetRef.current = 0
+    pendingResetRef.current = false
+  }, [cleanupAudio])
 
   useEffect(() => () => cleanup(), [cleanup])
 
@@ -70,13 +78,28 @@ export function useSpeechRecognition(onTranscript: (text: string) => void) {
     rec.interimResults = true
     rec.lang = 'en-US'
     recognitionRef.current = rec
+    resultOffsetRef.current = 0
+    pendingResetRef.current = false
 
     rec.onresult = (event: SpeechRecognitionEvent) => {
+      if (pendingResetRef.current) {
+        let finalCount = 0
+        for (let i = 0; i < event.results.length; i++) {
+          if (event.results[i].isFinal) finalCount = i + 1
+        }
+        resultOffsetRef.current = finalCount || event.results.length
+        pendingResetRef.current = false
+      }
+
       let text = ''
-      for (let i = 0; i < event.results.length; i++) {
+      for (let i = resultOffsetRef.current; i < event.results.length; i++) {
         text += event.results[i][0].transcript
       }
-      if (text.trim()) callbackRef.current(text.trim())
+      if (text.trim()) {
+        callbackRef.current(text.trim())
+      } else {
+        callbackRef.current('')
+      }
     }
 
     rec.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -132,5 +155,9 @@ export function useSpeechRecognition(onTranscript: (text: string) => void) {
     }).catch(() => {})
   }, [isSupported, cleanup, launchRecognition])
 
-  return { isListening, toggle, isSupported, analyserRef }
+  const resetTranscript = useCallback(() => {
+    pendingResetRef.current = true
+  }, [])
+
+  return { isListening, toggle, isSupported, analyserRef, resetTranscript }
 }

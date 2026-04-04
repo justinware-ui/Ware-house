@@ -28,21 +28,27 @@ export default function Header({ hasContent = false }: { hasContent?: boolean })
               onClick={() => setEditing(true)}
               onMouseEnter={() => setEditHover(true)}
               onMouseLeave={() => setEditHover(false)}
-              className="relative flex items-center justify-center transition-all"
-              style={{ width: 32, height: 32, borderRadius: 16 }}
+              className="flex items-center justify-center"
+              style={{ width: 24, height: 24 }}
             >
-              {editHover && (
-                <div className="absolute inset-0 rounded-full" style={{ backgroundColor: 'rgba(115,113,111,0.15)' }} />
+              {editHover ? (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                  <rect width="24" height="24" rx="12" fill="#73716F" fillOpacity="0.15"/>
+                  <mask id="mask_edit_hdr_hov" style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="4" y="4" width="16" height="16"><rect x="4" y="4" width="16" height="16" fill="#D9D9D9"/></mask>
+                  <g mask="url(#mask_edit_hdr_hov)">
+                    <path d="M7.33333 16.6668H8.26667L14.0167 10.9168L13.0833 9.9835L7.33333 15.7335V16.6668ZM16.8667 9.95016L14.0333 7.15016L14.9667 6.21683C15.2222 5.96127 15.5362 5.8335 15.9087 5.8335C16.2807 5.8335 16.5944 5.96127 16.85 6.21683L17.7833 7.15016C18.0389 7.40572 18.1722 7.71416 18.1833 8.0755C18.1944 8.43638 18.0722 8.74461 17.8167 9.00016L16.8667 9.95016ZM6.66667 18.0002C6.47778 18.0002 6.31956 17.9362 6.192 17.8082C6.064 17.6806 6 17.5224 6 17.3335V15.4502C6 15.3613 6.01667 15.2753 6.05 15.1922C6.08333 15.1086 6.13333 15.0335 6.2 14.9668L13.0667 8.10016L15.9 10.9335L9.03333 17.8002C8.96667 17.8668 8.89178 17.9168 8.80867 17.9502C8.72511 17.9835 8.63889 18.0002 8.55 18.0002H6.66667Z" fill="#172537"/>
+                  </g>
+                  <line x1="7.6875" y1="17.375" x2="17.8125" y2="17.375" stroke="#172537" strokeWidth="1.25"/>
+                </svg>
+              ) : (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                  <mask id="mask_edit_hdr_def" style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="4" y="4" width="16" height="16"><rect x="4" y="4" width="16" height="16" fill="#D9D9D9"/></mask>
+                  <g mask="url(#mask_edit_hdr_def)">
+                    <path d="M7.33333 16.6668H8.26667L14.0167 10.9168L13.0833 9.9835L7.33333 15.7335V16.6668ZM16.8667 9.95016L14.0333 7.15016L14.9667 6.21683C15.2222 5.96127 15.5362 5.8335 15.9087 5.8335C16.2807 5.8335 16.5944 5.96127 16.85 6.21683L17.7833 7.15016C18.0389 7.40572 18.1722 7.71416 18.1833 8.0755C18.1944 8.43638 18.0722 8.74461 17.8167 9.00016L16.8667 9.95016ZM6.66667 18.0002C6.47778 18.0002 6.31956 17.9362 6.192 17.8082C6.064 17.6806 6 17.5224 6 17.3335V15.4502C6 15.3613 6.01667 15.2753 6.05 15.1922C6.08333 15.1086 6.13333 15.0335 6.2 14.9668L13.0667 8.10016L15.9 10.9335L9.03333 17.8002C8.96667 17.8668 8.89178 17.9168 8.80867 17.9502C8.72511 17.9835 8.63889 18.0002 8.55 18.0002H6.66667Z" fill="#293748"/>
+                  </g>
+                  <line x1="7.6875" y1="17.375" x2="17.8125" y2="17.375" stroke="#172537" strokeWidth="1.25"/>
+                </svg>
               )}
-              <svg width="20" height="20" viewBox="10 10 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="relative">
-                <mask id="mask_edit_hdr" style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="10" y="10" width="20" height="20">
-                  <rect x="10" y="10" width="20" height="20" fill="#D9D9D9"/>
-                </mask>
-                <g mask="url(#mask_edit_hdr)">
-                  <path d="M14.1667 25.8332H15.3333L22.5208 18.6457L21.3542 17.479L14.1667 24.6665V25.8332ZM26.0833 17.4373L22.5417 13.9373L23.7083 12.7707C24.0278 12.4512 24.4203 12.2915 24.8858 12.2915C25.3508 12.2915 25.7431 12.4512 26.0625 12.7707L27.2292 13.9373C27.5486 14.2568 27.7153 14.6423 27.7292 15.094C27.7431 15.5451 27.5903 15.9304 27.2708 16.2498L26.0833 17.4373ZM13.3333 27.4998C13.0972 27.4998 12.8994 27.4198 12.74 27.2598C12.58 27.1004 12.5 26.9026 12.5 26.6665V24.3123C12.5 24.2012 12.5208 24.0937 12.5625 23.9898C12.6042 23.8854 12.6667 23.7915 12.75 23.7082L21.3333 15.1248L24.875 18.6665L16.2917 27.2498C16.2083 27.3332 16.1147 27.3957 16.0108 27.4373C15.9064 27.479 15.7986 27.4998 15.6875 27.4998H13.3333Z" fill="#293748"/>
-                </g>
-                <line x1="15.0625" y1="26.75" x2="27.6875" y2="26.75" stroke="#172537" strokeWidth="1.5"/>
-              </svg>
             </button>
           </div>
         )}

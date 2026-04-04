@@ -91,7 +91,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
   const [globalSelected, setGlobalSelected] = useState<Record<string, boolean>>({})
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
   const prevRemovedRef = useRef<string[]>([])
-  const { isListening, toggle: toggleVoice, isSupported: voiceSupported, analyserRef } = useSpeechRecognition(
+  const { isListening, toggle: toggleVoice, isSupported: voiceSupported, analyserRef, resetTranscript } = useSpeechRecognition(
     useCallback((text: string) => setInput(text), []),
   )
 
@@ -139,7 +139,9 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
     const el = textareaRef.current
     if (!el) return
     el.style.height = 'auto'
-    el.style.height = el.scrollHeight + 'px'
+    if (input) {
+      el.style.height = el.scrollHeight + 'px'
+    }
   }, [input])
   const hasInit = useRef(false)
 
@@ -221,6 +223,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
     if (!text) return
     setInput('')
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
+    if (isListening) resetTranscript()
 
     const isFirst = !messages.some((m) => m.role === 'user')
 
@@ -862,6 +865,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
             padding: inputFocused ? 0 : 1,
           }}
         >
+
           <div className="flex-1 px-4 pt-3 pb-1">
             <textarea
               ref={textareaRef}

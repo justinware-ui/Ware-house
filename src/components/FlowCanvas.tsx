@@ -423,14 +423,16 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
     const el = textareaRef.current
     if (!el) return
     el.style.height = 'auto'
-    el.style.height = el.scrollHeight + 'px'
+    if (inputText) {
+      el.style.height = el.scrollHeight + 'px'
+    }
   }, [inputText])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const [canScrollUp, setCanScrollUp] = useState(false)
   const [canScrollDown, setCanScrollDown] = useState(false)
   const usedIds = useRef(new Set<string>([demoId]))
-  const { isListening, toggle: toggleVoice, isSupported: voiceSupported, analyserRef } = useSpeechRecognition(
+  const { isListening, toggle: toggleVoice, isSupported: voiceSupported, analyserRef, resetTranscript } = useSpeechRecognition(
     useCallback((text: string) => setInputText(text), []),
   )
 
@@ -461,6 +463,7 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
     if (!text) return
     setInputText('')
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
+    if (isListening) resetTranscript()
 
     setMessages((prev) => [
       ...prev,
@@ -805,6 +808,7 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
             padding: inputFocused ? 0 : 1,
           }}
         >
+
           <div className="flex-1 px-4 pt-3 pb-1">
             <textarea
               ref={textareaRef}
