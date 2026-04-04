@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Handle, Position, type NodeProps, useReactFlow, useUpdateNodeInternals } from '@xyflow/react'
 import {
   Copy, X, Plus, Bold, Italic, Underline, AlignJustify,
-  Image, Pilcrow, ChevronDown, CircleHelp, Monitor,
+  Image, Pilcrow, ChevronDown, CircleHelp, Monitor, MousePointerClick,
 } from 'lucide-react'
 import InteractionPreviewModal from '../InteractionPreviewModal'
 
@@ -35,6 +35,7 @@ interface AnswerImage {
 interface ButtonEntry {
   id: number
   text: string
+  url: string
   image?: AnswerImage
 }
 
@@ -146,14 +147,15 @@ function FormattingToolbar({
 export default function FullScreenDialogNode({ id, data }: NodeProps) {
   const { setNodes, setEdges, getNodes } = useReactFlow()
   const updateNodeInternals = useUpdateNodeInternals()
-  const typedData = data as { header?: string; message?: string; buttons?: string[] }
+  const typedData = data as { header?: string; message?: string; buttons?: string[]; buttonUrls?: string[]; variant?: 'cta' | 'fullscreen' }
+  const isCta = typedData.variant === 'cta'
   const [header, setHeader] = useState(typedData.header ?? '')
   const [message, setMessage] = useState(typedData.message ?? '')
   const [buttons, setButtons] = useState<ButtonEntry[]>(() => {
     if (typedData.buttons && typedData.buttons.length > 0) {
-      return typedData.buttons.map((t, i) => ({ id: i, text: t }))
+      return typedData.buttons.map((t, i) => ({ id: i, text: t, url: typedData.buttonUrls?.[i] ?? '' }))
     }
-    return [{ id: 0, text: '' }]
+    return [{ id: 0, text: '', url: '' }]
   })
   const [showPreview, setShowPreview] = useState(false)
   const [showToolbar, setShowToolbar] = useState(false)
@@ -205,13 +207,16 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
   }
 
   const addButton = () =>
-    setButtons((prev) => [...prev, { id: Date.now(), text: '' }])
+    setButtons((prev) => [...prev, { id: Date.now(), text: '', url: '' }])
 
   const removeButton = (btnId: number) =>
     setButtons((prev) => prev.filter((b) => b.id !== btnId))
 
   const updateButtonText = (btnId: number, text: string) =>
     setButtons((prev) => prev.map((b) => (b.id === btnId ? { ...b, text } : b)))
+
+  const updateButtonUrl = (btnId: number, url: string) =>
+    setButtons((prev) => prev.map((b) => (b.id === btnId ? { ...b, url } : b)))
 
   const handleImageClick = () => {
     setShowOverlay(true)
@@ -337,23 +342,24 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
         x: sourceNode.position.x + nodeW / 2,
         y: sourceNode.position.y + nodeH / 2,
       },
-      data: { header, message, buttons: buttons.map((b) => b.text) },
+      data: { header, message, buttons: buttons.map((b) => b.text), buttonUrls: buttons.map((b) => b.url), ...(isCta ? { variant: 'cta' } : {}) },
       selected: true,
       zIndex: 1000,
     }
     setNodes((nds) => nds.map((n) => ({ ...n, selected: false })).concat(newNode))
-  }, [id, getNodes, setNodes, header, message, buttons])
+  }, [id, getNodes, setNodes, header, message, buttons, isCta])
 
   const longestLine = useMemo(() => {
     const allTexts = [
       header || 'Type your header here',
       message || 'Type your message here',
       ...buttons.map((b) => b.text || 'Type your button text here'),
+      ...(isCta ? buttons.map((b) => b.url || 'Type button URL here') : []),
     ]
     const allLines = allTexts.flatMap((t) => t.split('\n'))
     const longest = allLines.reduce((a, b) => (a.length > b.length ? a : b), '')
     return longest.length > MAX_CHARS ? longest.slice(0, MAX_CHARS) : longest
-  }, [header, message, buttons])
+  }, [header, message, buttons, isCta])
 
   useLayoutEffect(() => {
     if (!measureRef.current) return
@@ -518,14 +524,18 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
 
       {showPreview && (
         <InteractionPreviewModal
-          data={{ type: 'fullscreen', header, message, buttons: buttons.map((b) => b.text) }}
+          data={{ type: isCta ? 'cta' : 'fullscreen', header, message, buttons: buttons.map((b) => b.text), buttonUrls: isCta ? buttons.map((b) => b.url) : undefined }}
           onClose={() => setShowPreview(false)}
         />
       )}
 
       <div className="px-1 pt-4 pb-3 flex items-center gap-1.5">
-        <Monitor size={14} className="text-[#8b5cf6] shrink-0" />
-        <span className="text-xs font-medium text-gray-500">Full screen dialog</span>
+        {isCta ? (
+          <MousePointerClick size={14} className="text-[#FC6839] shrink-0" />
+        ) : (
+          <Monitor size={14} className="text-[#8b5cf6] shrink-0" />
+        )}
+        <span className="text-xs font-medium text-gray-500">{isCta ? 'Call to action' : 'Full screen dialog'}</span>
       </div>
 
       <div>
@@ -728,39 +738,52 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
           {/* Button fields */}
           <div className="flex flex-col gap-5">
             {buttons.map((btn) => (
-              <div
-                key={btn.id}
-                className="nodrag flex items-start gap-3 relative pb-2 border-b border-gray-200 focus-within:border-brand-400 transition-colors"
-              >
-                {/* Input */}
-                <div className="flex-1 min-w-0" data-answer-content>
-                  <input
-                    type="text"
-                    value={btn.text}
-                    onChange={(e) => updateButtonText(btn.id, e.target.value)}
-                    placeholder="Type your button text here"
-                    className="nodrag w-full text-sm text-[#FC6839] placeholder:text-[#FC6839] placeholder:opacity-100 focus:placeholder:opacity-60 outline-none bg-transparent"
-                    data-cta-field
-                    onFocus={() => { handleFieldFocus(); setFocusedButtonId(btn.id); setFocusedField('button') }}
-                    onBlur={(e) => {
-                      handleFieldBlur(e as unknown as React.FocusEvent)
-                      setFocusedButtonId(null); setFocusedField(null)
-                    }}
-                  />
+              <div key={btn.id} className="flex flex-col">
+                <div
+                  className="nodrag flex items-start gap-3 relative pb-2 border-b border-gray-200 focus-within:border-brand-400 transition-colors"
+                >
+                  <div className="flex-1 min-w-0" data-answer-content>
+                    <input
+                      type="text"
+                      value={btn.text}
+                      onChange={(e) => updateButtonText(btn.id, e.target.value)}
+                      placeholder="Type your button text here"
+                      className="nodrag w-full text-sm text-[#FC6839] placeholder:text-[#FC6839] placeholder:opacity-100 focus:placeholder:opacity-60 outline-none bg-transparent"
+                      data-cta-field
+                      onFocus={() => { handleFieldFocus(); setFocusedButtonId(btn.id); setFocusedField('button') }}
+                      onBlur={(e) => {
+                        handleFieldBlur(e as unknown as React.FocusEvent)
+                        setFocusedButtonId(null); setFocusedField(null)
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex items-center shrink-0" style={{ gap: 10, marginTop: 6 }}>
+                    {buttons.length >= 2 && (
+                      <button
+                        className="text-gray-400 hover:text-gray-600"
+                        onClick={() => removeButton(btn.id)}
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                {/* Remove button */}
-                <div className="flex items-center shrink-0" style={{ gap: 10, marginTop: 6 }}>
-                  {buttons.length >= 2 && (
-                    <button
-                      className="text-gray-400 hover:text-gray-600"
-                      onClick={() => removeButton(btn.id)}
-                    >
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-
+                {isCta && (
+                  <div className="nodrag pb-2 border-b border-gray-200 focus-within:border-brand-400 transition-colors" style={{ marginTop: 24 }}>
+                    <input
+                      type="text"
+                      value={btn.url}
+                      onChange={(e) => updateButtonUrl(btn.id, e.target.value)}
+                      placeholder="Type button URL here"
+                      className="nodrag w-full text-sm text-gray-800 placeholder:text-[#FC6839] placeholder:opacity-100 focus:placeholder:opacity-60 outline-none bg-transparent"
+                      data-cta-field
+                      onFocus={handleFieldFocus}
+                      onBlur={handleFieldBlur}
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>

@@ -10,10 +10,11 @@ interface DiscoveryQuestionData {
 }
 
 interface FullScreenDialogData {
-  type: 'fullscreen'
+  type: 'fullscreen' | 'cta'
   header: string
   message: string
   buttons: string[]
+  buttonUrls?: string[]
 }
 
 type InteractionData = DiscoveryQuestionData | FullScreenDialogData
@@ -53,7 +54,7 @@ export default function InteractionPreviewModal({ data, onClose }: InteractionPr
         {data.type === 'discovery' ? (
           <DiscoveryPreview question={data.question} answers={data.answers} tooltips={data.tooltips} />
         ) : (
-          <FullScreenPreview header={data.header} message={data.message} buttons={data.buttons} />
+          <FullScreenPreview header={data.header} message={data.message} buttons={data.buttons} buttonUrls={data.buttonUrls} />
         )}
       </div>
     </div>,
@@ -101,7 +102,7 @@ function DiscoveryPreview({ question, answers, tooltips }: { question: string; a
   )
 }
 
-function FullScreenPreview({ header, message, buttons }: { header: string; message: string; buttons: string[] }) {
+function FullScreenPreview({ header, message, buttons, buttonUrls }: { header: string; message: string; buttons: string[]; buttonUrls?: string[] }) {
   return (
     <div className="px-10 py-10">
       <p className="text-xl font-bold text-gray-900 mb-4">

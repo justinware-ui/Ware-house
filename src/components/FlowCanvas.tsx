@@ -50,7 +50,7 @@ const getNodeId = () => `dnd-${++nodeId}`
 
 const nodeTypeMap: Record<string, string> = {
   fullscreen: 'fullScreenDialogNode',
-  cta: 'ctaNode',
+  cta: 'fullScreenDialogNode',
   discovery: 'ctaNode',
   'card-demos': 'demoCardNode',
   'card-dynamic-tours': 'demoCardNode',

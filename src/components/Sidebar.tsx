@@ -171,7 +171,7 @@ export default function Sidebar() {
               <div
                 key={id}
                 draggable
-                onDragStart={(e) => onDragStart(e, id)}
+                onDragStart={(e) => onDragStart(e, id, id === 'cta' ? { variant: 'cta' } : undefined)}
                 onMouseEnter={(e) => { const r = e.currentTarget.getBoundingClientRect(); setTooltip({ text: label, x: r.left, y: r.top + r.height / 2 }) }}
                 onMouseLeave={() => setTooltip(null)}
                 className="flex items-center justify-center cursor-grab border border-[#D0CBC6] hover:border-[#FC6839] hover:shadow-sm transition-all bg-white"
@@ -329,7 +329,7 @@ export default function Sidebar() {
             <div
               key={id}
               draggable
-              onDragStart={(e) => onDragStart(e, id)}
+              onDragStart={(e) => onDragStart(e, id, id === 'cta' ? { variant: 'cta' } : undefined)}
               className="relative flex flex-col items-center gap-1.5 p-2 rounded-lg border border-gray-200 bg-white cursor-grab hover:border-brand-300 hover:shadow-sm transition-all group"
             >
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="absolute top-1 left-1/2 -translate-x-1/2" style={{ transform: 'translateX(-50%) rotate(90deg)', opacity: contentVisible ? 1 : 0, transition: 'opacity 250ms ease-in' }}>
