@@ -273,7 +273,7 @@ export default function Sidebar() {
             <div className="flex flex-col items-center" style={{ gap: 10 }}>
               {demos.map((demo, i) => {
                 const isType = activeTab === 'Dynamic Tours'
-                const bgColor = demo.type === 'tour' || i % 2 === 0 ? '#C3EBD8' : '#FFDFCF'
+                const bgColor = i % 2 === 0 ? '#C3EBD8' : '#FFDFCF'
                 return (
                   <div
                     key={demo.id}
