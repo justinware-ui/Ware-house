@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState, useEffect, useMemo } from 'react'
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
+import { dingHigh, dingLow } from '../lib/audioDing'
 import AudioWaveform from './AudioWaveform'
 import AgenticChat, { type SelectedContent } from './AgenticChat'
 import type { DemoProposal, ContentMatch, CanvasState } from '../lib/aiEngine'
@@ -410,7 +411,7 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
   const [expandedInfo, setExpandedInfo] = useState<Record<string, boolean>>({})
   const popoverRef = useRef<HTMLDivElement>(null)
   const [liveRect, setLiveRect] = useState(anchorRect)
-  const [popoverWidth, setPopoverWidth] = useState(380)
+  const [popoverWidth, setPopoverWidth] = useState(420)
   const resizing = useRef<{ startX: number; startW: number } | null>(null)
   const [inputText, setInputText] = useState('')
   const [messages, setMessages] = useState<PopoverMessage[]>(cachedState?.messages ?? [])
@@ -432,9 +433,16 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
   const [canScrollUp, setCanScrollUp] = useState(false)
   const [canScrollDown, setCanScrollDown] = useState(false)
   const usedIds = useRef(new Set<string>([demoId]))
-  const { isListening, toggle: toggleVoice, isSupported: voiceSupported, analyserRef, resetTranscript } = useSpeechRecognition(
+  const { isListening, start: startVoice, stop: stopVoice, isSupported: voiceSupported, analyserRef, resetTranscript } = useSpeechRecognition(
     useCallback((text: string) => setInputText(text), []),
   )
+
+  useEffect(() => {
+    if (!isListening) return
+    const onUp = () => { dingLow(); stopVoice() }
+    window.addEventListener('mouseup', onUp)
+    return () => window.removeEventListener('mouseup', onUp)
+  }, [isListening, stopVoice])
 
   const updateScrollShadows = useCallback(() => {
     const el = scrollAreaRef.current
@@ -463,7 +471,10 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
     if (!text) return
     setInputText('')
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
-    if (isListening) resetTranscript()
+    if (isListening) {
+      stopVoice()
+      resetTranscript()
+    }
 
     setMessages((prev) => [
       ...prev,
@@ -591,7 +602,7 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
   return (
     <div
       ref={popoverRef}
-      className="absolute z-50 rounded-xl border border-gray-200 bg-white shadow-xl overflow-hidden"
+      className="absolute z-50 rounded-2xl border border-gray-200 bg-white shadow-xl overflow-hidden"
       style={{
         left: liveRect.x + (liveRect.width / 2) + 25 + 8,
         top: liveRect.y + liveRect.height + 16,
@@ -608,7 +619,6 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
             : anim === 'idle'
               ? undefined
               : 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        borderRadius: 12,
       }}
     >
       {/* Right-edge resize handle */}
@@ -627,7 +637,7 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
         transition: anim === 'content-in' ? 'opacity 0.3s ease' : undefined,
         height: anim === 'idle' ? 'calc(100% - 4px)' : undefined,
       }}>
-      <div className="flex items-center pt-3 pb-2" style={{ paddingLeft: 14, paddingRight: 16 }}>
+      <div className="flex items-center shrink-0" style={{ height: 84, paddingLeft: 14, paddingRight: 16 }}>
         <div className="flex items-center shrink-0" style={{ marginRight: 12 }}>
           <svg width="28" height="28" viewBox="14 8 62 62" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect x="19.0464" y="12.4535" width="50.4" height="50.4" rx="25.2" fill="url(#paint_popover_sparkle)"/>
@@ -641,8 +651,20 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
           </svg>
         </div>
         <span className="text-base font-semibold whitespace-nowrap leading-none" style={{ color: '#FC6839', marginLeft: -2 }}>Replace this content?</span>
-        <button onClick={onDismiss} className="ml-auto p-1 rounded hover:bg-gray-100 transition-colors">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1 1 13" stroke="#6F6F6F" strokeWidth="1.5" strokeLinecap="round"/></svg>
+        <button
+          onClick={onDismiss}
+          className="group/close absolute flex items-center justify-center transition-all z-20"
+          style={{ width: 32, height: 32, borderRadius: 16, top: 12, right: 12 }}
+        >
+          <div className="absolute inset-0 rounded-full opacity-0 group-hover/close:opacity-100 transition-opacity" style={{ backgroundColor: 'rgba(115,113,111,0.15)' }} />
+          <svg width="20" height="20" viewBox="10 10 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="relative">
+            <mask id="mask_close_popover" style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="10" y="10" width="20" height="20">
+              <rect x="10" y="10" width="20" height="20" fill="#D9D9D9"/>
+            </mask>
+            <g mask="url(#mask_close_popover)">
+              <path d="M20.0002 21.1668L15.9168 25.2502C15.7641 25.4029 15.5696 25.4793 15.3335 25.4793C15.0974 25.4793 14.9029 25.4029 14.7502 25.2502C14.5974 25.0974 14.521 24.9029 14.521 24.6668C14.521 24.4307 14.5974 24.2363 14.7502 24.0835L18.8335 20.0002L14.7502 15.9168C14.5974 15.7641 14.521 15.5696 14.521 15.3335C14.521 15.0974 14.5974 14.9029 14.7502 14.7502C14.9029 14.5974 15.0974 14.521 15.3335 14.521C15.5696 14.521 15.7641 14.5974 15.9168 14.7502L20.0002 18.8335L24.0835 14.7502C24.2363 14.5974 24.4307 14.521 24.6668 14.521C24.9029 14.521 25.0974 14.5974 25.2502 14.7502C25.4029 14.9029 25.4793 15.0974 25.4793 15.3335C25.4793 15.5696 25.4029 15.7641 25.2502 15.9168L21.1668 20.0002L25.2502 24.0835C25.4029 24.2363 25.4793 24.4307 25.4793 24.6668C25.4793 24.9029 25.4029 25.0974 25.2502 25.2502C25.0974 25.4029 24.9029 25.4793 24.6668 25.4793C24.4307 25.4793 24.2363 25.4029 24.0835 25.2502L20.0002 21.1668Z" fill="#293748"/>
+            </g>
+          </svg>
         </button>
       </div>
 
@@ -650,103 +672,121 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
         <div className="absolute top-0 left-0 right-0 h-3 z-10 pointer-events-none transition-opacity duration-200" style={{ background: 'radial-gradient(ellipse 70% 100% at 50% 0%, rgba(0,0,0,0.06) 0%, transparent 100%)', opacity: canScrollUp ? 1 : 0 }} />
         <div className="absolute bottom-0 left-0 right-0 h-3 z-10 pointer-events-none transition-opacity duration-200" style={{ background: 'radial-gradient(ellipse 70% 100% at 50% 100%, rgba(0,0,0,0.06) 0%, transparent 100%)', opacity: canScrollDown ? 1 : 0 }} />
       <div ref={scrollAreaRef} className="h-full overflow-y-auto px-4 py-4 flex flex-col" style={{ maxHeight: 400 }} onScroll={updateScrollShadows}>
-        <p className="text-sm text-gray-900 mb-6">
-          Here are alternatives I found for <span className="font-medium">&ldquo;{initialTitle.current.length > 40 ? initialTitle.current.slice(0, 37) + '...' : initialTitle.current}&rdquo;</span>
-        </p>
+        <div className="flex gap-3 items-start">
+          <div className="shrink-0" style={{ marginTop: -4 }}>
+            <svg width="28" height="28" viewBox="14 8 62 62" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="19.0464" y="12.4535" width="50.4" height="50.4" rx="25.2" fill="url(#paint_pop_init)"/>
+              <path d="M43.0806 28.0993C43.1186 27.8951 43.4112 27.8951 43.4492 28.0993L43.8704 30.3629C44.4091 33.2584 46.6746 35.5236 49.5704 36.0623L51.8342 36.4835C52.0384 36.5215 52.0384 36.814 51.8342 36.852L49.5704 37.2731C46.6746 37.8118 44.4091 40.0771 43.8704 42.9726L43.4492 45.2362C43.4112 45.4404 43.1186 45.4404 43.0806 45.2362L42.6595 42.9726C42.1207 40.0771 39.8552 37.8118 36.9595 37.2731L34.6956 36.852C34.4914 36.814 34.4914 36.5215 34.6956 36.4835L36.9595 36.0623C39.8552 35.5236 42.1207 33.2584 42.6595 30.3629L43.0806 28.0993Z" fill="white"/>
+              <path d="M50.898 40.663C50.9127 40.584 51.0259 40.584 51.0406 40.663L51.2035 41.5386C51.4119 42.6586 52.2883 43.5349 53.4084 43.7433L54.2841 43.9062C54.3631 43.9209 54.3631 44.034 54.2841 44.0487L53.4084 44.2116C52.2883 44.42 51.4119 45.2963 51.2035 46.4163L51.0406 47.2919C51.0259 47.3709 50.9127 47.3709 50.898 47.2919L50.7351 46.4163C50.5267 45.2963 49.6504 44.42 48.5302 44.2116L47.6545 44.0487C47.5755 44.034 47.5755 43.9209 47.6545 43.9062L48.5302 43.7433C49.6504 43.5349 50.5267 42.6586 50.7351 41.5386L50.898 40.663Z" fill="white"/>
+              <defs><linearGradient id="paint_pop_init" x1="19.0464" y1="40.0309" x2="69.4464" y2="40.0309" gradientUnits="userSpaceOnUse"><stop stopColor="#FFB352"/><stop offset="0.5" stopColor="#FC6839"/><stop offset="1" stopColor="#EB2E24"/></linearGradient></defs>
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0 flex flex-col gap-2">
+            <div className="text-sm text-gray-900 whitespace-pre-wrap">
+              Here are alternatives I found for <span className="font-medium">&ldquo;{initialTitle.current.length > 40 ? initialTitle.current.slice(0, 37) + '...' : initialTitle.current}&rdquo;</span>
+            </div>
 
-        {loading ? (
-          <div className="flex items-center gap-2 py-4 justify-center text-xs text-gray-400">
-            <span className="inline-block w-4 h-4 border-2 border-gray-300 border-t-brand-500 rounded-full animate-spin" />
-            Finding alternatives...
+            {loading ? (
+              <div className="flex items-center gap-2 py-4 justify-center text-xs text-gray-400">
+                <span className="inline-block w-4 h-4 border-2 border-gray-300 border-t-brand-500 rounded-full animate-spin" />
+                Finding alternatives...
+              </div>
+            ) : alternatives.length === 0 ? (
+              <p className="text-xs text-gray-400 py-3 text-center">No alternatives found.</p>
+            ) : (
+              <div className="flex flex-col mt-2" style={{ gap: 12 }}>
+                {alternatives.map((alt, i) => (
+                  <PopoverContentCard
+                    key={alt.demo.id}
+                    match={alt}
+                    cardKey={`pop-${i}`}
+                    expandedInfo={expandedInfo}
+                    onToggleInfo={toggleInfo}
+                    onReplace={(m) => {
+                      if (m.demo.id === activeDemoId) {
+                        setActiveDemoId('')
+                        onDeselect(nodeId)
+                      } else {
+                        setActiveDemoId(m.demo.id)
+                        onReplace(nodeId, m)
+                      }
+                    }}
+                    isSelected={alt.demo.id === activeDemoId}
+                  />
+                ))}
+              </div>
+            )}
+            {!loading && alternatives.length > 0 && (
+              <div className="flex items-center" style={{ gap: 16, marginTop: 8 }}>
+                <button onClick={() => setVotes((v) => ({ ...v, initial: 'up' }))} className="hover:opacity-70 transition-opacity">
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <mask id="mask_pop_vup_init" style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24"><rect width="24" height="24" fill="#D9D9D9"/></mask>
+                    <g mask="url(#mask_pop_vup_init)"><path d="M15.0003 17.5H5.83366V6.66665L11.667 0.833313L12.7087 1.87498C12.8059 1.9722 12.8857 2.10415 12.9482 2.27081C13.0107 2.43748 13.042 2.5972 13.042 2.74998V3.04165L12.1253 6.66665H17.5003C17.9448 6.66665 18.3337 6.83331 18.667 7.16665C19.0003 7.49998 19.167 7.88887 19.167 8.33331V9.99998C19.167 10.0972 19.1531 10.2014 19.1253 10.3125C19.0975 10.4236 19.0698 10.5278 19.042 10.625L16.542 16.5C16.417 16.7778 16.2087 17.0139 15.917 17.2083C15.6253 17.4028 15.3198 17.5 15.0003 17.5ZM7.50033 15.8333H15.0003L17.5003 9.99998V8.33331H10.0003L11.1253 3.74998L7.50033 7.37498V15.8333ZM5.83366 6.66665V8.33331H3.33366V15.8333H5.83366V17.5H1.66699V6.66665H5.83366Z" fill={votes.initial === 'up' ? '#FC6839' : '#8D8A87'}/></g>
+                  </svg>
+                </button>
+                <button onClick={() => setVotes((v) => ({ ...v, initial: 'down' }))} className="hover:opacity-70 transition-opacity">
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <mask id="mask_pop_vdn_init" style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24"><rect width="24" height="24" fill="#D9D9D9"/></mask>
+                    <g mask="url(#mask_pop_vdn_init)"><path d="M4.99967 2.5H14.1663V13.3333L8.33301 19.1667L7.29134 18.125C7.19412 18.0278 7.11426 17.8958 7.05176 17.7292C6.98926 17.5625 6.95801 17.4028 6.95801 17.25V16.9583L7.87467 13.3333H2.49967C2.05523 13.3333 1.66634 13.1667 1.33301 12.8333C0.999674 12.5 0.833008 12.1111 0.833008 11.6667V10C0.833008 9.90278 0.846897 9.79861 0.874674 9.6875C0.902452 9.57639 0.93023 9.47222 0.958008 9.375L3.45801 3.5C3.58301 3.22222 3.79134 2.98611 4.08301 2.79167C4.37467 2.59722 4.68023 2.5 4.99967 2.5ZM12.4997 4.16667H4.99967L2.49967 10V11.6667H9.99967L8.87467 16.25L12.4997 12.625V4.16667ZM14.1663 13.3333V11.6667H16.6663V4.16667H14.1663V2.5H18.333V13.3333H14.1663Z" fill={votes.initial === 'down' ? '#FC6839' : '#8D8A87'}/></g>
+                  </svg>
+                </button>
+              </div>
+            )}
           </div>
-        ) : alternatives.length === 0 ? (
-          <p className="text-xs text-gray-400 py-3 text-center">No alternatives found.</p>
-        ) : (
-          <div className="flex flex-col" style={{ gap: 12 }}>
-            {alternatives.map((alt, i) => (
-              <PopoverContentCard
-                key={alt.demo.id}
-                match={alt}
-                cardKey={`pop-${i}`}
-                expandedInfo={expandedInfo}
-                onToggleInfo={toggleInfo}
-                onReplace={(m) => {
-                  if (m.demo.id === activeDemoId) {
-                    setActiveDemoId('')
-                    onDeselect(nodeId)
-                  } else {
-                    setActiveDemoId(m.demo.id)
-                    onReplace(nodeId, m)
-                  }
-                }}
-                isSelected={alt.demo.id === activeDemoId}
-              />
-            ))}
-          </div>
-        )}
-        {!loading && alternatives.length > 0 && (
-          <div className="flex items-center" style={{ gap: 16, marginTop: 16 }}>
-            <button onClick={() => setVotes((v) => ({ ...v, initial: 'up' }))} className="hover:opacity-70 transition-opacity">
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <mask id="mask_pop_vup_init" style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24"><rect width="24" height="24" fill="#D9D9D9"/></mask>
-                <g mask="url(#mask_pop_vup_init)"><path d="M15.0003 17.5H5.83366V6.66665L11.667 0.833313L12.7087 1.87498C12.8059 1.9722 12.8857 2.10415 12.9482 2.27081C13.0107 2.43748 13.042 2.5972 13.042 2.74998V3.04165L12.1253 6.66665H17.5003C17.9448 6.66665 18.3337 6.83331 18.667 7.16665C19.0003 7.49998 19.167 7.88887 19.167 8.33331V9.99998C19.167 10.0972 19.1531 10.2014 19.1253 10.3125C19.0975 10.4236 19.0698 10.5278 19.042 10.625L16.542 16.5C16.417 16.7778 16.2087 17.0139 15.917 17.2083C15.6253 17.4028 15.3198 17.5 15.0003 17.5ZM7.50033 15.8333H15.0003L17.5003 9.99998V8.33331H10.0003L11.1253 3.74998L7.50033 7.37498V15.8333ZM5.83366 6.66665V8.33331H3.33366V15.8333H5.83366V17.5H1.66699V6.66665H5.83366Z" fill={votes.initial === 'up' ? '#FC6839' : '#8D8A87'}/></g>
-              </svg>
-            </button>
-            <button onClick={() => setVotes((v) => ({ ...v, initial: 'down' }))} className="hover:opacity-70 transition-opacity">
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <mask id="mask_pop_vdn_init" style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24"><rect width="24" height="24" fill="#D9D9D9"/></mask>
-                <g mask="url(#mask_pop_vdn_init)"><path d="M4.99967 2.5H14.1663V13.3333L8.33301 19.1667L7.29134 18.125C7.19412 18.0278 7.11426 17.8958 7.05176 17.7292C6.98926 17.5625 6.95801 17.4028 6.95801 17.25V16.9583L7.87467 13.3333H2.49967C2.05523 13.3333 1.66634 13.1667 1.33301 12.8333C0.999674 12.5 0.833008 12.1111 0.833008 11.6667V10C0.833008 9.90278 0.846897 9.79861 0.874674 9.6875C0.902452 9.57639 0.93023 9.47222 0.958008 9.375L3.45801 3.5C3.58301 3.22222 3.79134 2.98611 4.08301 2.79167C4.37467 2.59722 4.68023 2.5 4.99967 2.5ZM12.4997 4.16667H4.99967L2.49967 10V11.6667H9.99967L8.87467 16.25L12.4997 12.625V4.16667ZM14.1663 13.3333V11.6667H16.6663V4.16667H14.1663V2.5H18.333V13.3333H14.1663Z" fill={votes.initial === 'down' ? '#FC6839' : '#8D8A87'}/></g>
-              </svg>
-            </button>
-          </div>
-        )}
+        </div>
 
         {/* Conversation messages */}
-        {messages.map((msg, mi) => (
-          <div key={mi} style={{ marginTop: 16 }}>
+        {messages.map((msg, mi) => {
+          const prevMsg = messages[mi - 1]
+          const isNewSection = prevMsg && prevMsg.role !== msg.role
+          const sameRoleAi = prevMsg && prevMsg.role === 'ai' && msg.role === 'ai'
+          return (
+          <div key={mi} style={{ marginTop: mi === 0 ? 24 : isNewSection ? 32 : sameRoleAi ? 24 : 8 }}>
             {msg.role === 'user' ? (
-              <div className="flex flex-col items-end gap-1">
+              <div className="flex flex-col items-end">
                 <div className="px-4 py-3 text-sm max-w-[85%] whitespace-pre-wrap" style={{ backgroundColor: '#FFF0E5', color: '#1a1a1a', border: '1px solid #FFD4B0', borderRadius: 8 }}>
                   {msg.text}
                 </div>
-                <div className="flex items-center gap-1 mr-1 mt-1">
+                <div className="flex items-center mr-1" style={{ gap: 16, marginTop: 16 }}>
                   <button className="hover:opacity-70 transition-opacity">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <mask id={`mask_pop_copy_${mi}`} style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="0" y="0" width="20" height="20"><rect width="20" height="20" fill="#D9D9D9"/></mask>
-                      <g mask={`url(#mask_pop_copy_${mi})`}><path d="M7.5 15C7.04167 15 6.64944 14.8369 6.32333 14.5108C5.99667 14.1842 5.83333 13.7917 5.83333 13.3333V3.33332C5.83333 2.87499 5.99667 2.48249 6.32333 2.15582C6.64944 1.82971 7.04167 1.66666 7.5 1.66666H15C15.4583 1.66666 15.8508 1.82971 16.1775 2.15582C16.5036 2.48249 16.6667 2.87499 16.6667 3.33332V13.3333C16.6667 13.7917 16.5036 14.1842 16.1775 14.5108C15.8508 14.8369 15.4583 15 15 15H7.5ZM7.5 13.3333H15V3.33332H7.5V13.3333ZM4.16667 18.3333C3.70833 18.3333 3.31583 18.1703 2.98917 17.8442C2.66306 17.5175 2.5 17.125 2.5 16.6667V5.83332C2.5 5.59721 2.58 5.39916 2.74 5.23916C2.89944 5.07971 3.09722 4.99999 3.33333 4.99999C3.56944 4.99999 3.7675 5.07971 3.9275 5.23916C4.08694 5.39916 4.16667 5.59721 4.16667 5.83332V16.6667H12.5C12.7361 16.6667 12.9342 16.7467 13.0942 16.9067C13.2536 17.0661 13.3333 17.2639 13.3333 17.5C13.3333 17.7361 13.2536 17.9339 13.0942 18.0933C12.9342 18.2533 12.7361 18.3333 12.5 18.3333H4.16667Z" fill="#6F6F6F"/></g>
+                      <g mask={`url(#mask_pop_copy_${mi})`}><path d="M7.5 15C7.04167 15 6.64944 14.8369 6.32333 14.5108C5.99667 14.1842 5.83333 13.7917 5.83333 13.3333V3.33332C5.83333 2.87499 5.99667 2.48249 6.32333 2.15582C6.64944 1.82971 7.04167 1.66666 7.5 1.66666H15C15.4583 1.66666 15.8508 1.82971 16.1775 2.15582C16.5036 2.48249 16.6667 2.87499 16.6667 3.33332V13.3333C16.6667 13.7917 16.5036 14.1842 16.1775 14.5108C15.8508 14.8369 15.4583 15 15 15H7.5ZM7.5 13.3333H15V3.33332H7.5V13.3333ZM4.16667 18.3333C3.70833 18.3333 3.31583 18.1703 2.98917 17.8442C2.66306 17.5175 2.5 17.125 2.5 16.6667V5.83332C2.5 5.59721 2.58 5.39916 2.74 5.23916C2.89944 5.07971 3.09722 4.99999 3.33333 4.99999C3.56944 4.99999 3.7675 5.07971 3.9275 5.23916C4.08694 5.39916 4.16667 5.59721 4.16667 5.83332V16.6667H12.5C12.7361 16.6667 12.9342 16.7467 13.0942 16.9067C13.2536 17.0661 13.3333 17.2639 13.3333 17.5C13.3333 17.7361 13.2536 17.9339 13.0942 18.0933C12.9342 18.2533 12.7361 18.3333 12.5 18.3333H4.16667Z" fill="#8D8A87"/></g>
                     </svg>
                   </button>
                   <button className="hover:opacity-70 transition-opacity">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <mask id={`mask_pop_edit_${mi}`} style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="0" y="0" width="20" height="20"><rect width="20" height="20" fill="#D9D9D9"/></mask>
-                      <g mask={`url(#mask_pop_edit_${mi})`}><path d="M4.16667 15.8334H5.33333L12.5208 8.64585L11.3542 7.47919L4.16667 14.6667V15.8334ZM16.0833 7.43752L12.5417 3.93752L13.7083 2.77085C14.0278 2.45141 14.4203 2.29169 14.8858 2.29169C15.3508 2.29169 15.7431 2.45141 16.0625 2.77085L17.2292 3.93752C17.5486 4.25696 17.7153 4.64252 17.7292 5.09419C17.7431 5.5453 17.5903 5.93058 17.2708 6.25002L16.0833 7.43752ZM3.33333 17.5C3.09722 17.5 2.89944 17.42 2.74 17.26C2.58 17.1006 2.5 16.9028 2.5 16.6667V14.3125C2.5 14.2014 2.52083 14.0939 2.5625 13.99C2.60417 13.8856 2.66667 13.7917 2.75 13.7084L11.3333 5.12502L14.875 8.66669L6.29167 17.25C6.20833 17.3334 6.11472 17.3959 6.01083 17.4375C5.90639 17.4792 5.79861 17.5 5.6875 17.5H3.33333Z" fill="#6F6F6F"/></g>
+                      <g mask={`url(#mask_pop_edit_${mi})`}><path d="M4.16667 15.8334H5.33333L12.5208 8.64585L11.3542 7.47919L4.16667 14.6667V15.8334ZM16.0833 7.43752L12.5417 3.93752L13.7083 2.77085C14.0278 2.45141 14.4203 2.29169 14.8858 2.29169C15.3508 2.29169 15.7431 2.45141 16.0625 2.77085L17.2292 3.93752C17.5486 4.25696 17.7153 4.64252 17.7292 5.09419C17.7431 5.5453 17.5903 5.93058 17.2708 6.25002L16.0833 7.43752ZM3.33333 17.5C3.09722 17.5 2.89944 17.42 2.74 17.26C2.58 17.1006 2.5 16.9028 2.5 16.6667V14.3125C2.5 14.2014 2.52083 14.0939 2.5625 13.99C2.60417 13.8856 2.66667 13.7917 2.75 13.7084L11.3333 5.12502L14.875 8.66669L6.29167 17.25C6.20833 17.3334 6.11472 17.3959 6.01083 17.4375C5.90639 17.4792 5.79861 17.5 5.6875 17.5H3.33333Z" fill="#8D8A87"/></g>
                     </svg>
                   </button>
                   <button className="hover:opacity-70 transition-opacity">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <mask id={`mask_pop_del_${mi}`} style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="0" y="0" width="20" height="20"><rect width="20" height="20" fill="#D9D9D9"/></mask>
-                      <g mask={`url(#mask_pop_del_${mi})`}><path d="M5.83301 17.5C5.37467 17.5 4.98245 17.3369 4.65634 17.0108C4.32967 16.6842 4.16634 16.2917 4.16634 15.8333V5C3.93023 5 3.73217 4.92028 3.57217 4.76083C3.41273 4.60083 3.33301 4.40278 3.33301 4.16667C3.33301 3.93056 3.41273 3.7325 3.57217 3.5725C3.73217 3.41306 3.93023 3.33333 4.16634 3.33333H7.49967C7.49967 3.09722 7.57967 2.89917 7.73967 2.73917C7.89912 2.57972 8.0969 2.5 8.33301 2.5H11.6663C11.9025 2.5 12.1005 2.57972 12.2605 2.73917C12.42 2.89917 12.4997 3.09722 12.4997 3.33333H15.833C16.0691 3.33333 16.2669 3.41306 16.4263 3.5725C16.5863 3.7325 16.6663 3.93056 16.6663 4.16667C16.6663 4.40278 16.5863 4.60083 16.4263 4.76083C16.2669 4.92028 16.0691 5 15.833 5V15.8333C15.833 16.2917 15.67 16.6842 15.3438 17.0108C15.0172 17.3369 14.6247 17.5 14.1663 17.5H5.83301ZM5.83301 5V15.8333H14.1663V5H5.83301ZM7.49967 13.3333C7.49967 13.5694 7.57967 13.7672 7.73967 13.9267C7.89912 14.0867 8.0969 14.1667 8.33301 14.1667C8.56912 14.1667 8.76717 14.0867 8.92717 13.9267C9.08662 13.7672 9.16634 13.5694 9.16634 13.3333V7.5C9.16634 7.26389 9.08662 7.06583 8.92717 6.90583C8.76717 6.74639 8.56912 6.66667 8.33301 6.66667C8.0969 6.66667 7.89912 6.74639 7.73967 6.90583C7.57967 7.06583 7.49967 7.26389 7.49967 7.5V13.3333ZM10.833 13.3333C10.833 13.5694 10.913 13.7672 11.073 13.9267C11.2325 14.0867 11.4302 14.1667 11.6663 14.1667C11.9025 14.1667 12.1005 14.0867 12.2605 13.9267C12.42 13.7672 12.4997 13.5694 12.4997 13.3333V7.5C12.4997 7.26389 12.42 7.06583 12.2605 6.90583C12.1005 6.74639 11.9025 6.66667 11.6663 6.66667C11.4302 6.66667 11.2325 6.74639 11.073 6.90583C10.913 7.06583 10.833 7.26389 10.833 7.5V13.3333Z" fill="#6F6F6F"/></g>
+                      <g mask={`url(#mask_pop_del_${mi})`}><path d="M5.83301 17.5C5.37467 17.5 4.98245 17.3369 4.65634 17.0108C4.32967 16.6842 4.16634 16.2917 4.16634 15.8333V5C3.93023 5 3.73217 4.92028 3.57217 4.76083C3.41273 4.60083 3.33301 4.40278 3.33301 4.16667C3.33301 3.93056 3.41273 3.7325 3.57217 3.5725C3.73217 3.41306 3.93023 3.33333 4.16634 3.33333H7.49967C7.49967 3.09722 7.57967 2.89917 7.73967 2.73917C7.89912 2.57972 8.0969 2.5 8.33301 2.5H11.6663C11.9025 2.5 12.1005 2.57972 12.2605 2.73917C12.42 2.89917 12.4997 3.09722 12.4997 3.33333H15.833C16.0691 3.33333 16.2669 3.41306 16.4263 3.5725C16.5863 3.7325 16.6663 3.93056 16.6663 4.16667C16.6663 4.40278 16.5863 4.60083 16.4263 4.76083C16.2669 4.92028 16.0691 5 15.833 5V15.8333C15.833 16.2917 15.67 16.6842 15.3438 17.0108C15.0172 17.3369 14.6247 17.5 14.1663 17.5H5.83301ZM5.83301 5V15.8333H14.1663V5H5.83301ZM7.49967 13.3333C7.49967 13.5694 7.57967 13.7672 7.73967 13.9267C7.89912 14.0867 8.0969 14.1667 8.33301 14.1667C8.56912 14.1667 8.76717 14.0867 8.92717 13.9267C9.08662 13.7672 9.16634 13.5694 9.16634 13.3333V7.5C9.16634 7.26389 9.08662 7.06583 8.92717 6.90583C8.76717 6.74639 8.56912 6.66667 8.33301 6.66667C8.0969 6.66667 7.89912 6.74639 7.73967 6.90583C7.57967 7.06583 7.49967 7.26389 7.49967 7.5V13.3333ZM10.833 13.3333C10.833 13.5694 10.913 13.7672 11.073 13.9267C11.2325 14.0867 11.4302 14.1667 11.6663 14.1667C11.9025 14.1667 12.1005 14.0867 12.2605 13.9267C12.42 13.7672 12.4997 13.5694 12.4997 13.3333V7.5C12.4997 7.26389 12.42 7.06583 12.2605 6.90583C12.1005 6.74639 11.9025 6.66667 11.6663 6.66667C11.4302 6.66667 11.2325 6.74639 11.073 6.90583C10.913 7.06583 10.833 7.26389 10.833 7.5V13.3333Z" fill="#8D8A87"/></g>
                     </svg>
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="flex gap-2 items-start">
-                <svg width="20" height="20" viewBox="14 8 62 62" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0" style={{ marginTop: -2 }}>
-                  <rect x="19.0464" y="12.4535" width="50.4" height="50.4" rx="25.2" fill="url(#paint_pop_msg)"/>
-                  <path d="M43.0806 28.0993C43.1186 27.8951 43.4112 27.8951 43.4492 28.0993L43.8704 30.3629C44.4091 33.2584 46.6746 35.5236 49.5704 36.0623L51.8342 36.4835C52.0384 36.5215 52.0384 36.814 51.8342 36.852L49.5704 37.2731C46.6746 37.8118 44.4091 40.0771 43.8704 42.9726L43.4492 45.2362C43.4112 45.4404 43.1186 45.4404 43.0806 45.2362L42.6595 42.9726C42.1207 40.0771 39.8552 37.8118 36.9595 37.2731L34.6956 36.852C34.4914 36.814 34.4914 36.5215 34.6956 36.4835L36.9595 36.0623C39.8552 35.5236 42.1207 33.2584 42.6595 30.3629L43.0806 28.0993Z" fill="white"/>
-                  <path d="M50.898 40.663C50.9127 40.584 51.0259 40.584 51.0406 40.663L51.2035 41.5386C51.4119 42.6586 52.2883 43.5349 53.4084 43.7433L54.2841 43.9062C54.3631 43.9209 54.3631 44.034 54.2841 44.0487L53.4084 44.2116C52.2883 44.42 51.4119 45.2963 51.2035 46.4163L51.0406 47.2919C51.0259 47.3709 50.9127 47.3709 50.898 47.2919L50.7351 46.4163C50.5267 45.2963 49.6504 44.42 48.5302 44.2116L47.6545 44.0487C47.5755 44.034 47.5755 43.9209 47.6545 43.9062L48.5302 43.7433C49.6504 43.5349 50.5267 42.6586 50.7351 41.5386L50.898 40.663Z" fill="white"/>
-                  <defs><linearGradient id="paint_pop_msg" x1="19.0464" y1="40.0309" x2="69.4464" y2="40.0309" gradientUnits="userSpaceOnUse"><stop stopColor="#FFB352"/><stop offset="0.5" stopColor="#FC6839"/><stop offset="1" stopColor="#EB2E24"/></linearGradient></defs>
-                </svg>
-                <div className="flex-1 min-w-0">
+              <div className="flex gap-3 items-start">
+                <div className="shrink-0" style={{ marginTop: -4 }}>
+                  <svg width="28" height="28" viewBox="14 8 62 62" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="19.0464" y="12.4535" width="50.4" height="50.4" rx="25.2" fill="url(#paint_pop_msg)"/>
+                    <path d="M43.0806 28.0993C43.1186 27.8951 43.4112 27.8951 43.4492 28.0993L43.8704 30.3629C44.4091 33.2584 46.6746 35.5236 49.5704 36.0623L51.8342 36.4835C52.0384 36.5215 52.0384 36.814 51.8342 36.852L49.5704 37.2731C46.6746 37.8118 44.4091 40.0771 43.8704 42.9726L43.4492 45.2362C43.4112 45.4404 43.1186 45.4404 43.0806 45.2362L42.6595 42.9726C42.1207 40.0771 39.8552 37.8118 36.9595 37.2731L34.6956 36.852C34.4914 36.814 34.4914 36.5215 34.6956 36.4835L36.9595 36.0623C39.8552 35.5236 42.1207 33.2584 42.6595 30.3629L43.0806 28.0993Z" fill="white"/>
+                    <path d="M50.898 40.663C50.9127 40.584 51.0259 40.584 51.0406 40.663L51.2035 41.5386C51.4119 42.6586 52.2883 43.5349 53.4084 43.7433L54.2841 43.9062C54.3631 43.9209 54.3631 44.034 54.2841 44.0487L53.4084 44.2116C52.2883 44.42 51.4119 45.2963 51.2035 46.4163L51.0406 47.2919C51.0259 47.3709 50.9127 47.3709 50.898 47.2919L50.7351 46.4163C50.5267 45.2963 49.6504 44.42 48.5302 44.2116L47.6545 44.0487C47.5755 44.034 47.5755 43.9209 47.6545 43.9062L48.5302 43.7433C49.6504 43.5349 50.5267 42.6586 50.7351 41.5386L50.898 40.663Z" fill="white"/>
+                    <defs><linearGradient id="paint_pop_msg" x1="19.0464" y1="40.0309" x2="69.4464" y2="40.0309" gradientUnits="userSpaceOnUse"><stop stopColor="#FFB352"/><stop offset="0.5" stopColor="#FC6839"/><stop offset="1" stopColor="#EB2E24"/></linearGradient></defs>
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0 flex flex-col gap-2">
                   {msg.loading ? (
-                    <div className="flex items-center gap-2 text-xs" style={{ color: '#FC6839' }}>
-                      <span className="inline-block w-3.5 h-3.5 border-2 border-orange-200 rounded-full animate-spin" style={{ borderTopColor: '#FC6839' }} />
+                    <div className="flex items-center gap-2 text-sm" style={{ color: '#FC6839' }}>
+                      <div className="w-4 h-4 border-2 border-orange-200 rounded-full animate-spin" style={{ borderTopColor: '#FC6839' }} />
                       Searching...
                     </div>
                   ) : (
                     <>
-                      <p className="text-sm text-gray-700">{msg.text}</p>
+                      <div className="text-sm text-gray-900 whitespace-pre-wrap">{msg.text}</div>
                       {msg.results && (
                         <div className="flex flex-col mt-2" style={{ gap: 12 }}>
                           {msg.results.map((r, ri) => (
@@ -771,7 +811,7 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
                         </div>
                       )}
                       {msg.results && (
-                        <div className="flex items-center" style={{ gap: 16, marginTop: 16 }}>
+                        <div className="flex items-center" style={{ gap: 16, marginTop: 8 }}>
                           <button onClick={() => setVotes((v) => ({ ...v, [mi]: 'up' }))} className="hover:opacity-70 transition-opacity">
                             <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                               <mask id={`mask_pop_vup_${mi}`} style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24"><rect width="24" height="24" fill="#D9D9D9"/></mask>
@@ -792,7 +832,8 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
               </div>
             )}
           </div>
-        ))}
+          )
+        })}
         <div ref={messagesEndRef} />
       </div>
       </div>
@@ -809,12 +850,12 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
           }}
         >
 
-          <div className="flex-1 px-4 pt-3 pb-1">
+          <div className="flex-1 px-4 pt-4 pb-1">
             <textarea
               ref={textareaRef}
               autoFocus
               value={inputText}
-              placeholder="What kind of content are you looking for?"
+              placeholder="Type or hold mic to speak"
               className="w-full resize-none outline-none text-sm text-gray-900 placeholder:text-gray-400 bg-transparent overflow-hidden"
               rows={1}
               style={{ maxHeight: 120 }}
@@ -834,32 +875,49 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
               onBlur={() => setInputFocused(false)}
             />
           </div>
-          <div className="flex items-center px-4 pb-3">
-            <button
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => { toggleVoice(); textareaRef.current?.focus() }}
-              disabled={!voiceSupported}
-              className={`shrink-0 transition-colors ${
-                isListening
-                  ? 'text-red-500 animate-pulse'
-                  : voiceSupported
-                    ? 'text-gray-400 hover:text-gray-600'
-                    : 'text-gray-300 cursor-not-allowed'
-              }`}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-            </button>
-            <div className="flex-1" style={{ padding: '0 24px' }}>
-              <AudioWaveform analyserRef={analyserRef} active={isListening} />
-            </div>
-            <button
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={handleSend}
-              className="shrink-0 transition-colors"
-              style={{ color: inputText.trim() ? '#FC6839' : '#d1d5db' }}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-            </button>
+          <div className="flex items-center px-4 pb-4">
+            {isListening && (
+              <div className="flex-1" style={{ paddingRight: 24 }}>
+                <AudioWaveform analyserRef={analyserRef} active={isListening} />
+              </div>
+            )}
+            {inputText.trim() ? (
+              <button
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={handleSend}
+                className="shrink-0 transition-colors ml-auto"
+                style={{ color: '#FC6839' }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </button>
+            ) : (
+              <div className="relative group/mic ml-auto">
+                <button
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    dingHigh()
+                    startVoice()
+                    textareaRef.current?.focus()
+                  }}
+                  disabled={!voiceSupported}
+                  className={`shrink-0 transition-colors ${
+                    isListening
+                      ? 'text-red-500 animate-pulse'
+                      : voiceSupported
+                        ? 'text-gray-400 hover:text-gray-600'
+                        : 'text-gray-300 cursor-not-allowed'
+                  }`}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                </button>
+                {!isListening && voiceSupported && (
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded bg-[#172537] text-white text-[10px] whitespace-nowrap opacity-0 pointer-events-none group-hover/mic:opacity-100 transition-opacity">
+                    Press and hold to record
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#172537]" />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -879,7 +937,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
   const [panelHeight, setPanelHeight] = useState(600)
 
   const COLLAPSED_W = 320
-  const COLLAPSED_H = 48
+  const COLLAPSED_H = 84
   const PANEL_W = 440
 
   type PanelAnim = 'idle' | 'expand-width' | 'expand-height' | 'content-in' | 'content-out' | 'collapse-height' | 'collapse-width'
@@ -932,75 +990,16 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
     hasTransitioned.current = true
     setTransitionPhase('stage-fading')
 
-    const headingEl = headingRef.current
-    const chatWrapEl = chatWrapRef.current
-    const wrapperEl = headingEl?.parentElement
-
-    // Step 1: Chat content disappears quickly (100ms)
-    const scrollAreaEl = chatWrapEl?.querySelector('[data-scroll-area]') as HTMLElement | null
-    if (scrollAreaEl) {
-      scrollAreaEl.style.transition = 'opacity 0.1s ease'
-      scrollAreaEl.style.opacity = '0'
-    }
-
-    // Step 2: After content gone, sparkle+heading animate down toward center (500ms)
     setTimeout(() => {
-      if (headingEl && wrapperEl) {
-        const wrapperRect = wrapperEl.getBoundingClientRect()
-        const headingRect = headingEl.getBoundingClientRect()
-        const centerY = wrapperRect.top + wrapperRect.height / 2
-        const headingDelta = centerY - headingRect.top - headingRect.height / 2
-        headingEl.style.transition = 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.12s ease'
-        headingEl.style.transform = `translateY(${headingDelta * 0.85}px)`
-      }
-
-      // Step 3: Input animates up toward center (500ms)
-      const inputEl = chatWrapEl?.querySelector('[data-chat-input]') as HTMLElement | null
-      if (inputEl && wrapperEl) {
-        const wrapperRect = wrapperEl.getBoundingClientRect()
-        const inputRect = inputEl.getBoundingClientRect()
-        const centerY = wrapperRect.top + wrapperRect.height / 2
-        const inputDelta = centerY - inputRect.top - inputRect.height / 2
-        inputEl.style.transition = 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.12s ease'
-        inputEl.style.transform = `translateY(${inputDelta * 0.85}px)`
-      }
-
-      // Step 4: Fade out while still approaching each other
-      setTimeout(() => {
-        if (headingEl) headingEl.style.opacity = '0'
-        const inputEl2 = chatWrapEl?.querySelector('[data-chat-input]') as HTMLElement | null
-        if (inputEl2) inputEl2.style.opacity = '0'
-      }, 100)
-    }, 120)
-
-    // Step 5: Clean up inline styles and start panel animation
-    setTimeout(() => {
-      // Reset all direct DOM style overrides so React can take over
-      if (headingEl) {
-        headingEl.style.transition = ''
-        headingEl.style.transform = ''
-        headingEl.style.opacity = ''
-      }
-      const scrollArea2 = chatWrapEl?.querySelector('[data-scroll-area]') as HTMLElement | null
-      if (scrollArea2) {
-        scrollArea2.style.transition = ''
-        scrollArea2.style.opacity = ''
-      }
-      const inputEl3 = chatWrapEl?.querySelector('[data-chat-input]') as HTMLElement | null
-      if (inputEl3) {
-        inputEl3.style.transition = ''
-        inputEl3.style.transform = ''
-        inputEl3.style.opacity = ''
-      }
       setTransitionPhase('bar-reveal')
-    }, 750)
+    }, 350)
 
     setTimeout(() => {
       setTransitionPhase('panel-opening')
       setChatOpen(true)
 
       const fullH = reactFlowWrapper.current?.getBoundingClientRect().height
-        ? reactFlowWrapper.current.getBoundingClientRect().height - 32
+        ? Math.round(reactFlowWrapper.current.getBoundingClientRect().height - 32)
         : 600
       setPanelHeight(fullH)
 
@@ -1031,7 +1030,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
           if (scrollArea) scrollArea.scrollTo({ top: scrollArea.scrollHeight, behavior: 'smooth' })
         }, 100)
       }, 1000)
-    }, 1100)
+    }, 500)
   }, [setNodes, setEdges])
 
   useEffect(() => {
@@ -1114,8 +1113,8 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
 
   const handleExpand = useCallback(() => {
     setChatOpen(true)
-    const fullH = reactFlowWrapper.current?.getBoundingClientRect().height
-      ? reactFlowWrapper.current.getBoundingClientRect().height - 32
+    const halfH = reactFlowWrapper.current?.getBoundingClientRect().height
+      ? Math.round((reactFlowWrapper.current.getBoundingClientRect().height - 32) / 2)
       : panelHeight
 
     setPanelAnim('expand-width')
@@ -1123,8 +1122,8 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
 
     setTimeout(() => {
       setPanelAnim('expand-height')
-      setPanelH(fullH)
-      setPanelHeight(fullH)
+      setPanelH(halfH)
+      setPanelHeight(halfH)
     }, 350)
 
     setTimeout(() => {
@@ -1807,6 +1806,8 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
           isWelcomeMode
             ? {
                 ...(hasChatStarted ? { paddingTop: 24 } : {}),
+                opacity: transitionPhase === 'stage-fading' ? 0 : 1,
+                transition: transitionPhase === 'stage-fading' ? 'opacity 0.3s ease' : undefined,
               }
             : {
                 opacity: transitionPhase === 'bar-reveal' ? 1 : undefined,
@@ -1842,7 +1843,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
         >
           {/* Green activity dot — rendered outside overflow-hidden header */}
           {!isWelcomeMode && hasChatStarted && (
-            <span className="absolute z-30 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-white" style={{ top: 11, right: 15 }} />
+            <span className="absolute z-30 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-white" style={{ top: 29, right: 15 }} />
           )}
 
           {/* Panel header */}
@@ -1921,7 +1922,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
               className="text-xs text-gray-900 mt-4 text-center pointer-events-auto"
               style={{
                 opacity: (helperVisible && transitionPhase === 'none') ? 1 : 0,
-                transition: 'opacity 0.1s ease-out',
+                transition: 'opacity 0.3s ease',
               }}
             >
               Tell Consensus AI what you want to build or drag content and interactions on to the stage.

@@ -155,9 +155,36 @@ export function useSpeechRecognition(onTranscript: (text: string) => void) {
     }).catch(() => {})
   }, [isSupported, cleanup, launchRecognition])
 
+  const start = useCallback(() => {
+    if (activeRef.current || !isSupported) return
+    activeRef.current = true
+    setIsListening(true)
+    launchRecognition()
+    navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+      if (!activeRef.current) {
+        stream.getTracks().forEach((t) => t.stop())
+        return
+      }
+      streamRef.current = stream
+      const ctx = new AudioContext()
+      audioCtxRef.current = ctx
+      const source = ctx.createMediaStreamSource(stream)
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 256
+      analyser.smoothingTimeConstant = 0.7
+      source.connect(analyser)
+      analyserRef.current = analyser
+    }).catch(() => {})
+  }, [isSupported, launchRecognition])
+
+  const stop = useCallback(() => {
+    if (!activeRef.current) return
+    cleanup()
+  }, [cleanup])
+
   const resetTranscript = useCallback(() => {
     pendingResetRef.current = true
   }, [])
 
-  return { isListening, toggle, isSupported, analyserRef, resetTranscript }
+  return { isListening, toggle, start, stop, isSupported, analyserRef, resetTranscript }
 }

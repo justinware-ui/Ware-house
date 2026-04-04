@@ -103,9 +103,9 @@ export default function DemoCardNode({ id, data }: NodeProps) {
       {/* Close button */}
       <button
         onClick={removeNode}
-        className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 border-2 border-white flex items-center justify-center transition-colors"
+        className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-white hover:bg-gray-200 border-2 border-white flex items-center justify-center transition-colors shadow-sm"
       >
-        <X size={12} className="text-gray-600" />
+        <X size={14} className="text-gray-600" />
       </button>
 
       {/* Change content sparkle — visible on card hover */}

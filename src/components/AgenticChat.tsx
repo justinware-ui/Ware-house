@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Mic, Send, ChevronDown, ChevronRight } from 'lucide-react'
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
+import { dingHigh, dingLow } from '../lib/audioDing'
 import AudioWaveform from './AudioWaveform'
 import PreviewModal from './PreviewModal'
 import {
@@ -91,9 +92,16 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
   const [globalSelected, setGlobalSelected] = useState<Record<string, boolean>>({})
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
   const prevRemovedRef = useRef<string[]>([])
-  const { isListening, toggle: toggleVoice, isSupported: voiceSupported, analyserRef, resetTranscript } = useSpeechRecognition(
+  const { isListening, start: startVoice, stop: stopVoice, isSupported: voiceSupported, analyserRef, resetTranscript } = useSpeechRecognition(
     useCallback((text: string) => setInput(text), []),
   )
+
+  useEffect(() => {
+    if (!isListening) return
+    const onUp = () => { dingLow(); stopVoice() }
+    window.addEventListener('mouseup', onUp)
+    return () => window.removeEventListener('mouseup', onUp)
+  }, [isListening, stopVoice])
 
   useEffect(() => {
     if (!removedDemoIds || removedDemoIds.length === 0 || !latestProposal) return
@@ -223,7 +231,10 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
     if (!text) return
     setInput('')
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
-    if (isListening) resetTranscript()
+    if (isListening) {
+      stopVoice()
+      resetTranscript()
+    }
 
     const isFirst = !messages.some((m) => m.role === 'user')
 
@@ -866,7 +877,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
           }}
         >
 
-          <div className="flex-1 px-4 pt-3 pb-1">
+          <div className="flex-1 px-4 pt-4 pb-1">
             <textarea
               ref={textareaRef}
               value={input}
@@ -882,7 +893,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
                   handleSend()
                 }
               }}
-              placeholder="Type or record your message"
+              placeholder="Type or hold mic to speak"
               className="w-full resize-none outline-none text-sm text-gray-900 placeholder:text-gray-400 bg-transparent overflow-hidden"
               rows={1}
               style={{ maxHeight: 200 }}
@@ -890,32 +901,49 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
               onBlur={() => setInputFocused(false)}
             />
           </div>
-          <div className="flex items-center px-4 pb-3">
-            <button
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => { toggleVoice(); textareaRef.current?.focus() }}
-              disabled={!voiceSupported}
-              className={`shrink-0 transition-colors ${
-                isListening
-                  ? 'text-red-500 animate-pulse'
-                  : voiceSupported
-                    ? 'text-gray-400 hover:text-gray-600'
-                    : 'text-gray-300 cursor-not-allowed'
-              }`}
-            >
-              <Mic size={18} />
-            </button>
-            <div className="flex-1" style={{ padding: '0 24px' }}>
-              <AudioWaveform analyserRef={analyserRef} active={isListening} />
-            </div>
-            <button
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={handleSend}
-              className="shrink-0 transition-colors"
-              style={{ color: input.trim() ? '#FC6839' : '#d1d5db' }}
-            >
-              <Send size={18} />
-            </button>
+          <div className="flex items-center px-4 pb-4">
+            {isListening && (
+              <div className="flex-1" style={{ paddingRight: 24 }}>
+                <AudioWaveform analyserRef={analyserRef} active={isListening} />
+              </div>
+            )}
+            {input.trim() ? (
+              <button
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={handleSend}
+                className="shrink-0 transition-colors ml-auto"
+                style={{ color: '#FC6839' }}
+              >
+                <Send size={18} />
+              </button>
+            ) : (
+              <div className="relative group/mic ml-auto">
+                <button
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    dingHigh()
+                    startVoice()
+                    textareaRef.current?.focus()
+                  }}
+                  disabled={!voiceSupported}
+                  className={`shrink-0 transition-colors ${
+                    isListening
+                      ? 'text-red-500 animate-pulse'
+                      : voiceSupported
+                        ? 'text-gray-400 hover:text-gray-600'
+                        : 'text-gray-300 cursor-not-allowed'
+                  }`}
+                >
+                  <Mic size={18} />
+                </button>
+                {!isListening && voiceSupported && (
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded bg-[#172537] text-white text-[10px] whitespace-nowrap opacity-0 pointer-events-none group-hover/mic:opacity-100 transition-opacity">
+                    Press and hold to record
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#172537]" />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

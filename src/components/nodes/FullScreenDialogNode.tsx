@@ -546,17 +546,17 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
 
       {/* Close button */}
       <button
-        className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 border-2 border-white flex items-center justify-center transition-colors"
+        className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-white hover:bg-gray-200 border-2 border-white flex items-center justify-center transition-colors shadow-sm"
         onClick={() => {
           setNodes((nds) => nds.filter((n) => n.id !== id))
           setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id))
         }}
       >
-        <X size={12} className="text-gray-600" />
+        <X size={14} className="text-gray-600" />
       </button>
 
       {/* Preview & Duplicate — vertically aligned */}
-      <div className="absolute top-3 right-4 flex items-center" style={{ gap: 10 }}>
+      <div className="absolute top-3 right-6 flex items-center" style={{ gap: 10 }}>
         <button className="hover:opacity-70 transition-opacity" onClick={() => setShowPreview(true)}>
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
             <mask id={`mask_eye_fsd_${id}`} style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="0" y="0" width="18" height="18"><rect width="18" height="18" fill="#D9D9D9"/></mask>

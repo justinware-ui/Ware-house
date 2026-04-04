@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { X, CircleHelp } from 'lucide-react'
+import { CircleHelp } from 'lucide-react'
 
 interface DiscoveryQuestionData {
   type: 'discovery'
@@ -46,9 +46,18 @@ export default function InteractionPreviewModal({ data, onClose }: InteractionPr
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors z-10"
+          className="group/close absolute top-4 right-4 flex items-center justify-center transition-all z-10"
+          style={{ width: 32, height: 32, borderRadius: 16 }}
         >
-          <X size={20} className="text-gray-500" />
+          <div className="absolute inset-0 rounded-full opacity-0 group-hover/close:opacity-100 transition-opacity" style={{ backgroundColor: 'rgba(115,113,111,0.15)' }} />
+          <svg width="20" height="20" viewBox="10 10 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="relative">
+            <mask id="mask_close_interact_preview" style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="10" y="10" width="20" height="20">
+              <rect x="10" y="10" width="20" height="20" fill="#D9D9D9"/>
+            </mask>
+            <g mask="url(#mask_close_interact_preview)">
+              <path d="M20.0002 21.1668L15.9168 25.2502C15.7641 25.4029 15.5696 25.4793 15.3335 25.4793C15.0974 25.4793 14.9029 25.4029 14.7502 25.2502C14.5974 25.0974 14.521 24.9029 14.521 24.6668C14.521 24.4307 14.5974 24.2363 14.7502 24.0835L18.8335 20.0002L14.7502 15.9168C14.5974 15.7641 14.521 15.5696 14.521 15.3335C14.521 15.0974 14.5974 14.9029 14.7502 14.7502C14.9029 14.5974 15.0974 14.521 15.3335 14.521C15.5696 14.521 15.7641 14.5974 15.9168 14.7502L20.0002 18.8335L24.0835 14.7502C24.2363 14.5974 24.4307 14.521 24.6668 14.521C24.9029 14.521 25.0974 14.5974 25.2502 14.7502C25.4029 14.9029 25.4793 15.0974 25.4793 15.3335C25.4793 15.5696 25.4029 15.7641 25.2502 15.9168L21.1668 20.0002L25.2502 24.0835C25.4029 24.2363 25.4793 24.4307 25.4793 24.6668C25.4793 24.9029 25.4029 25.0974 25.2502 25.2502C25.0974 25.4029 24.9029 25.4793 24.6668 25.4793C24.4307 25.4793 24.2363 25.4029 24.0835 25.2502L20.0002 21.1668Z" fill="#293748"/>
+            </g>
+          </svg>
         </button>
 
         {data.type === 'discovery' ? (
