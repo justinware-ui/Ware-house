@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Mic, Send, ChevronDown, ChevronRight } from 'lucide-react'
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
+import AudioWaveform from './AudioWaveform'
 import PreviewModal from './PreviewModal'
 import {
   buildProposal,
@@ -89,6 +91,9 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
   const [globalSelected, setGlobalSelected] = useState<Record<string, boolean>>({})
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
   const prevRemovedRef = useRef<string[]>([])
+  const { isListening, toggle: toggleVoice, isSupported: voiceSupported, analyserRef } = useSpeechRecognition(
+    useCallback((text: string) => setInput(text), []),
+  )
 
   useEffect(() => {
     if (!removedDemoIds || removedDemoIds.length === 0 || !latestProposal) return
@@ -129,6 +134,13 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
   const [canScrollUp, setCanScrollUp] = useState(false)
   const [canScrollDown, setCanScrollDown] = useState(false)
   const [inputFocused, setInputFocused] = useState(false)
+
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = el.scrollHeight + 'px'
+  }, [input])
   const hasInit = useRef(false)
 
   const scrollToBottom = useCallback(() => {
@@ -874,14 +886,28 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
               onBlur={() => setInputFocused(false)}
             />
           </div>
-          <div className="flex items-center justify-between px-4 pb-3">
-            <button onMouseDown={(e) => e.preventDefault()} className="text-gray-400 hover:text-gray-600 transition-colors">
+          <div className="flex items-center px-4 pb-3">
+            <button
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { toggleVoice(); textareaRef.current?.focus() }}
+              disabled={!voiceSupported}
+              className={`shrink-0 transition-colors ${
+                isListening
+                  ? 'text-red-500 animate-pulse'
+                  : voiceSupported
+                    ? 'text-gray-400 hover:text-gray-600'
+                    : 'text-gray-300 cursor-not-allowed'
+              }`}
+            >
               <Mic size={18} />
             </button>
+            <div className="flex-1" style={{ padding: '0 24px' }}>
+              <AudioWaveform analyserRef={analyserRef} active={isListening} />
+            </div>
             <button
               onMouseDown={(e) => e.preventDefault()}
               onClick={handleSend}
-              className="transition-colors"
+              className="shrink-0 transition-colors"
               style={{ color: input.trim() ? '#FC6839' : '#d1d5db' }}
             >
               <Send size={18} />

@@ -1,4 +1,6 @@
 import { useCallback, useRef, useState, useEffect, useMemo } from 'react'
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
+import AudioWaveform from './AudioWaveform'
 import AgenticChat, { type SelectedContent } from './AgenticChat'
 import type { DemoProposal, ContentMatch, CanvasState } from '../lib/aiEngine'
 import { findReplacements, rejectDemo, searchContent } from '../lib/aiEngine'
@@ -416,11 +418,21 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
   const [activeDemoId, setActiveDemoId] = useState(cachedState?.activeDemoId ?? demoId)
   const [inputFocused, setInputFocused] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = el.scrollHeight + 'px'
+  }, [inputText])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const [canScrollUp, setCanScrollUp] = useState(false)
   const [canScrollDown, setCanScrollDown] = useState(false)
   const usedIds = useRef(new Set<string>([demoId]))
+  const { isListening, toggle: toggleVoice, isSupported: voiceSupported, analyserRef } = useSpeechRecognition(
+    useCallback((text: string) => setInputText(text), []),
+  )
 
   const updateScrollShadows = useCallback(() => {
     const el = scrollAreaRef.current
@@ -818,14 +830,28 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
               onBlur={() => setInputFocused(false)}
             />
           </div>
-          <div className="flex items-center justify-between px-4 pb-3">
-            <button onMouseDown={(e) => e.preventDefault()} className="text-gray-400 hover:text-gray-600 transition-colors">
+          <div className="flex items-center px-4 pb-3">
+            <button
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { toggleVoice(); textareaRef.current?.focus() }}
+              disabled={!voiceSupported}
+              className={`shrink-0 transition-colors ${
+                isListening
+                  ? 'text-red-500 animate-pulse'
+                  : voiceSupported
+                    ? 'text-gray-400 hover:text-gray-600'
+                    : 'text-gray-300 cursor-not-allowed'
+              }`}
+            >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
             </button>
+            <div className="flex-1" style={{ padding: '0 24px' }}>
+              <AudioWaveform analyserRef={analyserRef} active={isListening} />
+            </div>
             <button
               onMouseDown={(e) => e.preventDefault()}
               onClick={handleSend}
-              className="transition-colors"
+              className="shrink-0 transition-colors"
               style={{ color: inputText.trim() ? '#FC6839' : '#d1d5db' }}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
