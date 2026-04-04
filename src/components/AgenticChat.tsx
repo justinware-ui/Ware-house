@@ -925,7 +925,7 @@ function renderInlineMarkdown(text: string) {
 function UserMessage({ msg }: { msg: ChatMessage }) {
   return (
     <div className="flex flex-col items-end">
-      <div className="rounded-2xl px-4 py-3 text-sm max-w-[85%] whitespace-pre-wrap" style={{ backgroundColor: '#FFF0E5', color: '#1a1a1a', border: '1px solid #FFD4B0' }}>
+      <div className="px-4 py-3 text-sm max-w-[85%] whitespace-pre-wrap" style={{ backgroundColor: '#FFF0E5', color: '#1a1a1a', border: '1px solid #FFD4B0', borderRadius: 8 }}>
         {msg.content}
       </div>
       {msg.actions && (

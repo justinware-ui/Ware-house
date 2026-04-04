@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Monitor,
   MousePointerClick,
@@ -48,12 +49,23 @@ export default function Sidebar() {
   })
   const [searchFocused, setSearchFocused] = useState(false)
   const [filterHover, setFilterHover] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
+  const [contentVisible, setContentVisible] = useState(true)
+  const [demoIconHover, setDemoIconHover] = useState(false)
+  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null)
   const [canScrollUp, setCanScrollUp] = useState(false)
   const [canScrollDown, setCanScrollDown] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
   const startX = useRef(0)
   const startWidth = useRef(0)
+
+  const expandPanel = useCallback(() => {
+    if (!collapsed) return
+    setContentVisible(false)
+    setCollapsed(false)
+    setTimeout(() => setContentVisible(true), 320)
+  }, [collapsed])
 
   const onResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -107,7 +119,199 @@ export default function Sidebar() {
 
   return (
     <>
-    <aside className="relative border-l border-gray-200 flex flex-col shrink-0 overflow-hidden" style={{ backgroundColor: '#F7F4F2', width }}>
+    <div className="relative shrink-0 flex">
+      {/* Collapse / Expand toggle button — outside aside to avoid overflow clip */}
+      <button
+        onClick={() => {
+          if (collapsed) {
+            expandPanel()
+          } else {
+            setCollapsed(true)
+            setContentVisible(true)
+          }
+        }}
+        className="absolute z-20 flex items-center justify-center transition-transform duration-200 hover:scale-110"
+        style={{
+          width: 32,
+          height: 32,
+          top: '50%',
+          left: -16 - 32,
+          transform: 'translateY(-50%)',
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          padding: 0,
+        }}
+      >
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="0.5" y="0.5" width="31" height="31" rx="15.5" fill="white" stroke="#D0CBC6"/>
+          <mask id="mask_collapse_toggle" style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="7" y="7" width="18" height="18">
+            <rect x="7" y="7" width="18" height="18" fill="#D9D9D9"/>
+          </mask>
+          <g mask="url(#mask_collapse_toggle)">
+            <path d={collapsed
+              ? "M16.9751 19.9751L13.5251 16.5251C13.4501 16.4501 13.3971 16.3688 13.3661 16.2813C13.3346 16.1938 13.3188 16.1001 13.3188 16.0001C13.3188 15.9001 13.3346 15.8063 13.3661 15.7188C13.3971 15.6313 13.4501 15.5501 13.5251 15.4751L16.9751 12.0251C17.1126 11.8876 17.2876 11.8188 17.5001 11.8188C17.7126 11.8188 17.8876 11.8876 18.0251 12.0251C18.1626 12.1626 18.2313 12.3376 18.2313 12.5501C18.2313 12.7626 18.1626 12.9376 18.0251 13.0751L15.1001 16.0001L18.0251 18.9251C18.1626 19.0626 18.2313 19.2376 18.2313 19.4501C18.2313 19.6626 18.1626 19.8376 18.0251 19.9751C17.8876 20.1126 17.7126 20.1813 17.5001 20.1813C17.2876 20.1813 17.1126 20.1126 16.9751 19.9751Z"
+              : "M15.0249 19.9751L18.4749 16.5251C18.5499 16.4501 18.6029 16.3688 18.6339 16.2813C18.6654 16.1938 18.6812 16.1001 18.6812 16.0001C18.6812 15.9001 18.6654 15.8063 18.6339 15.7188C18.6029 15.6313 18.5499 15.5501 18.4749 15.4751L15.0249 12.0251C14.8874 11.8876 14.7124 11.8188 14.4999 11.8188C14.2874 11.8188 14.1124 11.8876 13.9749 12.0251C13.8374 12.1626 13.7687 12.3376 13.7687 12.5501C13.7687 12.7626 13.8374 12.9376 13.9749 13.0751L16.8999 16.0001L13.9749 18.9251C13.8374 19.0626 13.7687 19.2376 13.7687 19.4501C13.7687 19.6626 13.8374 19.8376 13.9749 19.9751C14.1124 20.1126 14.2874 20.1813 14.4999 20.1813C14.7124 20.1813 14.8874 20.1126 15.0249 19.9751Z"
+            } fill="#6F6F6F"/>
+          </g>
+        </svg>
+      </button>
+
+    <aside
+      className="relative border-l border-gray-200 flex flex-col shrink-0 overflow-hidden transition-[width] duration-300 ease-in-out"
+      style={{ backgroundColor: '#F7F4F2', width: collapsed ? 98 : width }}
+    >
+
+      {/* Collapsed view */}
+      {collapsed && (
+        <div className="flex flex-col items-center h-full cursor-pointer" onClick={expandPanel} style={{ paddingTop: 20 }}>
+          {/* Interaction type squares */}
+          <div className="shrink-0 flex flex-col items-center" style={{ gap: 11 }}>
+            {interactions.map(({ id, label, icon: Icon, color }) => (
+              <div
+                key={id}
+                draggable
+                onDragStart={(e) => onDragStart(e, id)}
+                onMouseEnter={(e) => { const r = e.currentTarget.getBoundingClientRect(); setTooltip({ text: label, x: r.left, y: r.top + r.height / 2 }) }}
+                onMouseLeave={() => setTooltip(null)}
+                className="flex items-center justify-center cursor-grab border border-[#D0CBC6] hover:border-[#FC6839] hover:shadow-sm transition-all bg-white"
+                style={{
+                  width: 60,
+                  height: 60,
+                  borderRadius: 8,
+                  boxShadow: '0 2px 8px -4px rgba(48,41,33,0.2)',
+                }}
+              >
+                <Icon size={22} style={{ color }} />
+              </div>
+            ))}
+          </div>
+
+          {/* Demo / Dynamic Tours icon button */}
+          <div className="shrink-0 flex items-center justify-center" style={{ marginTop: 16 }}>
+            <div
+              onMouseEnter={(e) => { setDemoIconHover(true); const r = e.currentTarget.getBoundingClientRect(); setTooltip({ text: activeTab, x: r.left, y: r.top + r.height / 2 }) }}
+              onMouseLeave={() => { setDemoIconHover(false); setTooltip(null) }}
+              className="flex items-center justify-center cursor-pointer"
+              style={{ width: 32, height: 32 }}
+            >
+              {activeTab === 'Recommended' ? (
+                demoIconHover ? (
+                  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                    <rect width="32" height="32" rx="16" fill="#FC6839" fillOpacity="0.15"/>
+                    <mask id="mask_rec_hover" style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="6" y="6" width="20" height="20">
+                      <rect x="6" y="6" width="20" height="20" fill="#D9D9D9"/>
+                    </mask>
+                    <g mask="url(#mask_rec_hover)">
+                      <path d="M14.9346 6.94376C14.9708 6.74922 15.2496 6.74922 15.2858 6.94376L15.687 9.1004C16.2002 11.859 18.3584 14.0172 21.1171 14.5305L23.2737 14.9317C23.4683 14.9679 23.4683 15.2466 23.2737 15.2828L21.1171 15.6841C18.3584 16.1973 16.2002 18.3555 15.687 21.1141L15.2858 23.2708C15.2496 23.4653 14.9708 23.4653 14.9346 23.2708L14.5334 21.1141C14.0202 18.3555 11.862 16.1973 9.10333 15.6841L6.94669 15.2828C6.75214 15.2466 6.75214 14.9679 6.94669 14.9317L9.10333 14.5305C11.862 14.0172 14.0202 11.859 14.5334 9.1004L14.9346 6.94376Z" fill="#FC6839"/>
+                      <path d="M22.3819 18.9137C22.3959 18.8384 22.5037 18.8384 22.5177 18.9137L22.6729 19.7479C22.8714 20.8151 23.7063 21.6499 24.7734 21.8484L25.6076 22.0036C25.6829 22.0176 25.6829 22.1255 25.6076 22.1395L24.7734 22.2947C23.7063 22.4932 22.8714 23.328 22.6729 24.3952L22.5177 25.2294C22.5037 25.3046 22.3959 25.3046 22.3819 25.2294L22.2267 24.3952C22.0281 23.328 21.1933 22.4932 20.1262 22.2947L19.2919 22.1395C19.2167 22.1255 19.2167 22.0176 19.2919 22.0036L20.1262 21.8484C21.1933 21.6499 22.0281 20.8151 22.2267 19.7479L22.3819 18.9137Z" fill="#FC6839"/>
+                    </g>
+                  </svg>
+                ) : (
+                  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                    <mask id="mask_rec_default" style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="6" y="6" width="20" height="20">
+                      <rect x="6" y="6" width="20" height="20" fill="#D9D9D9"/>
+                    </mask>
+                    <g mask="url(#mask_rec_default)">
+                      <path d="M14.9346 6.94376C14.9708 6.74922 15.2496 6.74922 15.2858 6.94376L15.687 9.1004C16.2002 11.859 18.3584 14.0172 21.1171 14.5305L23.2737 14.9317C23.4683 14.9679 23.4683 15.2466 23.2737 15.2828L21.1171 15.6841C18.3584 16.1973 16.2002 18.3555 15.687 21.1141L15.2858 23.2708C15.2496 23.4653 14.9708 23.4653 14.9346 23.2708L14.5334 21.1141C14.0202 18.3555 11.862 16.1973 9.10333 15.6841L6.94669 15.2828C6.75214 15.2466 6.75214 14.9679 6.94669 14.9317L9.10333 14.5305C11.862 14.0172 14.0202 11.859 14.5334 9.1004L14.9346 6.94376Z" fill="#FC6839"/>
+                      <path d="M22.3819 18.9137C22.3959 18.8384 22.5037 18.8384 22.5177 18.9137L22.6729 19.7479C22.8714 20.8151 23.7063 21.6499 24.7734 21.8484L25.6076 22.0036C25.6829 22.0176 25.6829 22.1255 25.6076 22.1395L24.7734 22.2947C23.7063 22.4932 22.8714 23.328 22.6729 24.3952L22.5177 25.2294C22.5037 25.3046 22.3959 25.3046 22.3819 25.2294L22.2267 24.3952C22.0281 23.328 21.1933 22.4932 20.1262 22.2947L19.2919 22.1395C19.2167 22.1255 19.2167 22.0176 19.2919 22.0036L20.1262 21.8484C21.1933 21.6499 22.0281 20.8151 22.2267 19.7479L22.3819 18.9137Z" fill="#FC6839"/>
+                    </g>
+                  </svg>
+                )
+              ) : activeTab === 'Dynamic Tours' ? (
+                demoIconHover ? (
+                  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                    <rect width="32" height="32" rx="16" fill="#FC6839" fillOpacity="0.15"/>
+                    <path d="M22.5449 13.6367C23.3449 13.6367 24 14.2908 24 15.0908C24 16.1452 22.9529 16.7339 22.1748 16.4941L19.585 19.0762C19.8322 19.8616 19.2362 20.9092 18.1816 20.9092C17.1199 20.9091 16.5311 19.8543 16.7783 19.0762L14.9238 17.2217C14.7057 17.2871 14.3852 17.2871 14.167 17.2217L10.8584 20.5381C11.0982 21.3161 10.5092 22.363 9.45508 22.3633C8.6552 22.3633 8.00017 21.709 8 20.9092C8 19.8548 9.04707 19.2652 9.8252 19.5049L13.1416 16.1963C12.8944 15.4109 13.4914 14.3633 14.5459 14.3633C15.6074 14.3636 16.1964 15.4182 15.9492 16.1963L17.8037 18.0508C18.0218 17.9854 18.3415 17.9854 18.5596 18.0508L21.1416 15.4619C20.9016 14.6838 21.4906 13.6369 22.5449 13.6367ZM10.1816 13.6367L11.6367 14L10.1816 14.3633L9.81836 15.8184L9.45508 14.3633L8 14L9.45508 13.6367L9.81836 12.1816L10.1816 13.6367ZM18.8652 11.5059L20.3633 12.1816L18.8652 12.8584L18.1816 14.3633L17.5127 12.8584L16 12.1816L17.5127 11.5059L18.1816 10L18.8652 11.5059Z" fill="#FC6839"/>
+                  </svg>
+                ) : (
+                  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                    <path d="M22.5449 13.6367C23.3449 13.6367 24 14.2908 24 15.0908C24 16.1452 22.9529 16.7339 22.1748 16.4941L19.585 19.0762C19.8322 19.8616 19.2362 20.9092 18.1816 20.9092C17.1199 20.9091 16.5311 19.8543 16.7783 19.0762L14.9238 17.2217C14.7057 17.2871 14.3852 17.2871 14.167 17.2217L10.8584 20.5381C11.0982 21.3161 10.5092 22.363 9.45508 22.3633C8.6552 22.3633 8.00017 21.709 8 20.9092C8 19.8548 9.04707 19.2652 9.8252 19.5049L13.1416 16.1963C12.8944 15.4109 13.4914 14.3633 14.5459 14.3633C15.6074 14.3636 16.1964 15.4182 15.9492 16.1963L17.8037 18.0508C18.0218 17.9854 18.3415 17.9854 18.5596 18.0508L21.1416 15.4619C20.9016 14.6838 21.4906 13.6369 22.5449 13.6367ZM10.1816 13.6367L11.6367 14L10.1816 14.3633L9.81836 15.8184L9.45508 14.3633L8 14L9.45508 13.6367L9.81836 12.1816L10.1816 13.6367ZM18.8652 11.5059L20.3633 12.1816L18.8652 12.8584L18.1816 14.3633L17.5127 12.8584L16 12.1816L17.5127 11.5059L18.1816 10L18.8652 11.5059Z" fill="#FC6839"/>
+                  </svg>
+                )
+              ) : (
+                demoIconHover ? (
+                  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                    <rect width="32" height="32" rx="16" fill="#FC6839" fillOpacity="0.15"/>
+                    <mask id="mask_demo_hover" style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="6" y="6" width="20" height="20">
+                      <rect x="6" y="6" width="20" height="20" fill="#D9D9D9"/>
+                    </mask>
+                    <g mask="url(#mask_demo_hover)">
+                      <path d="M13.9165 13.7707V18.229C13.9165 18.5623 14.0623 18.8054 14.354 18.9582C14.6457 19.1109 14.9304 19.0971 15.2082 18.9165L18.6665 16.7082C18.9304 16.5554 19.0623 16.3193 19.0623 15.9998C19.0623 15.6804 18.9304 15.4443 18.6665 15.2915L15.2082 13.0832C14.9304 12.9026 14.6457 12.8887 14.354 13.0415C14.0623 13.1943 13.9165 13.4373 13.9165 13.7707ZM15.9998 24.3332C14.8471 24.3332 13.7637 24.1143 12.7498 23.6765C11.7359 23.2393 10.854 22.6457 10.104 21.8957C9.354 21.1457 8.76039 20.2637 8.32317 19.2498C7.88539 18.2359 7.6665 17.1526 7.6665 15.9998C7.6665 14.8471 7.88539 13.7637 8.32317 12.7498C8.76039 11.7359 9.354 10.854 10.104 10.104C10.854 9.354 11.7359 8.76011 12.7498 8.32234C13.7637 7.88511 14.8471 7.6665 15.9998 7.6665C17.1526 7.6665 18.2359 7.88511 19.2498 8.32234C20.2637 8.76011 21.1457 9.354 21.8957 10.104C22.6457 10.854 23.2393 11.7359 23.6765 12.7498C24.1143 13.7637 24.3332 14.8471 24.3332 15.9998C24.3332 17.1526 24.1143 18.2359 23.6765 19.2498C23.2393 20.2637 22.6457 21.1457 21.8957 21.8957C21.1457 22.6457 20.2637 23.2393 19.2498 23.6765C18.2359 24.1143 17.1526 24.3332 15.9998 24.3332ZM15.9998 22.6665C17.8471 22.6665 19.4201 22.0173 20.719 20.719C22.0173 19.4201 22.6665 17.8471 22.6665 15.9998C22.6665 14.1526 22.0173 12.5796 20.719 11.2807C19.4201 9.98234 17.8471 9.33317 15.9998 9.33317C14.1526 9.33317 12.5798 9.98234 11.2815 11.2807C9.98261 12.5796 9.33317 14.1526 9.33317 15.9998C9.33317 17.8471 9.98261 19.4201 11.2815 20.719C12.5798 22.0173 14.1526 22.6665 15.9998 22.6665Z" fill="#F44C10"/>
+                    </g>
+                  </svg>
+                ) : (
+                  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                    <mask id="mask_demo_default" style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="6" y="6" width="20" height="20">
+                      <rect x="6" y="6" width="20" height="20" fill="#D9D9D9"/>
+                    </mask>
+                    <g mask="url(#mask_demo_default)">
+                      <path d="M13.9165 13.7707V18.229C13.9165 18.5623 14.0623 18.8054 14.354 18.9582C14.6457 19.1109 14.9304 19.0971 15.2082 18.9165L18.6665 16.7082C18.9304 16.5554 19.0623 16.3193 19.0623 15.9998C19.0623 15.6804 18.9304 15.4443 18.6665 15.2915L15.2082 13.0832C14.9304 12.9026 14.6457 12.8887 14.354 13.0415C14.0623 13.1943 13.9165 13.4373 13.9165 13.7707ZM15.9998 24.3332C14.8471 24.3332 13.7637 24.1143 12.7498 23.6765C11.7359 23.2393 10.854 22.6457 10.104 21.8957C9.354 21.1457 8.76039 20.2637 8.32317 19.2498C7.88539 18.2359 7.6665 17.1526 7.6665 15.9998C7.6665 14.8471 7.88539 13.7637 8.32317 12.7498C8.76039 11.7359 9.354 10.854 10.104 10.104C10.854 9.354 11.7359 8.76011 12.7498 8.32234C13.7637 7.88511 14.8471 7.6665 15.9998 7.6665C17.1526 7.6665 18.2359 7.88511 19.2498 8.32234C20.2637 8.76011 21.1457 9.354 21.8957 10.104C22.6457 10.854 23.2393 11.7359 23.6765 12.7498C24.1143 13.7637 24.3332 14.8471 24.3332 15.9998C24.3332 17.1526 24.1143 18.2359 23.6765 19.2498C23.2393 20.2637 22.6457 21.1457 21.8957 21.8957C21.1457 22.6457 20.2637 23.2393 19.2498 23.6765C18.2359 24.1143 17.1526 24.3332 15.9998 24.3332ZM15.9998 22.6665C17.8471 22.6665 19.4201 22.0173 20.719 20.719C22.0173 19.4201 22.6665 17.8471 22.6665 15.9998C22.6665 14.1526 22.0173 12.5796 20.719 11.2807C19.4201 9.98234 17.8471 9.33317 15.9998 9.33317C14.1526 9.33317 12.5798 9.98234 11.2815 11.2807C9.98261 12.5796 9.33317 14.1526 9.33317 15.9998C9.33317 17.8471 9.98261 19.4201 11.2815 20.719C12.5798 22.0173 14.1526 22.6665 15.9998 22.6665Z" fill="#FC6839"/>
+                    </g>
+                  </svg>
+                )
+              )}
+            </div>
+          </div>
+
+          {/* Search icon circle */}
+          <div className="shrink-0 flex items-center justify-center" style={{ marginTop: 14 }}>
+            <div
+              onMouseEnter={(e) => { const r = e.currentTarget.getBoundingClientRect(); setTooltip({ text: 'Search', x: r.left, y: r.top + r.height / 2 }) }}
+              onMouseLeave={() => setTooltip(null)}
+              className="flex items-center justify-center cursor-pointer"
+              style={{ width: 40, height: 40, borderRadius: 20, border: '1px solid #D0CBC6', background: 'white' }}
+            >
+              <svg width="20" height="20" viewBox="0.8 -2.2 20 20" fill="none">
+                <path d="M16.75 14.917L12.0833 10.25C11.6667 10.583 11.1875 10.847 10.6458 11.042C10.1042 11.236 9.52778 11.333 8.91667 11.333C7.40278 11.333 6.12167 10.809 5.07333 9.761C4.02444 8.712 3.5 7.431 3.5 5.917C3.5 4.403 4.02444 3.121 5.07333 2.072C6.12167 1.024 7.40278 0.5 8.91667 0.5C10.4306 0.5 11.7119 1.024 12.7608 2.072C13.8092 3.121 14.3333 4.403 14.3333 5.917C14.3333 6.528 14.2361 7.104 14.0417 7.646C13.8472 8.187 13.5833 8.667 13.25 9.083L17.9375 13.771C18.0903 13.924 18.1667 14.111 18.1667 14.333C18.1667 14.556 18.0833 14.75 17.9167 14.917C17.7639 15.069 17.5694 15.146 17.3333 15.146C17.0972 15.146 16.9028 15.069 16.75 14.917ZM8.91667 9.667C9.95833 9.667 10.8439 9.302 11.5733 8.573C12.3022 7.844 12.6667 6.958 12.6667 5.917C12.6667 4.875 12.3022 3.989 11.5733 3.26C10.8439 2.531 9.95833 2.167 8.91667 2.167C7.875 2.167 6.98944 2.531 6.26 3.26C5.53111 3.989 5.16667 4.875 5.16667 5.917C5.16667 6.958 5.53111 7.844 6.26 8.573C6.98944 9.302 7.875 9.667 8.91667 9.667Z" fill="#172537"/>
+              </svg>
+            </div>
+          </div>
+
+          {/* Demo card tiles — scrollable */}
+          <div className="flex-1 min-h-0 overflow-y-auto w-full mt-4 mb-6" style={{ paddingBottom: 16 }}>
+            <div className="flex flex-col items-center" style={{ gap: 10 }}>
+              {demos.map((demo, i) => {
+                const isType = activeTab === 'Dynamic Tours'
+                const bgColor = demo.type === 'tour' || i % 2 === 0 ? '#C3EBD8' : '#FFDFCF'
+                return (
+                  <div
+                    key={demo.id}
+                    draggable
+                    onDragStart={(e) => {
+                      const cardThumb = activeTab === 'Dynamic Tours' ? thumbDynamicTour : demo.thumb
+                      onDragStart(e, `card-${activeTab.toLowerCase().replace(/\s+/g, '-')}`, { demoId: demo.id, title: demo.title, creator: demo.creator, thumb: cardThumb, preview: demo.preview })
+                    }}
+                    onMouseEnter={(e) => { const r = e.currentTarget.getBoundingClientRect(); setTooltip({ text: demo.title, x: r.left, y: r.top + r.height / 2 }) }}
+                    onMouseLeave={() => setTooltip(null)}
+                    className="shrink-0 flex items-center justify-center cursor-grab border border-[#D0CBC6] hover:border-[#FC6839] hover:shadow-sm transition-all bg-white"
+                    style={{
+                      width: 60,
+                      height: 60,
+                      borderRadius: 8,
+                      boxShadow: '0 2px 8px -4px rgba(48,41,33,0.2)',
+                    }}
+                  >
+                    <div
+                      className="flex items-center justify-center overflow-hidden"
+                      style={{ width: 32, height: 32, borderRadius: 4, backgroundColor: bgColor }}
+                    >
+                      <img
+                        src={isType ? thumbDynamicTour : demo.thumb}
+                        alt=""
+                        style={{ width: 32, height: 32, objectFit: 'cover' }}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Expanded view */}
+      {!collapsed && <>
       {/* Resize handle */}
       <div
         onMouseDown={onResizeStart}
@@ -117,7 +321,7 @@ export default function Sidebar() {
       </div>
       {/* Interaction types */}
       <div className="px-9 pt-9 pb-3">
-        <h2 className="text-xs font-semibold text-navy-600 uppercase tracking-wider mb-3">
+        <h2 className="text-xs font-semibold text-navy-600 uppercase tracking-wider mb-3" style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 250ms ease-in' }}>
           Interactions
         </h2>
         <div className="grid grid-cols-4 gap-3">
@@ -128,13 +332,13 @@ export default function Sidebar() {
               onDragStart={(e) => onDragStart(e, id)}
               className="relative flex flex-col items-center gap-1.5 p-2 rounded-lg border border-gray-200 bg-white cursor-grab hover:border-brand-300 hover:shadow-sm transition-all group"
             >
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="absolute top-1 left-1/2 -translate-x-1/2" style={{ transform: 'translateX(-50%) rotate(90deg)' }}>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="absolute top-1 left-1/2 -translate-x-1/2" style={{ transform: 'translateX(-50%) rotate(90deg)', opacity: contentVisible ? 1 : 0, transition: 'opacity 250ms ease-in' }}>
                 <path d="M7.5 16.666c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.459.163-.851.49-1.178.326-.326.718-.489 1.177-.489s.851.163 1.177.49c.326.326.49.718.49 1.177s-.164.851-.49 1.177c-.326.327-.718.49-1.177.49Zm5 0c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.459.164-.851.49-1.178.326-.326.718-.489 1.177-.489s.851.163 1.177.49c.327.326.49.718.49 1.177s-.163.851-.49 1.177c-.326.327-.718.49-1.177.49ZM7.5 11.666c-.459 0-.851-.163-1.177-.49a1.604 1.604 0 0 1-.49-1.177c0-.458.163-.851.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.326.326.49.718.49 1.177 0 .459-.164.851-.49 1.178-.326.326-.718.489-1.177.489Zm5 0c-.459 0-.851-.163-1.177-.49a1.604 1.604 0 0 1-.49-1.177c0-.458.164-.851.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.327.326.49.718.49 1.177 0 .459-.163.851-.49 1.178-.326.326-.718.489-1.177.489ZM7.5 6.666c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.458.163-.85.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.326.327.49.718.49 1.177 0 .459-.164.851-.49 1.178-.326.326-.718.489-1.177.489Zm5 0c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.458.164-.85.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.327.327.49.718.49 1.177 0 .459-.163.851-.49 1.178-.326.326-.718.489-1.177.489Z" fill="#8D8A87"/>
               </svg>
-              <div className="w-full aspect-[4/3] flex items-center justify-center">
+              <div className="w-full aspect-[4/3] flex items-center justify-center" style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 250ms ease-in' }}>
                 <Icon size={18} style={{ color, marginTop: 15 }} />
               </div>
-              <span className="text-[10px] text-gray-600 text-center leading-tight font-medium">
+              <span className="text-[10px] text-gray-600 text-center leading-tight font-medium" style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 250ms ease-in' }}>
                 {label}
               </span>
             </div>
@@ -143,7 +347,7 @@ export default function Sidebar() {
       </div>
 
       {/* Tabs */}
-      <div className="pt-14 flex items-center gap-6" style={{ borderBottom: '1px solid #D0CBC6', paddingLeft: 36, paddingRight: 36 }}>
+      <div className="pt-14 flex items-center gap-6" style={{ borderBottom: '1px solid #D0CBC6', paddingLeft: 36, paddingRight: 36, opacity: contentVisible ? 1 : 0, transition: 'opacity 250ms ease-in' }}>
         {tabs.map((tab) => {
           const isActive = activeTab === tab
           return (
@@ -184,7 +388,7 @@ export default function Sidebar() {
       </div>
 
       {/* Filter + search */}
-      <div className="px-9 pt-14 pb-6 flex items-center gap-2">
+      <div className="px-9 pt-14 pb-6 flex items-center gap-2" style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 250ms ease-in' }}>
         {/* Filter button (SVG) */}
         <button
           className="shrink-0"
@@ -249,8 +453,8 @@ export default function Sidebar() {
 
       {/* Demo list */}
       <div className="relative flex-1 overflow-hidden mb-6">
-        <div className="absolute top-0 left-0 right-0 h-3 z-10 pointer-events-none transition-opacity duration-200" style={{ background: 'radial-gradient(ellipse 70% 100% at 50% 0%, rgba(0,0,0,0.06) 0%, transparent 100%)', opacity: canScrollUp ? 1 : 0 }} />
-        <div className="absolute bottom-0 left-0 right-0 h-3 z-10 pointer-events-none transition-opacity duration-200" style={{ background: 'radial-gradient(ellipse 70% 100% at 50% 100%, rgba(0,0,0,0.06) 0%, transparent 100%)', opacity: canScrollDown ? 1 : 0 }} />
+        <div className="absolute top-0 left-0 right-0 h-3 z-10 pointer-events-none transition-opacity duration-200" style={{ background: 'radial-gradient(ellipse 70% 100% at 50% 0%, rgba(0,0,0,0.06) 0%, transparent 100%)', opacity: canScrollUp && contentVisible ? 1 : 0 }} />
+        <div className="absolute bottom-0 left-0 right-0 h-3 z-10 pointer-events-none transition-opacity duration-200" style={{ background: 'radial-gradient(ellipse 70% 100% at 50% 100%, rgba(0,0,0,0.06) 0%, transparent 100%)', opacity: canScrollDown && contentVisible ? 1 : 0 }} />
       <div ref={scrollRef} className="h-full overflow-y-auto px-9 pt-1 pb-1" onScroll={updateScrollShadows}>
         {demos.map((demo) => (
           <div
@@ -264,7 +468,7 @@ export default function Sidebar() {
             style={{ padding: 16, borderRadius: 8, marginBottom: 12, gap: 12 }}
           >
             {/* Drag handle */}
-            <svg width="16" height="16" viewBox="16 27 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
+            <svg width="16" height="16" viewBox="16 27 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0" style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 250ms ease-in' }}>
               <path d="M21.9993 40.3334C21.6327 40.3334 21.3189 40.203 21.058 39.9421C20.7967 39.6807 20.666 39.3667 20.666 39.0001C20.666 38.6334 20.7967 38.3194 21.058 38.0581C21.3189 37.7972 21.6327 37.6667 21.9993 37.6667C22.366 37.6667 22.68 37.7972 22.9413 38.0581C23.2022 38.3194 23.3327 38.6334 23.3327 39.0001C23.3327 39.3667 23.2022 39.6807 22.9413 39.9421C22.68 40.203 22.366 40.3334 21.9993 40.3334ZM25.9993 40.3334C25.6327 40.3334 25.3189 40.203 25.058 39.9421C24.7967 39.6807 24.666 39.3667 24.666 39.0001C24.666 38.6334 24.7967 38.3194 25.058 38.0581C25.3189 37.7972 25.6327 37.6667 25.9993 37.6667C26.366 37.6667 26.68 37.7972 26.9413 38.0581C27.2022 38.3194 27.3327 38.6334 27.3327 39.0001C27.3327 39.3667 27.2022 39.6807 26.9413 39.9421C26.68 40.203 26.366 40.3334 25.9993 40.3334ZM21.9993 36.3334C21.6327 36.3334 21.3189 36.2027 21.058 35.9414C20.7967 35.6805 20.666 35.3667 20.666 35.0001C20.666 34.6334 20.7967 34.3194 21.058 34.0581C21.3189 33.7972 21.6327 33.6667 21.9993 33.6667C22.366 33.6667 22.68 33.7972 22.9413 34.0581C23.2022 34.3194 23.3327 34.6334 23.3327 35.0001C23.3327 35.3667 23.2022 35.6805 22.9413 35.9414C22.68 36.2027 22.366 36.3334 21.9993 36.3334ZM25.9993 36.3334C25.6327 36.3334 25.3189 36.2027 25.058 35.9414C24.7967 35.6805 24.666 35.3667 24.666 35.0001C24.666 34.6334 24.7967 34.3194 25.058 34.0581C25.3189 33.7972 25.6327 33.6667 25.9993 33.6667C26.366 33.6667 26.68 33.7972 26.9413 34.0581C27.2022 34.3194 27.3327 34.6334 27.3327 35.0001C27.3327 35.3667 27.2022 35.6805 26.9413 35.9414C26.68 36.2027 26.366 36.3334 25.9993 36.3334ZM21.9993 32.3334C21.6327 32.3334 21.3189 32.2027 21.058 31.9414C20.7967 31.6805 20.666 31.3667 20.666 31.0001C20.666 30.6334 20.7967 30.3196 21.058 30.0587C21.3189 29.7974 21.6327 29.6667 21.9993 29.6667C22.366 29.6667 22.68 29.7974 22.9413 30.0587C23.2022 30.3196 23.3327 30.6334 23.3327 31.0001C23.3327 31.3667 23.2022 31.6805 22.9413 31.9414C22.68 32.2027 22.366 32.3334 21.9993 32.3334ZM25.9993 32.3334C25.6327 32.3334 25.3189 32.2027 25.058 31.9414C24.7967 31.6805 24.666 31.3667 24.666 31.0001C24.666 30.6334 24.7967 30.3196 25.058 30.0587C25.3189 29.7974 25.6327 29.6667 25.9993 29.6667C26.366 29.6667 26.68 29.7974 26.9413 30.0587C27.2022 30.3196 27.3327 30.6334 27.3327 31.0001C27.3327 31.3667 27.2022 31.6805 26.9413 31.9414C26.68 32.2027 26.366 32.3334 25.9993 32.3334Z" fill="#8D8A87"/>
             </svg>
 
@@ -273,11 +477,11 @@ export default function Sidebar() {
               src={activeTab === 'Dynamic Tours' ? thumbDynamicTour : demo.thumb}
               alt=""
               className="shrink-0 object-cover"
-              style={{ width: 31, height: 31, borderRadius: 4 }}
+              style={{ width: 31, height: 31, borderRadius: 4, opacity: contentVisible ? 1 : 0, transition: 'opacity 250ms ease-in' }}
             />
 
             {/* Info */}
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0" style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 250ms ease-in' }}>
               <p className="text-sm font-semibold truncate" style={{ color: '#172537' }}>{demo.title}</p>
               <div className="flex items-center gap-2 mt-0.5">
                 <span className="text-xs" style={{ color: '#6F6F6F' }}>{demo.creator}</span>
@@ -288,7 +492,7 @@ export default function Sidebar() {
             </div>
 
             {/* Actions */}
-            <div className="flex items-center shrink-0" style={{ gap: 10 }}>
+            <div className="flex items-center shrink-0" style={{ gap: 10, opacity: contentVisible ? 1 : 0, transition: 'opacity 250ms ease-in' }}>
               {/* Preview (eye) */}
               <button className="hover:opacity-70 transition-opacity" onClick={(e) => { e.stopPropagation(); setPreviewDemo({ url: demo.preview, title: demo.title }) }}>
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -327,9 +531,38 @@ export default function Sidebar() {
         ))}
       </div>
       </div>
+      </>}
     </aside>
+    </div>
     {previewDemo && (
       <PreviewModal url={previewDemo.url} title={previewDemo.title} onClose={() => setPreviewDemo(null)} />
+    )}
+    {tooltip && createPortal(
+      <div
+        className="pointer-events-none"
+        style={{
+          position: 'fixed',
+          left: tooltip.x - 8,
+          top: tooltip.y,
+          transform: 'translate(-100%, -50%)',
+          zIndex: 9999,
+          height: 34,
+          paddingLeft: 12,
+          paddingRight: 12,
+          borderRadius: 4,
+          backgroundColor: '#172537',
+          color: 'white',
+          fontSize: 13,
+          fontWeight: 500,
+          whiteSpace: 'nowrap',
+          display: 'flex',
+          alignItems: 'center',
+          transition: 'opacity 150ms',
+        }}
+      >
+        {tooltip.text}
+      </div>,
+      document.body
     )}
     </>
   )

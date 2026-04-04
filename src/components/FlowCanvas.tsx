@@ -691,7 +691,7 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
           <div key={mi} style={{ marginTop: 16 }}>
             {msg.role === 'user' ? (
               <div className="flex flex-col items-end gap-1">
-                <div className="rounded-2xl px-4 py-3 text-sm max-w-[85%] whitespace-pre-wrap" style={{ backgroundColor: '#FFF0E5', color: '#1a1a1a', border: '1px solid #FFD4B0' }}>
+                <div className="px-4 py-3 text-sm max-w-[85%] whitespace-pre-wrap" style={{ backgroundColor: '#FFF0E5', color: '#1a1a1a', border: '1px solid #FFD4B0', borderRadius: 8 }}>
                   {msg.text}
                 </div>
                 <div className="flex items-center gap-1 mr-1 mt-1">
