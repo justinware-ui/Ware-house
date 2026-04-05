@@ -183,8 +183,8 @@ export default function Sidebar() {
                 }}
               >
                 <div
-                  className="flex items-center justify-center rounded-md"
-                  style={{ width: 32, height: 32, backgroundColor: `${color}33` }}
+                  className="flex items-center justify-center"
+                  style={{ width: 32, height: 32, borderRadius: 4, backgroundColor: `${color}33` }}
                 >
                   <Icon size={18} style={{ color }} />
                 </div>

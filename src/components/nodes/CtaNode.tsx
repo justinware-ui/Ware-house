@@ -591,7 +591,7 @@ export default function CtaNode({ id, data }: NodeProps) {
 
       <div className="px-1 pt-4 pb-3 flex items-center gap-1.5">
         <HelpCircle size={14} className="text-[#22c55e] shrink-0" />
-        <span className="text-xs font-medium text-gray-500">Discovery question</span>
+        <span className="text-xs font-medium text-gray-500">Discovery Question</span>
       </div>
 
       {tooltipMode ? (

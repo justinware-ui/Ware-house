@@ -584,7 +584,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
         ) : (
           <Monitor size={14} className="text-[#8b5cf6] shrink-0" />
         )}
-        <span className="text-xs font-medium text-gray-500">{isCta ? 'Call to action' : 'Full screen dialog'}</span>
+        <span className="text-xs font-medium text-gray-500">{isCta ? 'Call to Action' : 'Full Screen Dialog'}</span>
       </div>
 
       <div>
