@@ -1,50 +1,56 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-  getBezierPath,
   useReactFlow,
   type EdgeProps,
   Position,
 } from '@xyflow/react'
 import { X } from 'lucide-react'
 
+function ctrlOffset(distance: number, curvature: number) {
+  return distance >= 0
+    ? 0.5 * distance
+    : curvature * 25 * Math.sqrt(-distance)
+}
+
+function ctrlPoint(
+  pos: Position,
+  x1: number, y1: number,
+  x2: number, y2: number,
+  c: number,
+): [number, number] {
+  if (pos === Position.Left) return [x1 - ctrlOffset(x1 - x2, c), y1]
+  if (pos === Position.Right) return [x1 + ctrlOffset(x2 - x1, c), y1]
+  if (pos === Position.Top) return [x1, y1 - ctrlOffset(y1 - y2, c)]
+  return [x1, y1 + ctrlOffset(y2 - y1, c)]
+}
+
 function swingPath(
   sx: number, sy: number, sp: Position,
   tx: number, ty: number, tp: Position,
   swing: number,
 ): [string, number, number] {
-  if (swing === 0) {
-    return getBezierPath({
-      sourceX: sx, sourceY: sy, sourcePosition: sp,
-      targetX: tx, targetY: ty, targetPosition: tp,
-    })
+  const [c1x, c1y] = ctrlPoint(sp, sx, sy, tx, ty, 0.25)
+  const [c2x, c2y] = ctrlPoint(tp, tx, ty, sx, sy, 0.25)
+
+  let s1x = c1x, s1y = c1y, s2x = c2x, s2y = c2y
+
+  if (swing !== 0) {
+    const dx = tx - sx
+    const dy = ty - sy
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1
+    const perpX = (-dy / dist) * swing
+    const perpY = (dx / dist) * swing
+    s1x += perpX; s1y += perpY
+    s2x += perpX; s2y += perpY
   }
 
-  const dx = tx - sx
-  const dy = ty - sy
-  const dist = Math.sqrt(dx * dx + dy * dy) || 1
-  const perpX = (-dy / dist) * swing
-  const perpY = (dx / dist) * swing
-  const cpDist = dist * 0.5
-
-  let c1x = sx, c1y = sy
-  if (sp === Position.Right) c1x += cpDist
-  else if (sp === Position.Left) c1x -= cpDist
-  else if (sp === Position.Bottom) c1y += cpDist
-  else c1y -= cpDist
-
-  let c2x = tx, c2y = ty
-  if (tp === Position.Right) c2x += cpDist
-  else if (tp === Position.Left) c2x -= cpDist
-  else if (tp === Position.Bottom) c2y += cpDist
-  else c2y -= cpDist
-
-  c1x += perpX; c1y += perpY
-  c2x += perpX; c2y += perpY
+  const midX = 0.125 * sx + 0.375 * s1x + 0.375 * s2x + 0.125 * tx
+  const midY = 0.125 * sy + 0.375 * s1y + 0.375 * s2y + 0.125 * ty
 
   return [
-    `M ${sx},${sy} C ${c1x},${c1y} ${c2x},${c2y} ${tx},${ty}`,
-    (sx + tx) / 2 + perpX * 0.5,
-    (sy + ty) / 2 + perpY * 0.5,
+    `M${sx},${sy} C${s1x},${s1y} ${s2x},${s2y} ${tx},${ty}`,
+    midX,
+    midY,
   ]
 }
 

@@ -557,7 +557,7 @@ export default function CtaNode({ id, data }: NodeProps) {
 
       {/* Close button */}
       <button
-        className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-white hover:bg-gray-200 border-2 border-white flex items-center justify-center transition-colors shadow-sm"
+        className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-white hover:bg-gray-200 border-2 border-white flex items-center justify-center transition-colors shadow-sm z-20 nodrag nopan"
         onClick={() => {
           setNodes((nds) => nds.filter((n) => n.id !== id))
           setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id))
