@@ -799,6 +799,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
               >
                 <div
                   className="nodrag flex items-center gap-3 relative pb-2 border-b border-gray-200 focus-within:border-brand-400 transition-colors"
+                  style={!isCta ? { marginBottom: 12 } : undefined}
                 >
                   {buttons.length >= 2 && (
                     <div

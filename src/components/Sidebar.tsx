@@ -186,7 +186,7 @@ export default function Sidebar() {
                   className="flex items-center justify-center"
                   style={{ width: 32, height: 32, borderRadius: 4, backgroundColor: `${color}33` }}
                 >
-                  <Icon size={18} style={{ color }} />
+                  <Icon size={18} style={{ color: '#293748' }} />
                 </div>
               </div>
             ))}
@@ -337,7 +337,7 @@ export default function Sidebar() {
                   className="flex items-center justify-center rounded-md"
                   style={{ width: 32, height: 32, backgroundColor: `${color}33`, marginTop: 15 }}
                 >
-                  <Icon size={16} style={{ color }} />
+                  <Icon size={16} style={{ color: '#293748' }} />
                 </div>
               </div>
               <span className="text-[10px] text-gray-600 text-center leading-tight font-medium" style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 250ms ease-in' }}>

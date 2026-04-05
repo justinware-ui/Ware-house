@@ -19,7 +19,11 @@ export default function Header({ hasContent = false }: { hasContent?: boolean })
             onChange={(e) => setTitle(e.target.value)}
             onBlur={() => setEditing(false)}
             onKeyDown={(e) => e.key === 'Enter' && setEditing(false)}
-            className="text-sm font-medium border border-brand-300 rounded px-2 py-1 outline-none focus:ring-2 focus:ring-brand-200"
+            className="text-sm font-medium rounded px-2 py-1 outline-none"
+            style={{
+              border: '2px solid #F44C10',
+              boxShadow: '0 0 0 5px rgba(255, 150, 89, 0.5)',
+            }}
           />
         ) : (
           <div className="flex items-center gap-1">
