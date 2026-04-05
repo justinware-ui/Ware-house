@@ -580,7 +580,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
 
       {showPreview && (
         <InteractionPreviewModal
-          data={{ type: isCta ? 'cta' : 'fullscreen', header, message, buttons: buttons.map((b) => b.text), buttonUrls: isCta ? buttons.map((b) => b.url) : undefined }}
+          data={{ type: isCta ? 'cta' : 'fullscreen', header, message, buttons: buttons.map((b) => b.text), buttonUrls: isCta ? buttons.map((b) => b.url) : undefined, messageImage: messageImage ? { src: messageImage.src, float: messageImage.float } : undefined }}
           onClose={() => setShowPreview(false)}
         />
       )}
@@ -769,8 +769,8 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                 suppressContentEditableWarning
                 data-cta-field
                 data-placeholder="Type your message here"
-                className={`nodrag text-sm text-gray-800 outline-none min-h-[1.5em] ${!message ? 'before:content-[attr(data-placeholder)] before:pointer-events-none before:text-[#FC6839] before:opacity-100 focus:before:opacity-60' : ''}`}
-                style={{ wordBreak: 'break-word' }}
+                className={`nodrag text-sm text-gray-800 outline-none min-h-[1.5em] [&_*]:leading-[inherit] ${!message ? 'before:content-[attr(data-placeholder)] before:pointer-events-none before:text-[#FC6839] before:opacity-100 focus:before:opacity-60' : ''}`}
+                style={{ wordBreak: 'break-word', lineHeight: 1.5 }}
                 onInput={(e) => {
                   const el = e.target as HTMLDivElement
                   setMessage(el.textContent || '')
