@@ -182,7 +182,12 @@ export default function Sidebar() {
                   boxShadow: '0 2px 8px -4px rgba(48,41,33,0.2)',
                 }}
               >
-                <Icon size={22} style={{ color }} />
+                <div
+                  className="flex items-center justify-center rounded-md"
+                  style={{ width: 32, height: 32, backgroundColor: `${color}33` }}
+                >
+                  <Icon size={18} style={{ color }} />
+                </div>
               </div>
             ))}
           </div>
@@ -328,7 +333,12 @@ export default function Sidebar() {
                 <path d="M7.5 16.666c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.459.163-.851.49-1.178.326-.326.718-.489 1.177-.489s.851.163 1.177.49c.326.326.49.718.49 1.177s-.164.851-.49 1.177c-.326.327-.718.49-1.177.49Zm5 0c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.459.164-.851.49-1.178.326-.326.718-.489 1.177-.489s.851.163 1.177.49c.327.326.49.718.49 1.177s-.163.851-.49 1.177c-.326.327-.718.49-1.177.49ZM7.5 11.666c-.459 0-.851-.163-1.177-.49a1.604 1.604 0 0 1-.49-1.177c0-.458.163-.851.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.326.326.49.718.49 1.177 0 .459-.164.851-.49 1.178-.326.326-.718.489-1.177.489Zm5 0c-.459 0-.851-.163-1.177-.49a1.604 1.604 0 0 1-.49-1.177c0-.458.164-.851.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.327.326.49.718.49 1.177 0 .459-.163.851-.49 1.178-.326.326-.718.489-1.177.489ZM7.5 6.666c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.458.163-.85.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.326.327.49.718.49 1.177 0 .459-.164.851-.49 1.178-.326.326-.718.489-1.177.489Zm5 0c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.458.164-.85.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.327.327.49.718.49 1.177 0 .459-.163.851-.49 1.178-.326.326-.718.489-1.177.489Z" fill="#8D8A87"/>
               </svg>
               <div className="w-full aspect-[4/3] flex items-center justify-center" style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 250ms ease-in' }}>
-                <Icon size={18} style={{ color, marginTop: 15 }} />
+                <div
+                  className="flex items-center justify-center rounded-md"
+                  style={{ width: 32, height: 32, backgroundColor: `${color}33`, marginTop: 15 }}
+                >
+                  <Icon size={16} style={{ color }} />
+                </div>
               </div>
               <span className="text-[10px] text-gray-600 text-center leading-tight font-medium" style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 250ms ease-in' }}>
                 {label}
