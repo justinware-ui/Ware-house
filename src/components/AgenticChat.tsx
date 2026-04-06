@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Mic, Send, ChevronDown, ChevronRight } from 'lucide-react'
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
+import { sendMessage as sendAgentMessage, type AgentStreamCallbacks } from '../hooks/useAgentStream'
 import { dingHigh, dingLow } from '../lib/audioDing'
 import AudioWaveform from './AudioWaveform'
 import PreviewModal from './PreviewModal'
@@ -92,6 +93,10 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
   const [globalSelected, setGlobalSelected] = useState<Record<string, boolean>>({})
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
   const prevRemovedRef = useRef<string[]>([])
+  const [useAgent, setUseAgent] = useState(true) // Toggle between agent server and client-side AI
+  const [agentStreaming, setAgentStreaming] = useState(false)
+  const abortRef = useRef<AbortController | null>(null)
+  const streamTextRef = useRef('')
   const { isListening, start: startVoice, stop: stopVoice, isSupported: voiceSupported, analyserRef, resetTranscript } = useSpeechRecognition(
     useCallback((text: string) => setInput(text), []),
   )
@@ -226,6 +231,165 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
     return () => window.removeEventListener('resize', update)
   }, [mode, effectiveHasSent, inputHeight])
 
+  const handleAgentSend = useCallback((text: string) => {
+    if (agentStreaming) return
+    setAgentStreaming(true)
+
+    // Cancel any previous stream
+    abortRef.current?.abort()
+
+    addMessage({ role: 'user', content: text, actions: true })
+    const aiMsgId = addMessage({ role: 'ai', content: '', thinking: true })
+    streamTextRef.current = ''
+
+    const activeTools: ToolGroup[] = []
+    let proposalShown = false
+    let currentMsgId = aiMsgId
+
+    const callbacks: AgentStreamCallbacks = {
+      onStateChange: (state) => {
+        if (state === 'thinking') {
+          updateMessage(currentMsgId, { thinking: true })
+        } else if (state === 'talking') {
+          updateMessage(currentMsgId, { thinking: false })
+        }
+        scrollToBottom()
+      },
+      onPartialText: (text) => {
+        // If text arrives after proposal, start a fresh message
+        if (proposalShown && !streamTextRef.current) {
+          currentMsgId = addMessage({ role: 'ai', content: '' })
+        }
+        streamTextRef.current += text
+        updateMessage(currentMsgId, { content: streamTextRef.current, thinking: false })
+        scrollToBottom()
+      },
+      onCompleteText: (text) => {
+        // complete events reset the text for this segment
+        if (text) {
+          updateMessage(currentMsgId, { content: text, thinking: false })
+        }
+        // Reset accumulator for the next text segment
+        streamTextRef.current = ''
+        scrollToBottom()
+      },
+      onToolCall: (toolName, status) => {
+        if (status === 'started') {
+          const toolDescriptions: Record<string, string> = {
+            analyze_personas: 'Analyzing personas and pain points...',
+            search_demos: 'Searching demo library for relevant content...',
+            build_proposal: 'Building demoboard proposal with template selection...',
+            modify_demoboard: 'Modifying demoboard proposal...',
+          }
+          activeTools.push({
+            label: toolName.replace(/_/g, ' '),
+            tools: [{ name: toolName, description: toolDescriptions[toolName] || `Running ${toolName}...`, status: 'running' }],
+          })
+          updateMessage(currentMsgId, { toolGroups: [...activeTools], thinking: true })
+        } else {
+          // Mark tool as complete
+          for (const group of activeTools) {
+            for (const tool of group.tools) {
+              if (tool.name === toolName) tool.status = 'complete'
+            }
+          }
+          updateMessage(currentMsgId, { toolGroups: [...activeTools] })
+        }
+        scrollToBottom()
+      },
+      onProposalShow: (proposalData) => {
+        proposalShown = true
+        streamTextRef.current = ''
+        const proposal = proposalData as unknown as DemoProposal
+        setLatestProposal(proposal)
+
+        // Auto-select best content per persona
+        const autoSelected: Record<string, boolean> = {}
+        const autoItems: SelectedContent[] = []
+
+        proposal.personas.forEach((persona, pi) => {
+          const hasPPMatches = persona.painPointMatches && persona.painPointMatches.length >= 2
+          if (hasPPMatches && persona.painPointMatches) {
+            persona.painPointMatches.forEach((ppGroup, gi) => {
+              const best = ppGroup.matches[0]
+              if (best) {
+                const key = `${pi}-pp${gi}-0`
+                autoSelected[key] = true
+                autoItems.push({ persona: persona.name, demo: best })
+              }
+            })
+          } else {
+            const best = persona.matches[0]
+            if (best) {
+              const key = `${pi}-0`
+              autoSelected[key] = true
+              autoItems.push({ persona: persona.name, demo: best })
+            }
+          }
+        })
+
+        setGlobalSelected(autoSelected)
+
+        // Add the proposal message
+        addMessage({
+          role: 'ai',
+          content: "Here's what I put together — I placed the highest-performing content on the canvas for each topic. You can swap or adjust anything you want:",
+          proposal,
+        })
+
+        onCreateDemo?.(proposal, autoItems)
+
+        setTimeout(() => {
+          addMessage({
+            role: 'ai',
+            content: "Should I look for different content or create a different flow?",
+            showVote: true,
+          })
+          setStep('post_proposal')
+          scrollToBottom()
+        }, 500)
+
+        scrollToBottom()
+      },
+      onPersonaAnalysis: (data) => {
+        // After camelization, pain_points → painPoints
+        const camelized = data as unknown as { personas: Array<{ name: string; painPoints: string[] }> }
+        const extracted = camelized.personas.map((p) => ({
+          name: p.name,
+          painPoints: p.painPoints || [],
+        }))
+        setPersonas(extracted)
+      },
+      onDemoboardUpdate: (_action, _result) => {
+        // The agent will describe the update in its text response
+        scrollToBottom()
+      },
+      onError: (err) => {
+        console.error('[AgenticChat] agent stream error:', err)
+        updateMessage(currentMsgId, {
+          content: "Sorry, I had trouble connecting to the server. Please try again.",
+          thinking: false,
+        })
+        setAgentStreaming(false)
+      },
+      onDone: () => {
+        setAgentStreaming(false)
+        // Clear the thinking message if it's empty (agent sent structured events only)
+        setMessages((prev) => prev.map((m) => {
+          if ((m.id === aiMsgId || m.id === currentMsgId) && m.thinking && !m.content) {
+            return { ...m, thinking: false }
+          }
+          return m
+        }))
+        scrollToBottom()
+      },
+    }
+
+    sendAgentMessage(text, callbacks).then((ctrl) => {
+      abortRef.current = ctrl
+    })
+  }, [agentStreaming, addMessage, updateMessage, scrollToBottom, onCreateDemo])
+
   const handleSend = () => {
     const text = input.trim()
     if (!text) return
@@ -237,6 +401,13 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
     }
 
     const isFirst = !messages.some((m) => m.role === 'user')
+
+    // When using the agent server, route all messages through SSE
+    if (useAgent) {
+      if (isFirst) onFirstSend?.(text)
+      handleAgentSend(text)
+      return
+    }
 
     const processMessage = () => {
       addMessage({ role: 'user', content: text, actions: true })
