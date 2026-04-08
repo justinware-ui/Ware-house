@@ -19,6 +19,18 @@ import {
 } from '../lib/aiEngine'
 import thumbTableHero from '../assets/thumb-table-hero.svg'
 import thumbContent from '../assets/thumb-content.svg'
+import t1Default from '../assets/templates/t1-default.svg?url'
+import t1Hover from '../assets/templates/t1-hover.svg?url'
+import t1Active from '../assets/templates/t1-active.svg?url'
+import t2Default from '../assets/templates/t2-default.svg?url'
+import t2Hover from '../assets/templates/t2-hover.svg?url'
+import t2Active from '../assets/templates/t2-active.svg?url'
+import t3Default from '../assets/templates/t3-default.svg?url'
+import t3Hover from '../assets/templates/t3-hover.svg?url'
+import t3Active from '../assets/templates/t3-active.svg?url'
+import t4Default from '../assets/templates/t4-default.svg?url'
+import t4Hover from '../assets/templates/t4-hover.svg?url'
+import t4Active from '../assets/templates/t4-active.svg?url'
 
 const demoThumbnails = [thumbTableHero, thumbContent]
 function getDemoThumb(title: string) {
@@ -49,7 +61,18 @@ interface ChatMessage {
   showVote?: boolean
   voted?: 'up' | 'down'
   actions?: boolean
+  personaPicker?: boolean
+  templatePicker?: boolean
 }
+
+const PERSONA_OPTIONS = [
+  'Champion',
+  'Executive',
+  'IT Admin',
+  'VP',
+  'Finance',
+  'Operations',
+]
 
 const confidenceLabel: Record<ConfidenceLevel, string> = {
   high: 'High confidence',
@@ -175,7 +198,8 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
     setTimeout(() => {
       addMessage({
         role: 'ai',
-        content: "Hey! What kind of demo are you building today and who is it for?",
+        content: "Who is your demo for?",
+        personaPicker: true,
       })
       setStep('awaiting_purpose')
     }, 600)
@@ -363,7 +387,8 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
       setTimeout(() => {
         addMessage({
           role: 'ai',
-          content: "Got it! Who are the main personas or audiences this demo is for? For example: \"VPs of Sales and Marketing Directors\" or \"IT Admins and End Users\".",
+          content: "Perfect! I have some templates you can choose from. Select one of these to get started.",
+          templatePicker: true,
         })
         setStep('awaiting_purpose')
       }, 1200)
@@ -382,6 +407,33 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
       })
       setStep('awaiting_pain_points')
     }, 1200)
+  }
+
+  const handlePersonaSelect = (label: string) => {
+    const isFirst = !messages.some((m) => m.role === 'user')
+    addMessage({ role: 'user', content: label, actions: true })
+    if (isFirst && onFirstSend) onFirstSend(label)
+    setPersonas([{ name: label, painPoints: [] }])
+    setTimeout(() => {
+      addMessage({
+        role: 'ai',
+        content: "Perfect! I have some templates you can choose from. Select one of these to get started.",
+        templatePicker: true,
+      })
+      setStep('awaiting_purpose')
+    }, 600)
+  }
+
+  const handleTemplateSelect = (templateLabel: string) => {
+    addMessage({ role: 'user', content: templateLabel, actions: true })
+    setTimeout(() => {
+      addMessage({
+        role: 'ai',
+        content: `What kind of topics is your persona interested in?`,
+        showVote: true,
+      })
+      setStep('awaiting_pain_points')
+    }, 600)
   }
 
   const handlePainPointsResponse = (text: string) => {
@@ -809,6 +861,10 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
                       setGlobalSelected((prev) => ({ ...prev, [key]: nowSelected }))
                     }
                   }}
+                  onPersonaSelect={msg.personaPicker ? handlePersonaSelect : undefined}
+                  showPersonaPicker={msg.personaPicker ? step === 'awaiting_purpose' : false}
+                  onTemplateSelect={msg.templatePicker ? handleTemplateSelect : undefined}
+                  showTemplatePicker={msg.templatePicker ? step === 'awaiting_purpose' : false}
                 />
               )}
             </div>
@@ -848,7 +904,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
         className={
           mode === 'full'
             ? 'pointer-events-auto mt-[18px]'
-            : 'border-t border-gray-100 p-4 bg-white'
+            : 'border-t border-gray-100 px-4 pt-4 pb-7 bg-white overflow-visible relative z-10'
         }
         style={
           mode === 'full' && effectiveHasSent
@@ -937,9 +993,9 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
                   <Mic size={18} />
                 </button>
                 {!isListening && voiceSupported && (
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded bg-[#172537] text-white text-[10px] whitespace-nowrap opacity-0 pointer-events-none group-hover/mic:opacity-100 transition-opacity">
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 z-50 px-2 py-1 rounded bg-[#172537] text-white text-[10px] whitespace-nowrap opacity-0 pointer-events-none group-hover/mic:opacity-100 transition-opacity shadow-md">
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-[#172537]" aria-hidden />
                     Press and hold to record
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#172537]" />
                   </div>
                 )}
               </div>
@@ -1012,6 +1068,114 @@ function UserMessage({ msg }: { msg: ChatMessage }) {
   )
 }
 
+function PersonaPickerButtons({ onSelect }: { onSelect: (label: string) => void }) {
+  const [picked, setPicked] = useState<string | null>(null)
+
+  const handleClick = (label: string) => {
+    setPicked(label)
+    setTimeout(() => onSelect(label), 120)
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2 mt-3">
+      {PERSONA_OPTIONS.map((label) => {
+        const isActive = picked === label
+        const isDimmed = picked !== null && picked !== label
+        return (
+          <button
+            key={label}
+            onClick={() => handleClick(label)}
+            disabled={picked !== null}
+            style={{
+              width: 90,
+              height: 32,
+              borderRadius: 15,
+              border: `2px solid ${isActive ? '#F44C10' : '#FC6839'}`,
+              background: isActive ? 'rgba(252,104,57,0.15)' : 'transparent',
+              color: isActive ? '#F44C10' : '#FC6839',
+              opacity: isDimmed ? 0.3 : 1,
+              fontSize: 12,
+              fontWeight: 500,
+              cursor: picked !== null ? 'default' : 'pointer',
+              transition: 'opacity 0.15s ease, background 0.15s ease, border-color 0.15s ease, color 0.15s ease',
+              flexShrink: 0,
+            }}
+          >
+            {label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+const TEMPLATE_OPTIONS = [
+  { id: 'branching', label: 'Branching Flow', defaultSrc: t1Default, hoverSrc: t1Hover, activeSrc: t1Active },
+  { id: 'persona-intro', label: 'Persona Intro', defaultSrc: t2Default, hoverSrc: t2Hover, activeSrc: t2Active },
+  { id: 'two-step', label: 'Two-Step', defaultSrc: t3Default, hoverSrc: t3Hover, activeSrc: t3Active },
+  { id: 'single', label: 'Single Demo', defaultSrc: t4Default, hoverSrc: t4Hover, activeSrc: t4Active },
+]
+
+function TemplatePickerCards({ onSelect }: { onSelect: (label: string) => void }) {
+  const [picked, setPicked] = useState<string | null>(null)
+  const [hovered, setHovered] = useState<string | null>(null)
+
+  const handleClick = (id: string, label: string) => {
+    setPicked(id)
+    setTimeout(() => onSelect(label), 150)
+  }
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 12, alignItems: 'flex-end' }}>
+      {TEMPLATE_OPTIONS.map((tmpl) => {
+        const isActive = picked === tmpl.id
+        const isHovered = hovered === tmpl.id && !picked
+        const isDimmed = picked !== null && picked !== tmpl.id
+        const src = isActive ? tmpl.activeSrc : isHovered ? tmpl.hoverSrc : tmpl.defaultSrc
+        return (
+          <button
+            key={tmpl.id}
+            onClick={() => handleClick(tmpl.id, tmpl.label)}
+            onMouseEnter={() => setHovered(tmpl.id)}
+            onMouseLeave={() => setHovered(null)}
+            disabled={picked !== null}
+            style={{
+              opacity: isDimmed ? 0.35 : 1,
+              cursor: picked !== null ? 'default' : 'pointer',
+              transition: 'opacity 0.2s ease',
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 0,
+            }}
+          >
+            <img
+              src={src}
+              alt={tmpl.label}
+              style={{ width: 90, height: 90, display: 'block', objectFit: 'contain' }}
+              draggable={false}
+            />
+            <span style={{
+              display: 'block',
+              marginTop: 8,
+              fontSize: 12,
+              fontWeight: 500,
+              color: '#172537',
+              lineHeight: 1,
+              whiteSpace: 'nowrap',
+            }}>
+              {tmpl.label}
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 function AiMessage({
   msg,
   pulseGlow,
@@ -1023,6 +1187,10 @@ function AiMessage({
   selected,
   dismissed,
   onToggleSelect,
+  onPersonaSelect,
+  showPersonaPicker,
+  onTemplateSelect,
+  showTemplatePicker,
 }: {
   msg: ChatMessage
   pulseGlow?: boolean
@@ -1034,6 +1202,10 @@ function AiMessage({
   selected: Record<string, boolean>
   dismissed: Set<string>
   onToggleSelect: (key: string) => void
+  onPersonaSelect?: (label: string) => void
+  showPersonaPicker?: boolean
+  onTemplateSelect?: (label: string) => void
+  showTemplatePicker?: boolean
 }) {
   return (
     <div className="flex gap-3 items-start">
@@ -1114,6 +1286,16 @@ function AiMessage({
           <div className="text-sm text-gray-900 whitespace-pre-wrap">{renderInlineMarkdown(msg.content)}</div>
         )}
 
+        {/* Persona picker buttons */}
+        {msg.personaPicker && showPersonaPicker && onPersonaSelect && (
+          <PersonaPickerButtons onSelect={onPersonaSelect} />
+        )}
+
+        {/* Template picker cards */}
+        {msg.templatePicker && showTemplatePicker && onTemplateSelect && (
+          <TemplatePickerCards onSelect={onTemplateSelect} />
+        )}
+
         {/* Proposal rendering */}
         {msg.proposal && <ProposalView proposal={msg.proposal} expandedInfo={expandedInfo} onToggleInfo={onToggleInfo} selected={selected} dismissed={dismissed} onToggleSelect={onToggleSelect} />}
 
@@ -1168,9 +1350,15 @@ function ContentCard({
 }) {
   const colors = confidenceColor[match.confidence]
   const [showPreview, setShowPreview] = useState(false)
+  const [isHovered, setIsHovered] = useState(false)
 
   return (
-    <div className="border bg-white overflow-visible" style={{ borderColor: isSelected ? '#FC6839' : '#D0CBC6', borderRadius: 8 }}>
+    <div
+      className="border bg-white overflow-visible transition-colors"
+      style={{ borderColor: isSelected || isHovered ? '#FC6839' : '#D0CBC6', borderRadius: 8 }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       {showPreview && (
         <PreviewModal url={match.demo.preview} title={match.demo.title} onClose={() => setShowPreview(false)} />
       )}
