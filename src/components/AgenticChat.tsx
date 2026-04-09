@@ -1070,6 +1070,7 @@ function UserMessage({ msg }: { msg: ChatMessage }) {
 
 function PersonaPickerButtons({ onSelect }: { onSelect: (label: string) => void }) {
   const [picked, setPicked] = useState<string | null>(null)
+  const [hovered, setHovered] = useState<string | null>(null)
 
   const handleClick = (label: string) => {
     setPicked(label)
@@ -1080,19 +1081,23 @@ function PersonaPickerButtons({ onSelect }: { onSelect: (label: string) => void 
     <div className="flex flex-wrap gap-2 mt-3">
       {PERSONA_OPTIONS.map((label) => {
         const isActive = picked === label
+        const isHovered = hovered === label && !picked
         const isDimmed = picked !== null && picked !== label
+        const highlighted = isActive || isHovered
         return (
           <button
             key={label}
             onClick={() => handleClick(label)}
+            onMouseEnter={() => setHovered(label)}
+            onMouseLeave={() => setHovered(null)}
             disabled={picked !== null}
             style={{
               width: 90,
               height: 32,
               borderRadius: 15,
-              border: `2px solid ${isActive ? '#F44C10' : '#FC6839'}`,
-              background: isActive ? 'rgba(252,104,57,0.15)' : 'transparent',
-              color: isActive ? '#F44C10' : '#FC6839',
+              border: `2px solid ${highlighted ? '#F44C10' : '#FC6839'}`,
+              background: highlighted ? 'rgba(252,104,57,0.15)' : 'transparent',
+              color: highlighted ? '#F44C10' : '#FC6839',
               opacity: isDimmed ? 0.3 : 1,
               fontSize: 12,
               fontWeight: 500,
