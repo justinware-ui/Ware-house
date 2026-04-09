@@ -198,7 +198,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
     setTimeout(() => {
       addMessage({
         role: 'ai',
-        content: "Who is your demo for?",
+        content: "Hey! Who is your demo for? Feel free to choose an option below or tell us with voice or text what your demo is about.",
         personaPicker: true,
       })
       setStep('awaiting_purpose')
@@ -429,7 +429,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
     setTimeout(() => {
       addMessage({
         role: 'ai',
-        content: `What kind of topics is your persona interested in?`,
+        content: `${templateLabel} is a great choice. You can modify and make changes to it after I put it together for you. Before I get started, tell me the kind of topics your audience will be interested in?`,
         showVote: true,
       })
       setStep('awaiting_pain_points')
