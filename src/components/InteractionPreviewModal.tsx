@@ -2,11 +2,17 @@ import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { CircleHelp } from 'lucide-react'
 
+interface PreviewImage {
+  src: string
+  float?: 'left' | 'right' | 'none'
+}
+
 interface DiscoveryQuestionData {
   type: 'discovery'
   question: string
   answers: string[]
   tooltips?: Record<number, string>
+  answerImages?: Record<number, PreviewImage>
 }
 
 interface FullScreenDialogData {
@@ -15,6 +21,7 @@ interface FullScreenDialogData {
   message: string
   buttons: string[]
   buttonUrls?: string[]
+  messageImage?: PreviewImage
 }
 
 type InteractionData = DiscoveryQuestionData | FullScreenDialogData
@@ -61,9 +68,9 @@ export default function InteractionPreviewModal({ data, onClose }: InteractionPr
         </button>
 
         {data.type === 'discovery' ? (
-          <DiscoveryPreview question={data.question} answers={data.answers} tooltips={data.tooltips} />
+          <DiscoveryPreview question={data.question} answers={data.answers} tooltips={data.tooltips} answerImages={data.answerImages} />
         ) : (
-          <FullScreenPreview header={data.header} message={data.message} buttons={data.buttons} buttonUrls={data.buttonUrls} />
+          <FullScreenPreview header={data.header} message={data.message} buttons={data.buttons} buttonUrls={data.buttonUrls} messageImage={data.messageImage} />
         )}
       </div>
     </div>,
@@ -71,7 +78,7 @@ export default function InteractionPreviewModal({ data, onClose }: InteractionPr
   )
 }
 
-function DiscoveryPreview({ question, answers, tooltips }: { question: string; answers: string[]; tooltips?: Record<number, string> }) {
+function DiscoveryPreview({ question, answers, tooltips, answerImages }: { question: string; answers: string[]; tooltips?: Record<number, string>; answerImages?: Record<number, PreviewImage> }) {
   return (
     <div className="px-10 py-10">
       <p className="text-lg font-semibold text-gray-900 mb-8">
@@ -80,11 +87,15 @@ function DiscoveryPreview({ question, answers, tooltips }: { question: string; a
       <div className="flex flex-col gap-3">
         {answers.filter((a) => a.trim()).map((answer, i) => {
           const tip = tooltips?.[i]?.trim()
+          const img = answerImages?.[i]
           return (
             <button
               key={i}
               className="w-full text-left px-5 py-4 rounded-xl border border-gray-200 text-sm text-gray-800 hover:border-[#FC6839] hover:bg-orange-50 transition-colors cursor-pointer"
             >
+              {img && (
+                <img src={img.src} alt="" className="rounded mb-3 max-h-40 object-contain" />
+              )}
               <span className="inline-flex items-center">
                 <span>{answer}</span>
                 {tip && (
@@ -111,15 +122,26 @@ function DiscoveryPreview({ question, answers, tooltips }: { question: string; a
   )
 }
 
-function FullScreenPreview({ header, message, buttons, buttonUrls }: { header: string; message: string; buttons: string[]; buttonUrls?: string[] }) {
+function FullScreenPreview({ header, message, buttons, buttonUrls, messageImage }: { header: string; message: string; buttons: string[]; buttonUrls?: string[]; messageImage?: PreviewImage }) {
   return (
     <div className="px-10 py-10">
       <p className="text-xl font-bold text-gray-900 mb-4">
         {header || 'Welcome'}
       </p>
-      <p className="text-sm text-gray-700 leading-relaxed mb-8 whitespace-pre-wrap">
-        {message || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.'}
-      </p>
+      <div className="text-sm text-gray-700 leading-relaxed mb-8">
+        {messageImage && (
+          <img
+            src={messageImage.src}
+            alt=""
+            className="rounded max-h-48 object-contain mb-3"
+            style={{ float: messageImage.float === 'right' ? 'right' : 'left', marginRight: messageImage.float === 'right' ? 0 : 16, marginLeft: messageImage.float === 'right' ? 16 : 0 }}
+          />
+        )}
+        <span className="whitespace-pre-wrap">
+          {message || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.'}
+        </span>
+        {messageImage && <div style={{ clear: 'both' }} />}
+      </div>
       <div className="flex justify-end gap-3">
         {buttons.filter((b) => b.trim()).map((btn, i) => (
           <button

@@ -306,9 +306,15 @@ function PopoverContentCard({
   const colors = CONF_COLOR[match.confidence]
   const isInfoOpen = !!expandedInfo[cardKey]
   const [showPreview, setShowPreview] = useState(false)
+  const [isHovered, setIsHovered] = useState(false)
 
   return (
-    <div className="border bg-white overflow-visible" style={{ borderColor: isSelected ? '#FC6839' : '#D0CBC6', borderRadius: 8 }}>
+    <div
+      className="border bg-white overflow-visible transition-colors"
+      style={{ borderColor: isSelected || isHovered ? '#FC6839' : '#D0CBC6', borderRadius: 8 }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       {showPreview && (
         <PreviewModal url={match.demo.preview} title={match.demo.title} onClose={() => setShowPreview(false)} />
       )}
@@ -839,8 +845,8 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
       </div>
       </div>
 
-      {/* Input field */}
-      <div className="p-4">
+      {/* Input field — extra bottom padding + overflow-visible for mic tooltip below the button */}
+      <div className="px-4 pt-4 pb-7 overflow-visible relative z-10">
         <div
           className="bg-white flex flex-col transition-shadow duration-200"
           style={{
@@ -912,9 +918,9 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
                 </button>
                 {!isListening && voiceSupported && (
-                  <div className="absolute bottom-full right-0 mb-1.5 px-2 py-1 rounded bg-[#172537] text-white text-[10px] whitespace-nowrap opacity-0 pointer-events-none group-hover/mic:opacity-100 transition-opacity">
+                  <div className="absolute top-full right-0 mt-1.5 z-50 px-2 py-1 rounded bg-[#172537] text-white text-[10px] whitespace-nowrap opacity-0 pointer-events-none group-hover/mic:opacity-100 transition-opacity shadow-md">
+                    <div className="absolute bottom-full right-2 border-4 border-transparent border-b-[#172537]" aria-hidden />
                     Press and hold to record
-                    <div className="absolute top-full right-2 border-4 border-transparent border-t-[#172537]" />
                   </div>
                 )}
               </div>
@@ -1059,59 +1065,79 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
   const handleFirstSend = useCallback((text?: string) => {
     setHelperVisible(false)
 
-    const headingEl = headingRef.current
-    const chatWrapEl = chatWrapRef.current
-    const parentEl = headingEl?.parentElement
-    if (!headingEl || !parentEl) {
-      setHasChatStarted(true)
-      return
-    }
-
-    const parentRect = parentEl.getBoundingClientRect()
-    const headingRect = headingEl.getBoundingClientRect()
-    const targetTop = parentRect.top + 24
-    const deltaY = targetTop - headingRect.top
-
-    const dur = '0.5s'
-    const ease = 'cubic-bezier(0.4, 0, 0.2, 1)'
-
-    headingEl.style.transition = `transform ${dur} ${ease}`
-    headingEl.style.transform = `translateY(${deltaY}px)`
-
-    const scrollAreaEl = chatWrapEl?.querySelector('[data-scroll-area]') as HTMLElement | null
-    if (scrollAreaEl) {
-      scrollAreaEl.style.transition = `transform ${dur} ${ease}`
-      scrollAreaEl.style.transform = `translateY(${deltaY}px)`
-    }
-
-    const inputEl = chatWrapEl?.querySelector('[data-chat-input]') as HTMLElement | null
-    if (inputEl) {
-      const inputRect = inputEl.getBoundingClientRect()
-      const inputTargetTop = parentRect.bottom - 56 - inputRect.height
-      const inputDeltaY = inputTargetTop - inputRect.top
-      inputEl.style.transition = `transform ${dur} ${ease}`
-      inputEl.style.transform = `translateY(${inputDeltaY}px)`
-    }
-
     if (text) {
       setGhostText(text)
       setTimeout(() => setGhostText(null), 700)
     }
 
-    setTimeout(() => {
-      headingEl.style.transition = ''
-      headingEl.style.transform = ''
-      if (scrollAreaEl) {
-        scrollAreaEl.style.transition = ''
-        scrollAreaEl.style.transform = ''
-      }
-      if (inputEl) {
-        inputEl.style.transition = ''
-        inputEl.style.transform = ''
-      }
-      setHasChatStarted(true)
-      setInputBottom(true)
-    }, 550)
+    // Set inputBottom first so AgenticChat's layout settles (input → absolute)
+    // before we measure element positions for the translate animation.
+    setInputBottom(true)
+
+    // Double rAF: first waits for React to commit, second waits for browser paint.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const headingEl = headingRef.current
+        const chatWrapEl = chatWrapRef.current
+        const parentEl = headingEl?.parentElement
+        if (!headingEl || !parentEl) {
+          setHasChatStarted(true)
+          return
+        }
+
+        const parentRect = parentEl.getBoundingClientRect()
+        const headingRect = headingEl.getBoundingClientRect()
+        const targetTop = parentRect.top + 24
+        const deltaY = targetTop - headingRect.top
+
+        // Skip animation if heading is already at (or very near) its destination —
+        // this happens when tall content (persona/template picker) pushes the heading
+        // close to the top in the centered layout.
+        if (Math.abs(deltaY) < 8) {
+          setHasChatStarted(true)
+          return
+        }
+
+        const dur = '0.5s'
+        const ease = 'cubic-bezier(0.4, 0, 0.2, 1)'
+
+        headingEl.style.transition = `transform ${dur} ${ease}`
+        headingEl.style.transform = `translateY(${deltaY}px)`
+
+        const scrollAreaEl = chatWrapEl?.querySelector('[data-scroll-area]') as HTMLElement | null
+        if (scrollAreaEl) {
+          scrollAreaEl.style.transition = `transform ${dur} ${ease}`
+          scrollAreaEl.style.transform = `translateY(${deltaY}px)`
+        }
+
+        // Input is already absolute-positioned (inputBottom=true), so measure and
+        // animate it only if it needs to move.
+        const inputEl = chatWrapEl?.querySelector('[data-chat-input]') as HTMLElement | null
+        if (inputEl) {
+          const inputRect = inputEl.getBoundingClientRect()
+          const inputTargetTop = parentRect.bottom - 56 - inputRect.height
+          const inputDeltaY = inputTargetTop - inputRect.top
+          if (Math.abs(inputDeltaY) > 8) {
+            inputEl.style.transition = `transform ${dur} ${ease}`
+            inputEl.style.transform = `translateY(${inputDeltaY}px)`
+          }
+        }
+
+        setTimeout(() => {
+          headingEl.style.transition = ''
+          headingEl.style.transform = ''
+          if (scrollAreaEl) {
+            scrollAreaEl.style.transition = ''
+            scrollAreaEl.style.transform = ''
+          }
+          if (inputEl) {
+            inputEl.style.transition = ''
+            inputEl.style.transform = ''
+          }
+          setHasChatStarted(true)
+        }, 550)
+      })
+    })
   }, [])
 
   const handleExpand = useCallback(() => {
@@ -1579,22 +1605,25 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
             ? { x: ctaNode.position.x + 400, y: ctaNode.position.y + demoCards.length * 180 }
             : { x: (demoCards[demoCards.length - 1]?.position.x ?? 400), y: (demoCards[demoCards.length - 1]?.position.y ?? 0) + 180 },
         data: { demoId: match.demo.id, title: match.demo.title, creator: match.demo.creator, preview: match.demo.preview },
+        selected: true,
       }
 
       if (slot) {
-        setNodes((nds) => [...nds, newNode])
+        setNodes((nds) => [...nds.map((n) => ({ ...n, selected: false })), newNode])
         const slotRef = slot
+        const slotEdgeId = `e-${slotRef.ctaNodeId}-${cardNodeId}`
         setTimeout(() => {
           setEdges((eds) => [
             ...eds,
             {
-              id: `e-${slotRef.ctaNodeId}-${cardNodeId}`,
+              id: slotEdgeId,
               source: slotRef.ctaNodeId,
               sourceHandle: slotRef.sourceHandle,
               target: cardNodeId,
               type: 'deletable',
             },
           ])
+          setTimeout(() => document.dispatchEvent(new CustomEvent('sway-edge', { detail: { edgeId: slotEdgeId } })), 60)
         }, 50)
       } else if (ctaNode) {
         const currentAnswers: string[] = (ctaNode.data as { answers?: string[] }).answers ?? []
@@ -1606,29 +1635,31 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
         setNodes((nds) => [
           ...nds.map((n) =>
             n.id === ctaNode.id
-              ? { ...n, data: { ...n.data, answers: [...currentAnswers, answerLabel] } }
-              : n
+              ? { ...n, selected: false, data: { ...n.data, answers: [...currentAnswers, answerLabel] } }
+              : { ...n, selected: false }
           ),
           newNode,
         ])
 
+        const ctaEdgeId = `e-${ctaNode.id}-${cardNodeId}`
         setTimeout(() => {
           updateNodeInternals(ctaNode.id)
           setTimeout(() => {
             setEdges((eds) => [
               ...eds,
               {
-                id: `e-${ctaNode.id}-${cardNodeId}`,
+                id: ctaEdgeId,
                 source: ctaNode.id,
                 sourceHandle: `answer-${newAnswerIndex}`,
                 target: cardNodeId,
                 type: 'deletable',
               },
             ])
+            setTimeout(() => document.dispatchEvent(new CustomEvent('sway-edge', { detail: { edgeId: ctaEdgeId } })), 60)
           }, 300)
         }, 400)
       } else {
-        setNodes((nds) => [...nds, newNode])
+        setNodes((nds) => [...nds.map((n) => ({ ...n, selected: false })), newNode])
       }
     } else {
       const targetNode = currentNodes.find((n) => (n.data as { demoId?: string }).demoId === demoId)
@@ -1712,6 +1743,9 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
           ? { ...n, data: { ...n.data, demoId: match.demo.id, title: match.demo.title, creator: match.demo.creator, preview: match.demo.preview } }
           : n
       ))
+      getEdges()
+        .filter((e) => e.target === nodeId || e.source === nodeId)
+        .forEach((e) => document.dispatchEvent(new CustomEvent('sway-edge', { detail: { edgeId: e.id } })))
       setReplaceTarget((prev) => prev ? { ...prev, demoId: match.demo.id, title: match.demo.title } : null)
     } else {
       const slotKey = `popover-${nodeId}`
@@ -1745,7 +1779,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
 
       setReplaceTarget((prev) => prev ? { ...prev, nodeId: newCardId, demoId: match.demo.id, title: match.demo.title } : null)
     }
-  }, [setNodes, setEdges, getNodes, replaceTarget])
+  }, [setNodes, setEdges, getNodes, getEdges, replaceTarget])
 
   const handlePaneClick = useCallback(() => {
     setReplaceTarget(null)
