@@ -993,8 +993,8 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
                   <Mic size={18} />
                 </button>
                 {!isListening && voiceSupported && (
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 z-50 px-2 py-1 rounded bg-[#172537] text-white text-[10px] whitespace-nowrap opacity-0 pointer-events-none group-hover/mic:opacity-100 transition-opacity shadow-md">
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-[#172537]" aria-hidden />
+                  <div className="absolute bottom-full right-0 mb-1.5 z-50 px-2 py-1 rounded bg-[#172537] text-white text-[10px] whitespace-nowrap opacity-0 pointer-events-none group-hover/mic:opacity-100 transition-opacity shadow-md">
+                    <div className="absolute top-full right-2 border-4 border-transparent border-t-[#172537]" aria-hidden />
                     Press and hold to record
                   </div>
                 )}

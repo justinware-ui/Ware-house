@@ -56,15 +56,21 @@ export default function Sidebar() {
   const [canScrollUp, setCanScrollUp] = useState(false)
   const [canScrollDown, setCanScrollDown] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const isDragging = useRef(false)
   const startX = useRef(0)
   const startWidth = useRef(0)
 
-  const expandPanel = useCallback(() => {
+  const expandPanel = useCallback((focusSearch = false) => {
     if (!collapsed) return
     setContentVisible(false)
     setCollapsed(false)
-    setTimeout(() => setContentVisible(true), 320)
+    setTimeout(() => {
+      setContentVisible(true)
+      if (focusSearch) {
+        setTimeout(() => searchInputRef.current?.focus(), 50)
+      }
+    }, 320)
   }, [collapsed])
 
   const onResizeStart = useCallback((e: React.MouseEvent) => {
@@ -256,6 +262,7 @@ export default function Sidebar() {
             <div
               onMouseEnter={(e) => { const r = e.currentTarget.getBoundingClientRect(); setTooltip({ text: 'Search', x: r.left, y: r.top + r.height / 2 }) }}
               onMouseLeave={() => setTooltip(null)}
+              onClick={(e) => { e.stopPropagation(); expandPanel(true) }}
               className="flex items-center justify-center cursor-pointer"
               style={{ width: 40, height: 40, borderRadius: 20, border: '1px solid #D0CBC6', background: 'white' }}
             >
@@ -443,6 +450,7 @@ export default function Sidebar() {
             </g>
           </svg>
           <input
+            ref={searchInputRef}
             type="text"
             placeholder="Search"
             className="text-sm outline-none bg-transparent flex-1 min-w-0 placeholder:opacity-50"
