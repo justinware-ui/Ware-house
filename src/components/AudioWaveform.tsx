@@ -1,3 +1,5 @@
+'use client'
+
 import { useRef, useEffect, type RefObject } from 'react'
 
 const BAR_COUNT = 32

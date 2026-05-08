@@ -1,3 +1,5 @@
+'use client'
+
 import { useState, useCallback, useMemo, useRef, useLayoutEffect, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Handle, Position, type NodeProps, useReactFlow, useUpdateNodeInternals } from '@xyflow/react'

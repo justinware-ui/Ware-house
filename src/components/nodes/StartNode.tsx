@@ -1,3 +1,5 @@
+'use client'
+
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { Copy } from 'lucide-react'
 

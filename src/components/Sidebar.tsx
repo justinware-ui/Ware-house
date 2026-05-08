@@ -1,3 +1,5 @@
+'use client'
+
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -38,6 +40,7 @@ const MAX_WIDTH = 620
 export default function Sidebar() {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>('Demos')
   const [width, setWidth] = useState(() => {
+    if (typeof window === 'undefined') return 420
     const saved = localStorage.getItem('sidebar-width')
     return saved ? Number(saved) : 420
   })
@@ -170,7 +173,7 @@ export default function Sidebar() {
 
       {/* Collapsed view */}
       {collapsed && (
-        <div className="flex flex-col items-center h-full cursor-pointer" onClick={expandPanel} style={{ paddingTop: 20 }}>
+        <div className="flex flex-col items-center h-full cursor-pointer" onClick={() => expandPanel()} style={{ paddingTop: 20 }}>
           {/* Interaction type squares */}
           <div className="shrink-0 flex flex-col items-center" style={{ gap: 11 }}>
             {interactions.map(({ id, label, icon: Icon, color }) => (

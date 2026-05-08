@@ -1,4 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+'use client'
+
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   useReactFlow,
   type EdgeProps,
@@ -72,21 +74,21 @@ export default function DeletableEdge({
   const timer = useRef<ReturnType<typeof setTimeout>>()
   const accum = useRef(0)
   const didMount = useRef(false)
-
-  useEffect(() => {
-    const runSway = (amp: number, dur: number) => {
-      const t0 = performance.now()
-      const tick = (now: number) => {
-        const p = Math.min((now - t0) / dur, 1)
-        const decay = Math.pow(1 - p, 1.5)
-        setSwing(Math.sin(p * Math.PI * 2) * decay * amp)
-        if (p < 1) raf.current = requestAnimationFrame(tick)
-        else setSwing(0)
-      }
-      cancelAnimationFrame(raf.current)
-      raf.current = requestAnimationFrame(tick)
+  const runSway = useCallback((amp: number, dur: number) => {
+    const t0 = performance.now()
+    const tick = (now: number) => {
+      const p = Math.min((now - t0) / dur, 1)
+      const decay = Math.pow(1 - p, 1.5)
+      setSwing(Math.sin(p * Math.PI * 2) * decay * amp)
+      if (p < 1) raf.current = requestAnimationFrame(tick)
+      else setSwing(0)
     }
+    cancelAnimationFrame(raf.current)
+    raf.current = requestAnimationFrame(tick)
+  }, [])
 
+  // Mount sway + position-change sway
+  useEffect(() => {
     if (!didMount.current) {
       didMount.current = true
       prev.current = { sourceX, sourceY, targetX, targetY }
@@ -115,7 +117,16 @@ export default function DeletableEdge({
       clearTimeout(timer.current)
       cancelAnimationFrame(raf.current)
     }
-  }, [sourceX, sourceY, targetX, targetY])
+  }, [sourceX, sourceY, targetX, targetY, runSway])
+
+  // Content-replacement sway — triggered by a 'sway-edge' DOM event from FlowCanvas
+  useEffect(() => {
+    const handler = (e: Event) => {
+      if ((e as CustomEvent).detail?.edgeId === id) runSway(14, 1400)
+    }
+    document.addEventListener('sway-edge', handler)
+    return () => document.removeEventListener('sway-edge', handler)
+  }, [id, runSway])
 
   const [edgePath, labelX, labelY] = swingPath(
     sourceX, sourceY, sourcePosition,

@@ -1,3 +1,5 @@
+'use client'
+
 import { useCallback, useRef, useState, useEffect, useMemo } from 'react'
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
 import { dingHigh, dingLow } from '../lib/audioDing'
