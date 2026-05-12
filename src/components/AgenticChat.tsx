@@ -532,7 +532,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
       <div ref={scrollWrapRef} data-scroll-area className={mode === 'full' ? 'relative overflow-hidden' : 'relative flex-1 overflow-hidden'} style={mode === 'full' ? { height: effectiveHasSent && scrollMaxH ? scrollMaxH : undefined, maxHeight: 'calc(100vh - 340px)' } : undefined}>
         <div className="absolute top-0 left-0 right-0 h-3 z-10 pointer-events-none transition-opacity duration-200" style={{ background: 'radial-gradient(ellipse 70% 100% at 50% 0%, rgba(0,0,0,0.06) 0%, transparent 100%)', opacity: canScrollUp ? 1 : 0 }} />
         <div className="absolute bottom-0 left-0 right-0 h-3 z-10 pointer-events-none transition-opacity duration-200" style={{ background: 'radial-gradient(ellipse 70% 100% at 50% 100%, rgba(0,0,0,0.06) 0%, transparent 100%)', opacity: canScrollDown ? 1 : 0 }} />
-      <div ref={scrollRef} className="h-full overflow-y-auto pl-4 pr-8 py-4 flex flex-col" style={{ scrollbarGutter: 'stable' }}>
+      <div ref={scrollRef} className="h-full overflow-y-auto px-8 py-4 flex flex-col" style={{ scrollbarGutter: 'stable' }}>
         {messages.map((msg, idx) => {
           const prev = messages[idx - 1]
           const isNewSection = prev && prev.role !== msg.role
@@ -647,7 +647,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
         className={
           mode === 'full'
             ? 'pointer-events-auto mt-[18px]'
-            : 'border-t border-gray-100 px-4 pt-4 pb-7 bg-white overflow-visible relative z-10'
+            : 'border-t border-gray-100 px-8 pt-4 pb-7 bg-white overflow-visible relative z-10'
         }
         style={
           mode === 'full' && effectiveHasSent
@@ -977,20 +977,6 @@ function AiMessage({
 }) {
   return (
     <div className="flex gap-3 items-start">
-      {/* AI avatar */}
-      <div className="shrink-0" style={{ marginTop: -4, ...(pulseGlow ? { animation: 'pulse-glow 3s ease-in-out infinite' } : {}) }}>
-        <svg width="28" height="28" viewBox="14 8 62 62" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="19.0464" y="12.4535" width="50.4" height="50.4" rx="25.2" fill="url(#paint_ai_msg)" />
-          <path d="M43.0806 28.0993C43.1186 27.8951 43.4112 27.8951 43.4492 28.0993L43.8704 30.3629C44.4091 33.2584 46.6746 35.5236 49.5704 36.0623L51.8342 36.4835C52.0384 36.5215 52.0384 36.814 51.8342 36.852L49.5704 37.2731C46.6746 37.8118 44.4091 40.0771 43.8704 42.9726L43.4492 45.2362C43.4112 45.4404 43.1186 45.4404 43.0806 45.2362L42.6595 42.9726C42.1207 40.0771 39.8552 37.8118 36.9595 37.2731L34.6956 36.852C34.4914 36.814 34.4914 36.5215 34.6956 36.4835L36.9595 36.0623C39.8552 35.5236 42.1207 33.2584 42.6595 30.3629L43.0806 28.0993Z" fill="white"/>
-          <path d="M50.898 40.663C50.9127 40.584 51.0259 40.584 51.0406 40.663L51.2035 41.5386C51.4119 42.6586 52.2883 43.5349 53.4084 43.7433L54.2841 43.9062C54.3631 43.9209 54.3631 44.034 54.2841 44.0487L53.4084 44.2116C52.2883 44.42 51.4119 45.2963 51.2035 46.4163L51.0406 47.2919C51.0259 47.3709 50.9127 47.3709 50.898 47.2919L50.7351 46.4163C50.5267 45.2963 49.6504 44.42 48.5302 44.2116L47.6545 44.0487C47.5755 44.034 47.5755 43.9209 47.6545 43.9062L48.5302 43.7433C49.6504 43.5349 50.5267 42.6586 50.7351 41.5386L50.898 40.663Z" fill="white"/>
-          <defs>
-            <linearGradient id="paint_ai_msg" x1="19.0464" y1="40.0309" x2="69.4464" y2="40.0309" gradientUnits="userSpaceOnUse">
-              <stop stopColor="#FFB352"/><stop offset="0.5" stopColor="#FC6839"/><stop offset="1" stopColor="#EB2E24"/>
-            </linearGradient>
-          </defs>
-        </svg>
-      </div>
-
       <div className="flex-1 min-w-0 flex flex-col gap-2">
         {/* Thinking indicator */}
         {msg.thinking && (
