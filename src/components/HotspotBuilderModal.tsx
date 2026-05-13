@@ -26,6 +26,7 @@ export interface HotspotMarker {
   position: 'Top' | 'Bottom' | 'Left' | 'Right'
   width: 'Small(default)' | 'Medium' | 'Large'
   linkedDemoId?: string
+  buttonText?: string
 }
 
 export interface HotspotPage {
@@ -93,6 +94,7 @@ export default function HotspotBuilderModal({ initialName = '', initialPages, on
   const [activePageId, setActivePageId] = useState<string>(initialPages?.[0]?.id ?? 'page-1')
   const [selectedHotspotId, setSelectedHotspotId] = useState<string | null>(null)
   const [prevSelectedHotspotId, setPrevSelectedHotspotId] = useState<string | null>(null)
+  const [previewHotspotId, setPreviewHotspotId] = useState<string | null>(null)
   const [demoSearch, setDemoSearch] = useState('')
   const [demoTab, setDemoTab] = useState<'All' | 'Favorites' | 'Dynamic Tours' | 'Recommended'>('All')
   const [demoFavorites, setDemoFavorites] = useState<Set<string>>(new Set())
@@ -137,9 +139,10 @@ export default function HotspotBuilderModal({ initialName = '', initialPages, on
     const rect = target.getBoundingClientRect()
     // Only place if clicking canvas bg, not an existing hotspot
     if ((e.target as HTMLElement).dataset.hotspot) return
+    setPreviewHotspotId(null)
     const x = ((e.clientX - rect.left) / rect.width) * 100
     const y = ((e.clientY - rect.top) / rect.height) * 100
-    const newHotspot: HotspotMarker = { id: `hs-${Date.now()}`, x, y, title: '', description: '', position: 'Top', width: 'Small(default)' }
+    const newHotspot: HotspotMarker = { id: `hs-${Date.now()}`, x, y, title: '', description: '', position: 'Top', width: 'Small(default)', buttonText: "Let's Go!" }
     updatePage(activePage.id, p => ({ ...p, hotspots: [...p.hotspots, newHotspot] }))
     setSelectedHotspotId(newHotspot.id)
   }, [activePage, updatePage])
@@ -305,7 +308,7 @@ export default function HotspotBuilderModal({ initialName = '', initialPages, on
           {/* Panel header */}
           <div className="flex items-center h-[68px] px-5 border-b shrink-0" style={{ borderColor: '#5A5A5A' }}>
             <span className="text-lg font-semibold text-[#F2F2F2]" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              Pages
+              Page
             </span>
           </div>
 
@@ -409,7 +412,7 @@ export default function HotspotBuilderModal({ initialName = '', initialPages, on
         </div>
 
         {/* Main canvas */}
-        <div className="flex-1 min-w-0 relative flex items-center justify-center overflow-hidden" style={{ background: '#141414' }}>
+        <div className="flex-1 min-w-0 relative flex items-center justify-center" style={{ background: '#141414' }}>
           {activePage.imageSrc ? (
             <div
               ref={canvasRef}
@@ -425,8 +428,7 @@ export default function HotspotBuilderModal({ initialName = '', initialPages, on
                 draggable={false}
               />
 
-              {/* Hotspot markers */}
-              {activePage.hotspots.map((hs, idx) => {
+              {/* Hotspot markers */}              {activePage.hotspots.map((hs, idx) => {
                 const isSelected = selectedHotspotId === hs.id
                 const filterId = `hs-shadow-${hs.id}`
                 return (
@@ -442,7 +444,11 @@ export default function HotspotBuilderModal({ initialName = '', initialPages, on
                       height: 48,
                       zIndex: 10,
                     }}
-                    onClick={(e) => { e.stopPropagation(); setSelectedHotspotId(hs.id === selectedHotspotId ? null : hs.id) }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setSelectedHotspotId(hs.id)
+                      setPreviewHotspotId(prev => prev === hs.id ? null : hs.id)
+                    }}
                   >
                     <svg
                       width="48" height="48" viewBox="0 0 48 48" fill="none"
@@ -600,7 +606,22 @@ export default function HotspotBuilderModal({ initialName = '', initialPages, on
                     suppressContentEditableWarning
                     data-placeholder="Description…"
                     onInput={(e) => updateHotspot(selectedHotspot.id, 'description', (e.target as HTMLDivElement).innerHTML)}
-                    className="min-h-[100px] px-3 py-2 text-sm text-white outline-none rounded-[0_0_6px_6px] [&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-[#5A5A5A]"
+                    onPaste={(e) => {
+                      e.preventDefault()
+                      const text = e.clipboardData.getData('text/plain')
+                      const sel = window.getSelection()
+                      if (!sel || !sel.rangeCount) return
+                      sel.deleteFromDocument()
+                      const range = sel.getRangeAt(0)
+                      const node = document.createTextNode(text)
+                      range.insertNode(node)
+                      range.setStartAfter(node)
+                      range.collapse(true)
+                      sel.removeAllRanges()
+                      sel.addRange(range)
+                      updateHotspot(selectedHotspot.id, 'description', (e.currentTarget as HTMLDivElement).innerHTML)
+                    }}
+                    className="min-h-[100px] px-3 py-2 text-sm outline-none rounded-[0_0_6px_6px] [&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-[#5A5A5A] [&_*]:!text-white"
                     style={{ background: '#262626', border: '1px solid #444', borderTop: 'none', fontFamily: 'Poppins, sans-serif', lineHeight: 1.6, wordBreak: 'break-word', color: '#ffffff' }}
                     dangerouslySetInnerHTML={{ __html: selectedHotspot.description }}
                     key={selectedHotspot.id}
@@ -691,6 +712,21 @@ export default function HotspotBuilderModal({ initialName = '', initialPages, on
                   >
                     Apply to all popups
                   </button>
+                </div>
+
+                {/* Button Text input */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-[#A0A0A0]" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    Button Text
+                  </label>
+                  <input
+                    type="text"
+                    value={selectedHotspot.buttonText ?? "Let's Go!"}
+                    onChange={(e) => updateHotspot(selectedHotspot.id, 'buttonText', e.target.value)}
+                    placeholder="Let's Go!"
+                    className="w-full h-10 rounded-[6px] border px-4 text-sm text-[#F2F2F2] outline-none placeholder:text-[#5A5A5A]"
+                    style={{ background: '#262626', borderColor: '#444', fontFamily: 'Poppins, sans-serif' }}
+                  />
                 </div>
 
                 {/* LINK TO DEMO section */}
@@ -903,6 +939,83 @@ export default function HotspotBuilderModal({ initialName = '', initialPages, on
           )}
         </div>
       </div>
+
+      {/* Hotspot popup preview — rendered fixed so no overflow clipping */}
+      {(() => {
+        if (!previewHotspotId) return null
+        const hs = activePage.hotspots.find(h => h.id === previewHotspotId)
+        if (!hs || !canvasRef.current) return null
+        const rect = canvasRef.current.getBoundingClientRect()
+        const tailW = 36
+        const tailH = 14
+        const popupW = 344
+        const dotScreenX = rect.left + (hs.x / 100) * rect.width
+        const dotScreenY = rect.top + (hs.y / 100) * rect.height
+        // Popup renders below the dot; clamp left so it stays on screen
+        const rawLeft = dotScreenX - popupW / 2
+        const left = Math.max(8, Math.min(rawLeft, window.innerWidth - popupW - 8))
+        const top = dotScreenY + 28
+        // Adjust tail to point at the actual dot center
+        const tailLeft = dotScreenX - left - tailW / 2
+        return (
+          <div
+            style={{
+              position: 'fixed',
+              left,
+              top,
+              width: popupW,
+              zIndex: 99999,
+              pointerEvents: 'none',
+            }}
+          >
+            {/* Tail — triangle pointing UP toward hotspot */}
+            <div
+              style={{
+                position: 'absolute',
+                left: tailLeft,
+                top: -(tailH - 1),
+                width: 0,
+                height: 0,
+                borderLeft: `${tailW / 2}px solid transparent`,
+                borderRight: `${tailW / 2}px solid transparent`,
+                borderBottom: `${tailH}px solid #0052CC`,
+              }}
+            />
+            {/* Popup card */}
+            <div
+              style={{
+                background: '#0052CC',
+                borderRadius: 10,
+                padding: 16,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16,
+                boxShadow: '0px 15px 13px rgba(0,0,0,0.15), 0px 4px 8px rgba(0,0,0,0.25)',
+              }}
+            >
+              <p style={{ fontFamily: 'Poppins, sans-serif', fontSize: 14, fontWeight: 600, color: '#fff', margin: 0, lineHeight: '20px' }}>
+                {hs.title || <span style={{ opacity: 0.5, fontStyle: 'italic', fontWeight: 400 }}>Hotspot title…</span>}
+              </p>
+              <p style={{ fontFamily: 'Poppins, sans-serif', fontSize: 14, fontWeight: 400, color: '#fff', margin: 0, lineHeight: '20px' }}>
+                {hs.description
+                  ? <span style={{ color: '#fff' }} dangerouslySetInnerHTML={{ __html: hs.description }} />
+                  : <span style={{ opacity: 0.5, fontStyle: 'italic', color: '#fff' }}>Description…</span>
+                }
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 24px', borderRadius: 100, border: '2px solid #F2F2F2' }}>
+                  <span style={{ fontFamily: 'Poppins, sans-serif', fontSize: 14, fontWeight: 600, color: '#F2F2F2', whiteSpace: 'nowrap', lineHeight: '20px' }}>
+                    {hs.buttonText || "Let's Go!"}
+                  </span>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <path d="M5 12h14M13 6l6 6-6 6" stroke="#F2F2F2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 

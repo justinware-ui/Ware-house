@@ -225,7 +225,7 @@ export default function HotspotNode({ id, data }: NodeProps) {
         </div>
 
         {/* Drop zone / image */}
-        <div className={`px-5 ${allHotspots.length > 0 ? 'pb-2' : ''}`}>
+        <div className={`px-5 pt-2 ${allHotspots.length > 0 ? 'pb-2' : 'pb-2'}`}>
           {hasImage ? (
             <div className="relative group/img rounded-[4px] overflow-hidden border border-[#d0cbc6]" style={{ height: 124 }}>
               <img src={firstPageImage!} alt="" className="w-full h-full object-cover" />
@@ -332,7 +332,7 @@ export default function HotspotNode({ id, data }: NodeProps) {
                   </button>
 
                   {/* Per-hotspot source handle */}
-                  <div className="absolute top-1/2 -translate-y-1/2" style={{ right: -30 }}>
+                  <div className="absolute top-1/2 -translate-y-1/2" style={{ right: -21 }}>
                     <Handle
                       type="source"
                       position={Position.Right}
