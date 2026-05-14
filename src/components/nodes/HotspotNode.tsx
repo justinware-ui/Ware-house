@@ -261,7 +261,7 @@ export default function HotspotNode({ id, data }: NodeProps) {
               style={{
                 borderColor: isDragOver ? '#FC6839' : '#FC6839',
                 backgroundColor: isDragOver ? 'rgba(252,104,57,0.05)' : 'white',
-                minHeight: 100,
+                minHeight: 124,
                 gap: 8,
               }}
               onClick={openFilePicker}
