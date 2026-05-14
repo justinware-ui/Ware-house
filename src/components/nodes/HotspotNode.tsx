@@ -38,6 +38,8 @@ export default function HotspotNode({ id, data }: NodeProps) {
   const [screenshotName, setScreenshotName] = useState(typedData.screenshotName ?? '')
   const [pages, setPages] = useState<HotspotPage[]>(typedData.pages ?? [])
   const [builderOpen, setBuilderOpen] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewHotspotId, setPreviewHotspotId] = useState<string | null>(null)
   const [showOverlay, setShowOverlay] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
   const [focusedHotspotId, setFocusedHotspotId] = useState<string | null>(null)
@@ -199,6 +201,7 @@ export default function HotspotNode({ id, data }: NodeProps) {
             <button
               className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors nodrag nopan"
               style={{ opacity: hasImage ? 1 : 0.3, cursor: hasImage ? 'pointer' : 'default' }}
+              onClick={() => { if (hasImage) { setPreviewHotspotId(null); setPreviewOpen(true) } }}
             >
               <Eye size={18} className="text-[#293748]" />
             </button>
@@ -232,26 +235,36 @@ export default function HotspotNode({ id, data }: NodeProps) {
               <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity pointer-events-none">
                 <div className="bg-black/30 absolute inset-0 rounded-[4px] pointer-events-none" />
                 <div className="relative z-10 flex items-center bg-white rounded-full border border-[#D6D1CB] px-2 py-2 gap-1 shadow-lg pointer-events-auto">
-                  <button
-                    className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[#73716F26] transition-colors cursor-pointer nodrag nopan"
-                    onClick={openFilePicker}
-                    title="Replace"
-                  >
-                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-                      <path d="M10.0417 16.6667C8.18056 16.6667 6.59722 16.0209 5.29167 14.7292C3.98611 13.4375 3.33333 11.8612 3.33333 10V9.85421L2.58333 10.6042C2.43056 10.757 2.23611 10.8334 2 10.8334C1.76389 10.8334 1.56944 10.757 1.41667 10.6042C1.26389 10.4514 1.1875 10.257 1.1875 10.0209C1.1875 9.78476 1.26389 9.59032 1.41667 9.43754L3.58333 7.27087C3.66667 7.18754 3.75694 7.12837 3.85417 7.09337C3.95139 7.05893 4.05556 7.04171 4.16667 7.04171C4.27778 7.04171 4.38194 7.05893 4.47917 7.09337C4.57639 7.12837 4.66667 7.18754 4.75 7.27087L6.91667 9.43754C7.06944 9.59032 7.14583 9.78476 7.14583 10.0209C7.14583 10.257 7.06944 10.4514 6.91667 10.6042C6.76389 10.757 6.56944 10.8334 6.33333 10.8334C6.09722 10.8334 5.90278 10.757 5.75 10.6042L5 9.85421V10C5 11.3889 5.48972 12.5695 6.46917 13.5417C7.44806 14.5139 8.63889 15 10.0417 15C10.3194 15 10.5903 14.9759 10.8542 14.9275C11.1181 14.8787 11.3819 14.8056 11.6458 14.7084C11.7847 14.6528 11.9342 14.6389 12.0942 14.6667C12.2536 14.6945 12.3889 14.7639 12.5 14.875C12.75 15.125 12.8508 15.3923 12.8025 15.6767C12.7536 15.9617 12.5694 16.1598 12.25 16.2709C11.8889 16.3959 11.5244 16.4931 11.1567 16.5625C10.7883 16.632 10.4167 16.6667 10.0417 16.6667ZM15.8333 12.9584C15.7222 12.9584 15.6181 12.9409 15.5208 12.9059C15.4236 12.8714 15.3333 12.8125 15.25 12.7292L13.0833 10.5625C12.9306 10.4098 12.8542 10.2153 12.8542 9.97921C12.8542 9.7431 12.9306 9.54865 13.0833 9.39587C13.2361 9.2431 13.4306 9.16671 13.6667 9.16671C13.9028 9.16671 14.0972 9.2431 14.25 9.39587L15 10.1459V10C15 8.61115 14.5106 7.4306 13.5317 6.45837C12.5522 5.48615 11.3611 5.00004 9.95833 5.00004C9.68056 5.00004 9.40972 5.02448 9.14583 5.07337C8.88194 5.12171 8.61806 5.19449 8.35417 5.29171C8.21528 5.34726 8.06611 5.36115 7.90667 5.33337C7.74667 5.3056 7.61111 5.23615 7.5 5.12504C7.25 4.87504 7.14917 4.60754 7.1975 4.32254C7.24639 4.0381 7.43056 3.84032 7.75 3.72921C8.11111 3.60421 8.47583 3.50699 8.84417 3.43754C9.21194 3.3681 9.58333 3.33337 9.95833 3.33337C11.8194 3.33337 13.4028 3.97921 14.7083 5.27087C16.0139 6.56254 16.6667 8.13893 16.6667 10V10.1459L17.4167 9.39587C17.5694 9.2431 17.7639 9.16671 18 9.16671C18.2361 9.16671 18.4306 9.2431 18.5833 9.39587C18.7361 9.54865 18.8125 9.7431 18.8125 9.97921C18.8125 10.2153 18.7361 10.4098 18.5833 10.5625L16.4167 12.7292C16.3333 12.8125 16.2431 12.8714 16.1458 12.9059C16.0486 12.9409 15.9444 12.9584 15.8333 12.9584Z" fill="#172537"/>
-                    </svg>
-                  </button>
-                  <button
-                    className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[#73716F26] transition-colors cursor-pointer nodrag nopan"
-                    onClick={() => {
-                      const cleared = pages.map(p => ({ ...p, imageSrc: null }))
-                      setPages(cleared)
-                      setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, pages: cleared } } : n))
-                    }}
-                    title="Remove"
-                  >
-                    <X size={16} className="text-[#293748]" />
-                  </button>
+                  <div className="relative group/replace">
+                    <button
+                      className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[#73716F26] transition-colors cursor-pointer nodrag nopan"
+                      onClick={openFilePicker}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                        <path d="M10.0417 16.6667C8.18056 16.6667 6.59722 16.0209 5.29167 14.7292C3.98611 13.4375 3.33333 11.8612 3.33333 10V9.85421L2.58333 10.6042C2.43056 10.757 2.23611 10.8334 2 10.8334C1.76389 10.8334 1.56944 10.757 1.41667 10.6042C1.26389 10.4514 1.1875 10.257 1.1875 10.0209C1.1875 9.78476 1.26389 9.59032 1.41667 9.43754L3.58333 7.27087C3.66667 7.18754 3.75694 7.12837 3.85417 7.09337C3.95139 7.05893 4.05556 7.04171 4.16667 7.04171C4.27778 7.04171 4.38194 7.05893 4.47917 7.09337C4.57639 7.12837 4.66667 7.18754 4.75 7.27087L6.91667 9.43754C7.06944 9.59032 7.14583 9.78476 7.14583 10.0209C7.14583 10.257 7.06944 10.4514 6.91667 10.6042C6.76389 10.757 6.56944 10.8334 6.33333 10.8334C6.09722 10.8334 5.90278 10.757 5.75 10.6042L5 9.85421V10C5 11.3889 5.48972 12.5695 6.46917 13.5417C7.44806 14.5139 8.63889 15 10.0417 15C10.3194 15 10.5903 14.9759 10.8542 14.9275C11.1181 14.8787 11.3819 14.8056 11.6458 14.7084C11.7847 14.6528 11.9342 14.6389 12.0942 14.6667C12.2536 14.6945 12.3889 14.7639 12.5 14.875C12.75 15.125 12.8508 15.3923 12.8025 15.6767C12.7536 15.9617 12.5694 16.1598 12.25 16.2709C11.8889 16.3959 11.5244 16.4931 11.1567 16.5625C10.7883 16.632 10.4167 16.6667 10.0417 16.6667ZM15.8333 12.9584C15.7222 12.9584 15.6181 12.9409 15.5208 12.9059C15.4236 12.8714 15.3333 12.8125 15.25 12.7292L13.0833 10.5625C12.9306 10.4098 12.8542 10.2153 12.8542 9.97921C12.8542 9.7431 12.9306 9.54865 13.0833 9.39587C13.2361 9.2431 13.4306 9.16671 13.6667 9.16671C13.9028 9.16671 14.0972 9.2431 14.25 9.39587L15 10.1459V10C15 8.61115 14.5106 7.4306 13.5317 6.45837C12.5522 5.48615 11.3611 5.00004 9.95833 5.00004C9.68056 5.00004 9.40972 5.02448 9.14583 5.07337C8.88194 5.12171 8.61806 5.19449 8.35417 5.29171C8.21528 5.34726 8.06611 5.36115 7.90667 5.33337C7.74667 5.3056 7.61111 5.23615 7.5 5.12504C7.25 4.87504 7.14917 4.60754 7.1975 4.32254C7.24639 4.0381 7.43056 3.84032 7.75 3.72921C8.11111 3.60421 8.47583 3.50699 8.84417 3.43754C9.21194 3.3681 9.58333 3.33337 9.95833 3.33337C11.8194 3.33337 13.4028 3.97921 14.7083 5.27087C16.0139 6.56254 16.6667 8.13893 16.6667 10V10.1459L17.4167 9.39587C17.5694 9.2431 17.7639 9.16671 18 9.16671C18.2361 9.16671 18.4306 9.2431 18.5833 9.39587C18.7361 9.54865 18.8125 9.7431 18.8125 9.97921C18.8125 10.2153 18.7361 10.4098 18.5833 10.5625L16.4167 12.7292C16.3333 12.8125 16.2431 12.8714 16.1458 12.9059C16.0486 12.9409 15.9444 12.9584 15.8333 12.9584Z" fill="#172537"/>
+                      </svg>
+                    </button>
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded bg-[#172537] text-white text-[10px] whitespace-nowrap opacity-0 pointer-events-none group-hover/replace:opacity-100 transition-opacity shadow-md">
+                      Replace
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#172537]" />
+                    </div>
+                  </div>
+                  <div className="relative group/delete">
+                    <button
+                      className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[#73716F26] transition-colors cursor-pointer nodrag nopan"
+                      onClick={() => {
+                        const cleared = pages.map(p => ({ ...p, imageSrc: null }))
+                        setPages(cleared)
+                        setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, pages: cleared } } : n))
+                      }}
+                    >
+                      <X size={16} className="text-[#293748]" />
+                    </button>
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded bg-[#172537] text-white text-[10px] whitespace-nowrap opacity-0 pointer-events-none group-hover/delete:opacity-100 transition-opacity shadow-md">
+                      Delete
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#172537]" />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -372,6 +385,94 @@ export default function HotspotNode({ id, data }: NodeProps) {
           onSave={handleSave}
           onClose={() => setBuilderOpen(false)}
         />
+      )}
+
+      {previewOpen && createPortal(
+        <div
+          className="fixed inset-0 flex items-center justify-center nodrag nopan"
+          style={{ zIndex: 99999, background: 'rgba(0,0,0,0.75)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) { setPreviewOpen(false); setPreviewHotspotId(null) } }}
+        >
+          {/* Close button */}
+          <button
+            className="absolute top-5 right-5 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+            onClick={() => { setPreviewOpen(false); setPreviewHotspotId(null) }}
+          >
+            <X size={20} className="text-white" />
+          </button>
+
+          {/* Screenshot + hotspots container */}
+          <div className="relative max-w-[90vw] max-h-[85vh]">
+            <img
+              src={firstPageImage!}
+              alt=""
+              className="block rounded-lg shadow-2xl"
+              style={{ maxWidth: '90vw', maxHeight: '85vh', objectFit: 'contain' }}
+              onClick={() => setPreviewHotspotId(null)}
+            />
+
+            {/* Hotspot markers */}
+            {allHotspots.map((hs) => (
+              <div
+                key={hs.id}
+                className="absolute"
+                style={{ left: `${hs.x}%`, top: `${hs.y}%`, transform: 'translate(-50%, -50%)', cursor: 'pointer' }}
+                onClick={(e) => { e.stopPropagation(); setPreviewHotspotId(prev => prev === hs.id ? null : hs.id) }}
+              >
+                {/* Pulsing outer ring */}
+                <span className="absolute inset-0 rounded-full animate-ping" style={{ background: 'rgba(180,60,0,0.4)', width: 28, height: 28, top: -4, left: -4 }} />
+                {/* Inner dot */}
+                <div className="relative w-5 h-5 rounded-full border-2 border-white flex items-center justify-center shadow-md" style={{ background: '#FC6839' }}>
+                  <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
+                    <circle cx="8" cy="8" r="2.667" fill="white"/>
+                    <path fillRule="evenodd" clipRule="evenodd" d="M7.04 0.73C7.36 0.69 7.68 0.67 8 0.67C8.32 0.67 8.64 0.69 8.96 0.73C9.32 0.78 9.58 1.11 9.53 1.48C9.48 1.84 9.15 2.1 8.78 2.05C8.53 2.02 8.27 2 8 2C7.73 2 7.47 2.02 7.22 2.05C6.85 2.1 6.52 1.84 6.47 1.48C6.42 1.11 6.68 0.78 7.04 0.73ZM14.52 6.47C14.89 6.52 15.23 6.68 15.27 7.04C15.31 7.36 15.33 7.68 15.33 8C15.33 8.32 15.31 8.64 15.27 8.96C15.23 9.32 14.89 9.58 14.52 9.53C14.16 9.48 13.9 9.15 13.95 8.78C13.98 8.53 14 8.27 14 8C14 7.73 13.98 7.47 13.95 7.22C13.9 6.85 14.16 6.52 14.52 6.47ZM1.48 6.47C1.84 6.52 2.1 6.85 2.05 7.22C2.02 7.47 2 7.73 2 8C2 8.27 2.02 8.53 2.05 8.78C2.1 9.15 1.84 9.48 1.48 9.53C1.11 9.58 0.78 9.32 0.73 8.96C0.69 8.64 0.67 8.32 0.67 8C0.67 7.68 0.69 7.36 0.73 7.04C0.78 6.68 1.11 6.42 1.48 6.47Z" fill="white"/>
+                  </svg>
+                </div>
+
+                {/* Popup */}
+                {previewHotspotId === hs.id && (
+                  <div
+                    className="absolute"
+                    style={{ bottom: 'calc(100% + 12px)', left: '50%', transform: 'translateX(-50%)', width: 280, pointerEvents: 'none' }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* Tail */}
+                    <div style={{ position: 'absolute', bottom: -10, left: '50%', transform: 'translateX(-50%)', width: 0, height: 0, borderLeft: '10px solid transparent', borderRight: '10px solid transparent', borderTop: '10px solid #0052CC' }} />
+                    {/* Card */}
+                    <div style={{ background: '#0052CC', borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column', gap: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.3)' }}>
+                      <p style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, fontWeight: 600, color: '#fff', margin: 0, lineHeight: '18px' }}>
+                        {hs.title || <span style={{ opacity: 0.5, fontStyle: 'italic', fontWeight: 400 }}>Hotspot title…</span>}
+                      </p>
+                      {hs.description && (
+                        <p style={{ fontFamily: 'Poppins, sans-serif', fontSize: 12, fontWeight: 400, color: '#fff', margin: 0, lineHeight: '17px' }}>
+                          <span dangerouslySetInnerHTML={{ __html: hs.description }} />
+                        </p>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', borderRadius: 100, border: '2px solid rgba(242,242,242,0.8)' }}>
+                          <span style={{ fontFamily: 'Poppins, sans-serif', fontSize: 12, fontWeight: 600, color: '#F2F2F2', whiteSpace: 'nowrap' }}>
+                            {hs.buttonText || "Let's Go!"}
+                          </span>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                            <path d="M5 12h14M13 6l6 6-6 6" stroke="#F2F2F2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Hotspot count badge */}
+          {allHotspots.length > 0 && (
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-xs font-medium text-white/70" style={{ background: 'rgba(255,255,255,0.1)', fontFamily: 'Poppins, sans-serif' }}>
+              {allHotspots.length} hotspot{allHotspots.length !== 1 ? 's' : ''} — click to preview
+            </div>
+          )}
+        </div>,
+        document.body
       )}
     </>
   )
