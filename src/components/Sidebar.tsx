@@ -46,7 +46,7 @@ const interactions = [
   { id: 'cta', label: 'Call to Action', icon: CtaIcon, color: '#FC6839', bgColor: undefined as string | undefined },
   { id: 'discovery', label: 'Discovery Question', icon: DiscoveryIcon, color: '#22c55e', bgColor: undefined as string | undefined },
   { id: 'leadcapture', label: 'Lead Capture Form', icon: FileText, color: '#1e40af', bgColor: undefined as string | undefined },
-  { id: 'hotspot', label: 'Hotspots', icon: HotspotIcon, color: '#D4A017', bgColor: '#FCE39F' },
+  { id: 'hotspot', label: 'Screengrab & Hotspots', icon: HotspotIcon, color: '#D4A017', bgColor: '#FCE39F' },
 ]
 
 const tabs = ['Demos', 'Dynamic Tours', 'Recommended'] as const

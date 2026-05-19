@@ -184,7 +184,7 @@ export default function HotspotNode({ id, data }: NodeProps) {
         <div className="flex items-center justify-between px-4 pb-3">
           <div className="flex items-center gap-2">
             <span className="text-[#D4A017]"><HotspotSvgIcon /></span>
-            <span className="text-xs font-medium text-gray-500">Hotspot</span>
+            <span className="text-xs font-medium text-gray-500">Screengrab & Hotspots</span>
           </div>
           <div className="flex items-center gap-1">
             {/* Edit — opens builder */}

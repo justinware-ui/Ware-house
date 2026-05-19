@@ -106,6 +106,13 @@ export default function HotspotBuilderModal({ initialName = '', initialPages, on
   const descRef = useRef<HTMLDivElement>(null)
   const pageFileInputRef = useRef<HTMLInputElement>(null)
   const [replacingPageId, setReplacingPageId] = useState<string | null>(null)
+  const panelScrollRef = useRef<HTMLDivElement>(null)
+  const popupFieldsRef = useRef<HTMLDivElement>(null)
+  const linkToDemoSentinelRef = useRef<HTMLDivElement>(null)
+  const linkToDemoRef = useRef<HTMLDivElement>(null)
+  const isLinkToDemoFixedRef = useRef(false)
+  const [linkToDemoFixed, setLinkToDemoFixed] = useState(false)
+  const [linkToDemoFixedRect, setLinkToDemoFixedRect] = useState({ top: 0, left: 0, width: 0, height: 0, panelBottom: 0 })
 
   const activePage = pages.find(p => p.id === activePageId) ?? pages[0]
 
@@ -128,6 +135,31 @@ export default function HotspotBuilderModal({ initialName = '', initialPages, on
       window.removeEventListener('mouseup', onUp)
     }
   }, [])
+
+  const handlePanelScroll = useCallback(() => {
+    const panel = panelScrollRef.current
+    const sentinel = linkToDemoSentinelRef.current
+    const section = linkToDemoRef.current
+    if (!panel || !sentinel) return
+    const panelRect = panel.getBoundingClientRect()
+    const sentinelRect = sentinel.getBoundingClientRect()
+    const shouldFix = sentinelRect.top <= panelRect.top
+    if (shouldFix !== isLinkToDemoFixedRef.current) {
+      isLinkToDemoFixedRef.current = shouldFix
+      if (shouldFix && section) {
+        const rect = section.getBoundingClientRect()
+        setLinkToDemoFixedRect({ top: panelRect.top, left: panelRect.left, width: panelRect.width, height: rect.height, panelBottom: panelRect.bottom })
+      }
+      setLinkToDemoFixed(shouldFix)
+    }
+  }, [])
+
+  // Reset fixed state when switching hotspots or scrolling back to top
+  useEffect(() => {
+    isLinkToDemoFixedRef.current = false
+    setLinkToDemoFixed(false)
+    if (panelScrollRef.current) panelScrollRef.current.scrollTop = 0
+  }, [selectedHotspotId])
 
   const updatePage = useCallback((id: string, updater: (p: HotspotPage) => HotspotPage) => {
     setPages(prev => prev.map(p => p.id === id ? updater(p) : p))
@@ -492,14 +524,11 @@ export default function HotspotBuilderModal({ initialName = '', initialPages, on
 
         </div>
 
-        {/* Right panel — Hotspot properties */}
-        <div
-          className="shrink-0 flex flex-col border-l overflow-hidden relative"
-          style={{ width: rightPanelWidth, background: '#363636', borderColor: '#5A5A5A' }}
-        >
-          {/* Left-edge resize grabber */}
+        {/* Right panel — outer wrapper handles width + resize grabber */}
+        <div className="shrink-0 relative" style={{ width: rightPanelWidth, height: '100%' }}>
+          {/* Left-edge resize grabber — outside scroll container so it never scrolls away */}
           <div
-            className="absolute top-0 left-1 w-1 h-full z-10 cursor-ew-resize flex items-center justify-center group"
+            className="absolute top-0 left-1 w-1 h-full z-20 cursor-ew-resize flex items-center justify-center group"
             style={{ background: 'transparent' }}
             onMouseDown={(e) => {
               e.preventDefault()
@@ -508,8 +537,15 @@ export default function HotspotBuilderModal({ initialName = '', initialPages, on
           >
             <div className="w-[3px] h-8 rounded-full transition-opacity" style={{ background: '#888' }} />
           </div>
+          {/* Scrollable inner panel */}
+          <div
+            ref={panelScrollRef}
+            onScroll={handlePanelScroll}
+            className="border-l h-full overflow-y-auto"
+            style={{ background: '#363636', borderColor: '#5A5A5A' }}
+          >
           {selectedHotspot ? (
-            <div className="flex flex-col h-full overflow-y-auto">
+            <div className="flex flex-col" style={{ minHeight: '100%' }}>
               {/* Panel header */}
               <div className="flex items-center h-[68px] px-5 border-b shrink-0" style={{ borderColor: '#5A5A5A' }}>
                 <span className="text-lg font-semibold text-[#F2F2F2] flex-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
@@ -538,10 +574,10 @@ export default function HotspotBuilderModal({ initialName = '', initialPages, on
               </div>
 
               {/* Separator */}
-              <div className="h-px shrink-0" style={{ background: '#5A5A5A' }} />
+              <div className="h-px" style={{ background: '#5A5A5A' }} />
 
-              {/* Fields */}
-              <div className="flex flex-col gap-5 px-6 pt-6 pb-4">
+              {/* Popup fields — flows normally */}
+              <div className="flex flex-col gap-5 px-6 pt-6 pb-6">
 
                 {/* POPUP label */}
                 <p className="text-[11px] font-bold text-white uppercase tracking-[1.1px]" style={{ fontFamily: 'Poppins, sans-serif' }}>
@@ -729,15 +765,45 @@ export default function HotspotBuilderModal({ initialName = '', initialPages, on
                   />
                 </div>
 
-                {/* LINK TO DEMO section */}
-                <div className="h-px -mx-6" style={{ background: '#5A5A5A' }} />
+              </div>{/* end all fields */}
 
-                <p className="text-[11px] font-bold text-white uppercase tracking-[1.1px]" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              {/* Sentinel — stays in normal flow, marks the natural top of Link to Demo */}
+              <div ref={linkToDemoSentinelRef} style={{ height: 0, flexShrink: 0 }} />
+
+              {/* Spacer — fills the gap when Link to Demo is fixed */}
+              {linkToDemoFixed && <div style={{ height: linkToDemoFixedRect.height, flexShrink: 0 }} />}
+
+              {/* Link to Demo — JS-driven fixed positioning when scrolled to top */}
+              <div
+                ref={linkToDemoRef}
+                onWheel={(e) => {
+                  if (linkToDemoFixed && panelScrollRef.current) {
+                    panelScrollRef.current.scrollTop += e.deltaY
+                  }
+                }}
+                style={linkToDemoFixed ? {
+                  position: 'fixed',
+                  top: linkToDemoFixedRect.top,
+                  left: linkToDemoFixedRect.left,
+                  width: linkToDemoFixedRect.width,
+                  height: linkToDemoFixedRect.panelBottom - linkToDemoFixedRect.top - 32,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  zIndex: 50,
+                  background: '#363636',
+                  borderTop: '1px solid #5A5A5A',
+                } : {
+                  borderTop: '1px solid #5A5A5A',
+                }}
+              >
+
+                <div className="px-6 pt-4 pb-2 shrink-0">
+                <p className="text-[11px] font-bold text-white uppercase tracking-[1.1px] mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
                   Link to Demo
                 </p>
 
                 {/* Search + Filter */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 mb-3">
                   <div className="relative flex-1">
                     <svg className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" width="14" height="14" viewBox="0 0 24 24" fill="none">
                       <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke="#A0A0A0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -769,7 +835,7 @@ export default function HotspotBuilderModal({ initialName = '', initialPages, on
                 </div>
 
                 {/* Tabs */}
-                <div className="flex items-center gap-4 border-b" style={{ borderColor: '#5A5A5A' }}>
+                <div className="flex items-center gap-4 border-b mb-3" style={{ borderColor: '#5A5A5A' }}>
                   {(['All', 'Favorites', 'Dynamic Tours', 'Recommended'] as const).map(tab => (
                     <button
                       key={tab}
@@ -786,14 +852,18 @@ export default function HotspotBuilderModal({ initialName = '', initialPages, on
                     </button>
                   ))}
                 </div>
+                </div>{/* end search+tabs */}
 
-                {/* Demo list */}
-                <div className="flex flex-col rounded-[8px] overflow-hidden" style={{ border: '1px solid #3A3A3A' }}>
+                {/* Demo list — scrollable, fills remaining space when fixed */}
+                <div style={{ flex: '1 1 0', minHeight: 0, overflowY: 'auto', padding: '36px 24px 16px' }}>
+                <div className="flex flex-col rounded-[8px]" style={{ border: '1px solid #3A3A3A', overflow: 'visible' }}>
                   {filteredDemos.length === 0 ? (
                     <p className="text-xs text-[#A0A0A0] text-center py-6" style={{ fontFamily: 'Poppins, sans-serif' }}>No demos found</p>
-                  ) : filteredDemos.slice(0, 10).map((demo, idx) => {
+                  ) : filteredDemos.map((demo, idx) => {
                     const isLinked = selectedHotspot.linkedDemoId === demo.id
                     const date = new Date(demo.created).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' })
+                    const isFirst = idx === 0
+                    const isLast = idx === filteredDemos.length - 1
                     return (
                       <div
                         key={demo.id}
@@ -801,6 +871,7 @@ export default function HotspotBuilderModal({ initialName = '', initialPages, on
                         style={{
                           background: isLinked ? 'rgba(255,147,86,0.12)' : idx % 2 === 0 ? '#2C2C2C' : '#262626',
                           borderTop: idx > 0 ? '1px solid #3A3A3A' : 'none',
+                          borderRadius: isFirst && isLast ? 8 : isFirst ? '8px 8px 0 0' : isLast ? '0 0 8px 8px' : 0,
                         }}
                         onClick={() => updateHotspot(selectedHotspot.id, 'linkedDemoId', isLinked ? '' : demo.id)}
                       >
@@ -829,8 +900,8 @@ export default function HotspotBuilderModal({ initialName = '', initialPages, on
                               </svg>
                             ) : (
                               <svg width="24" height="24" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <rect x="1" y="1" width="28" height="28" rx="14" stroke="#FC6839" strokeWidth="2" fill="none"/>
-                                <path d="M15 20.25C14.7875 20.25 14.6095 20.178 14.466 20.034C14.322 19.8905 14.25 19.7125 14.25 19.5V15.75H10.5C10.2875 15.75 10.1093 15.678 9.96525 15.534C9.82175 15.3905 9.75 15.2125 9.75 15C9.75 14.7875 9.82175 14.6093 9.96525 14.4653C10.1093 14.3218 10.2875 14.25 10.5 14.25H14.25V10.5C14.25 10.2875 14.322 10.1093 14.466 9.96525C14.6095 9.82175 14.7875 9.75 15 9.75C15.2125 9.75 15.3908 9.82175 15.5348 9.96525C15.6783 10.1093 15.75 10.2875 15.75 10.5V14.25H19.5C19.7125 14.25 19.8905 14.3218 20.034 14.4653C20.178 14.6093 20.25 14.7875 20.25 15C20.25 15.2125 20.178 15.3905 20.034 15.534C19.8905 15.678 19.7125 15.75 19.5 15.75H15.75V19.5C15.75 19.7125 15.6783 19.8905 15.5348 20.034C15.3908 20.178 15.2125 20.25 15 20.25Z" fill="#F44C10"/>
+                                <rect x="1" y="1" width="28" height="28" rx="14" stroke="#FF9356" strokeWidth="2" fill="none"/>
+                                <path d="M15 20.25C14.7875 20.25 14.6095 20.178 14.466 20.034C14.322 19.8905 14.25 19.7125 14.25 19.5V15.75H10.5C10.2875 15.75 10.1093 15.678 9.96525 15.534C9.82175 15.3905 9.75 15.2125 9.75 15C9.75 14.7875 9.82175 14.6093 9.96525 14.4653C10.1093 14.3218 10.2875 14.25 10.5 14.25H14.25V10.5C14.25 10.2875 14.322 10.1093 14.466 9.96525C14.6095 9.82175 14.7875 9.75 15 9.75C15.2125 9.75 15.3908 9.82175 15.5348 9.96525C15.6783 10.1093 15.75 10.2875 15.75 10.5V14.25H19.5C19.7125 14.25 19.8905 14.3218 20.034 14.4653C20.178 14.6093 20.25 14.7875 20.25 15C20.25 15.2125 20.178 15.3905 20.034 15.534C19.8905 15.678 19.7125 15.75 19.5 15.75H15.75V19.5C15.75 19.7125 15.6783 19.8905 15.5348 20.034C15.3908 20.178 15.2125 20.25 15 20.25Z" fill="#FF9356"/>
                               </svg>
                             )}
                           </button>
@@ -839,7 +910,8 @@ export default function HotspotBuilderModal({ initialName = '', initialPages, on
                     )
                   })}
                 </div>
-              </div>
+                </div>{/* end demo list */}
+              </div>{/* end Link to Demo sticky section */}
             </div>
           ) : activePage.hotspots.length > 0 ? (
             /* Hotspot list — click any to open its editor */
@@ -858,7 +930,7 @@ export default function HotspotBuilderModal({ initialName = '', initialPages, on
               </div>
 
               <div className="flex-1 overflow-y-auto flex flex-col">
-                {activePage.hotspots.map((hs) => (
+                {activePage.hotspots.map((hs, hsIdx) => (
                   <div
                     key={hs.id}
                     className="flex items-center gap-3 px-5 py-4 transition-colors hover:bg-white/5 group cursor-pointer border-b"
@@ -875,10 +947,32 @@ export default function HotspotBuilderModal({ initialName = '', initialPages, on
                       {hs.title || <span className="text-[#5A5A5A] italic">Untitled hotspot</span>}
                     </span>
 
-                    {/* Link icon (orange if linked, white if not) */}
-                    <svg className="shrink-0" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M7 17C5.61667 17 4.43767 16.5123 3.463 15.537C2.48767 14.5623 2 13.3833 2 12C2 10.6167 2.48767 9.43733 3.463 8.462C4.43767 7.48733 5.61667 7 7 7H10C10.2833 7 10.521 7.09567 10.713 7.287C10.9043 7.479 11 7.71667 11 8C11 8.28333 10.9043 8.52067 10.713 8.712C10.521 8.904 10.2833 9 10 9H7C6.16667 9 5.45833 9.29167 4.875 9.875C4.29167 10.4583 4 11.1667 4 12C4 12.8333 4.29167 13.5417 4.875 14.125C5.45833 14.7083 6.16667 15 7 15H10C10.2833 15 10.521 15.0957 10.713 15.287C10.9043 15.479 11 15.7167 11 16C11 16.2833 10.9043 16.5207 10.713 16.712C10.521 16.904 10.2833 17 10 17H7ZM9 13C8.71667 13 8.47933 12.904 8.288 12.712C8.096 12.5207 8 12.2833 8 12C8 11.7167 8.096 11.479 8.288 11.287C8.47933 11.0957 8.71667 11 9 11H15C15.2833 11 15.521 11.0957 15.713 11.287C15.9043 11.479 16 11.7167 16 12C16 12.2833 15.9043 12.5207 15.713 12.712C15.521 12.904 15.2833 13 15 13H9ZM14 17C13.7167 17 13.4793 16.904 13.288 16.712C13.096 16.5207 13 16.2833 13 16C13 15.7167 13.096 15.479 13.288 15.287C13.4793 15.0957 13.7167 15 14 15H17C17.8333 15 18.5417 14.7083 19.125 14.125C19.7083 13.5417 20 12.8333 20 12C20 11.1667 19.7083 10.4583 19.125 9.875C18.5417 9.29167 17.8333 9 17 9H14C13.7167 9 13.4793 8.904 13.288 8.712C13.096 8.52067 13 8.28333 13 8C13 7.71667 13.096 7.479 13.288 7.287C13.4793 7.09567 13.7167 7 14 7H17C18.3833 7 19.5627 7.48733 20.538 8.462C21.5127 9.43733 22 10.6167 22 12C22 13.3833 21.5127 14.5623 20.538 15.537C19.5627 16.5123 18.3833 17 17 17H14Z" fill={hs.linkedDemoId ? '#FF9356' : '#F2F2F2'}/>
-                    </svg>
+                    {/* Link icon (orange if linked, white if not) — tooltip shows linked demo name */}
+                    <div className="relative group/link shrink-0">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M7 17C5.61667 17 4.43767 16.5123 3.463 15.537C2.48767 14.5623 2 13.3833 2 12C2 10.6167 2.48767 9.43733 3.463 8.462C4.43767 7.48733 5.61667 7 7 7H10C10.2833 7 10.521 7.09567 10.713 7.287C10.9043 7.479 11 7.71667 11 8C11 8.28333 10.9043 8.52067 10.713 8.712C10.521 8.904 10.2833 9 10 9H7C6.16667 9 5.45833 9.29167 4.875 9.875C4.29167 10.4583 4 11.1667 4 12C4 12.8333 4.29167 13.5417 4.875 14.125C5.45833 14.7083 6.16667 15 7 15H10C10.2833 15 10.521 15.0957 10.713 15.287C10.9043 15.479 11 15.7167 11 16C11 16.2833 10.9043 16.5207 10.713 16.712C10.521 16.904 10.2833 17 10 17H7ZM9 13C8.71667 13 8.47933 12.904 8.288 12.712C8.096 12.5207 8 12.2833 8 12C8 11.7167 8.096 11.479 8.288 11.287C8.47933 11.0957 8.71667 11 9 11H15C15.2833 11 15.521 11.0957 15.713 11.287C15.9043 11.479 16 11.7167 16 12C16 12.2833 15.9043 12.5207 15.713 12.712C15.521 12.904 15.2833 13 15 13H9ZM14 17C13.7167 17 13.4793 16.904 13.288 16.712C13.096 16.5207 13 16.2833 13 16C13 15.7167 13.096 15.479 13.288 15.287C13.4793 15.0957 13.7167 15 14 15H17C17.8333 15 18.5417 14.7083 19.125 14.125C19.7083 13.5417 20 12.8333 20 12C20 11.1667 19.7083 10.4583 19.125 9.875C18.5417 9.29167 17.8333 9 17 9H14C13.7167 9 13.4793 8.904 13.288 8.712C13.096 8.52067 13 8.28333 13 8C13 7.71667 13.096 7.479 13.288 7.287C13.4793 7.09567 13.7167 7 14 7H17C18.3833 7 19.5627 7.48733 20.538 8.462C21.5127 9.43733 22 10.6167 22 12C22 13.3833 21.5127 14.5623 20.538 15.537C19.5627 16.5123 18.3833 17 17 17H14Z" fill={hs.linkedDemoId ? '#FF9356' : '#F2F2F2'}/>
+                      </svg>
+                      {hs.linkedDemoId && (() => {
+                        const linkedDemo = rawDemos.find(d => d.id === hs.linkedDemoId)
+                        if (!linkedDemo) return null
+                        const showBelow = hsIdx === 0
+                        return showBelow ? (
+                          <div className="pointer-events-none absolute top-full right-0 mt-2 opacity-0 group-hover/link:opacity-100 transition-opacity z-50">
+                            <div className="absolute right-2 bottom-full w-0 h-0" style={{ borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderBottom: '5px solid #1A1A1A' }} />
+                            <div className="px-2.5 py-1.5 rounded-md text-xs text-white whitespace-nowrap" style={{ background: '#1A1A1A', fontFamily: 'Poppins, sans-serif', boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }}>
+                              {linkedDemo.title}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="pointer-events-none absolute bottom-full right-0 mb-2 opacity-0 group-hover/link:opacity-100 transition-opacity z-50">
+                            <div className="px-2.5 py-1.5 rounded-md text-xs text-white whitespace-nowrap" style={{ background: '#1A1A1A', fontFamily: 'Poppins, sans-serif', boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }}>
+                              {linkedDemo.title}
+                            </div>
+                            <div className="absolute right-2 top-full w-0 h-0" style={{ borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: '5px solid #1A1A1A' }} />
+                          </div>
+                        )
+                      })()}
+                    </div>
 
                     {/* Delete */}
                     <button
@@ -937,8 +1031,9 @@ export default function HotspotBuilderModal({ initialName = '', initialPages, on
               )}
             </div>
           )}
-        </div>
-      </div>
+          </div>{/* end scrollable inner panel */}
+        </div>{/* end right panel outer wrapper */}
+      </div>{/* end body */}
 
       {/* Hotspot popup preview — rendered fixed so no overflow clipping */}
       {(() => {
