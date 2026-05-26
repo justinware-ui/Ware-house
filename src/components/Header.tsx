@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 
-export default function Header({ hasContent = false }: { hasContent?: boolean }) {
+export default function Header({ hasContent = false, onPreview }: { hasContent?: boolean; onPreview?: () => void }) {
   const [title, setTitle] = useState('Demo Title')
   const [editing, setEditing] = useState(false)
   const [editHover, setEditHover] = useState(false)
@@ -67,6 +67,7 @@ export default function Header({ hasContent = false }: { hasContent?: boolean })
           className="shrink-0 outline-none focus:outline-none focus-visible:outline-none"
           style={{ cursor: hasContent ? 'pointer' : 'not-allowed', outline: 'none' }}
           disabled={!hasContent}
+          onClick={onPreview}
           onMouseEnter={() => setPreviewHover(true)}
           onMouseLeave={() => setPreviewHover(false)}
         >

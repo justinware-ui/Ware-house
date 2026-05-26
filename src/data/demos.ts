@@ -15,6 +15,8 @@ export interface Demo {
   tags?: string
   totalTours: number
   created: string
+  mediaType?: 'video' | 'tour' | 'doc'
+  source?: 'consensus' | 'sharepoint' | 'drive'
 }
 
 export const demos: Demo[] = [

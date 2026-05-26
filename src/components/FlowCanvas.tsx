@@ -11,6 +11,7 @@ import { findReplacements, rejectDemo, searchContent } from '../lib/aiEngine'
 import type { ConfidenceLevel } from '../lib/aiEngine'
 import { demos as allDemos } from '../data/demos'
 import PreviewModal from './PreviewModal'
+import PrototypePreviewModal from './PrototypePreviewModal'
 import thumbTableHero from '../assets/thumb-table-hero.svg'
 import thumbContent from '../assets/thumb-content.svg'
 import {
@@ -924,7 +925,7 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
   )
 }
 
-export default function FlowCanvas({ onContentChange }: { onContentChange?: (hasContent: boolean) => void }) {
+export default function FlowCanvas({ onContentChange, previewOpen, onPreviewClose }: { onContentChange?: (hasContent: boolean) => void; previewOpen?: boolean; onPreviewClose?: () => void }) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
@@ -1852,6 +1853,8 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
   }, [setNodes])
 
   return (
+    <>
+    {previewOpen && <PrototypePreviewModal nodes={nodes} edges={edges} onClose={() => onPreviewClose?.()} />}
     <div ref={reactFlowWrapper} className="flex-1 h-full relative">
       <ReactFlow
         nodes={nodes}
@@ -2034,5 +2037,6 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
         )}
       </div>
     </div>
+    </>
   )
 }

@@ -43,8 +43,8 @@ function HotspotIcon({ size = 18 }: { size?: number; style?: React.CSSProperties
 
 const interactions = [
   { id: 'fullscreen', label: 'Full Screen Dialog', icon: Monitor, color: '#8b5cf6', bgColor: undefined as string | undefined },
-  { id: 'cta', label: 'Call to Action', icon: CtaIcon, color: '#FC6839', bgColor: undefined as string | undefined },
   { id: 'discovery', label: 'Discovery Question', icon: DiscoveryIcon, color: '#22c55e', bgColor: undefined as string | undefined },
+  { id: 'cta', label: 'Call to Action', icon: CtaIcon, color: '#FC6839', bgColor: undefined as string | undefined },
   { id: 'leadcapture', label: 'Lead Capture Form', icon: FileText, color: '#1e40af', bgColor: undefined as string | undefined },
   { id: 'hotspot', label: 'Screengrab & Hotspots', icon: HotspotIcon, color: '#D4A017', bgColor: '#FCE39F' },
 ]
