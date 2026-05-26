@@ -1,3 +1,5 @@
+'use client'
+
 import { useCallback, useRef, useState, useEffect, useMemo } from 'react'
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
 import { dingHigh, dingLow } from '../lib/audioDing'
@@ -9,6 +11,7 @@ import { findReplacements, rejectDemo, searchContent } from '../lib/aiEngine'
 import type { ConfidenceLevel } from '../lib/aiEngine'
 import { demos as allDemos } from '../data/demos'
 import PreviewModal from './PreviewModal'
+import PrototypePreviewModal from './PrototypePreviewModal'
 import thumbTableHero from '../assets/thumb-table-hero.svg'
 import thumbContent from '../assets/thumb-content.svg'
 import {
@@ -31,10 +34,12 @@ import InteractionNode from './nodes/InteractionNode'
 import CtaNode from './nodes/CtaNode'
 import DemoCardNode from './nodes/DemoCardNode'
 import FullScreenDialogNode from './nodes/FullScreenDialogNode'
+import HotspotNode from './nodes/HotspotNode'
 import DeletableEdge from './edges/DeletableEdge'
 
 const edgeTypes = {
   deletable: DeletableEdge,
+  deletableEdge: DeletableEdge,
 }
 
 const nodeTypes = {
@@ -43,6 +48,7 @@ const nodeTypes = {
   ctaNode: CtaNode,
   demoCardNode: DemoCardNode,
   fullScreenDialogNode: FullScreenDialogNode,
+  hotspotNode: HotspotNode,
 }
 
 const initialNodes: Node[] = []
@@ -56,6 +62,7 @@ const nodeTypeMap: Record<string, string> = {
   fullscreen: 'fullScreenDialogNode',
   cta: 'fullScreenDialogNode',
   discovery: 'ctaNode',
+  hotspot: 'hotspotNode',
   'card-demos': 'demoCardNode',
   'card-dynamic-tours': 'demoCardNode',
   'card-recommended': 'demoCardNode',
@@ -678,16 +685,8 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
       <div className="relative flex-1 overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-3 z-10 pointer-events-none transition-opacity duration-200" style={{ background: 'radial-gradient(ellipse 70% 100% at 50% 0%, rgba(0,0,0,0.06) 0%, transparent 100%)', opacity: canScrollUp ? 1 : 0 }} />
         <div className="absolute bottom-0 left-0 right-0 h-3 z-10 pointer-events-none transition-opacity duration-200" style={{ background: 'radial-gradient(ellipse 70% 100% at 50% 100%, rgba(0,0,0,0.06) 0%, transparent 100%)', opacity: canScrollDown ? 1 : 0 }} />
-      <div ref={scrollAreaRef} className="h-full overflow-y-auto px-4 py-4 flex flex-col" style={{ maxHeight: 400 }} onScroll={updateScrollShadows}>
+      <div ref={scrollAreaRef} className="h-full overflow-y-auto px-8 py-4 flex flex-col" style={{ maxHeight: 400 }} onScroll={updateScrollShadows}>
         <div className="flex gap-3 items-start">
-          <div className="shrink-0" style={{ marginTop: -4 }}>
-            <svg width="28" height="28" viewBox="14 8 62 62" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="19.0464" y="12.4535" width="50.4" height="50.4" rx="25.2" fill="url(#paint_pop_init)"/>
-              <path d="M43.0806 28.0993C43.1186 27.8951 43.4112 27.8951 43.4492 28.0993L43.8704 30.3629C44.4091 33.2584 46.6746 35.5236 49.5704 36.0623L51.8342 36.4835C52.0384 36.5215 52.0384 36.814 51.8342 36.852L49.5704 37.2731C46.6746 37.8118 44.4091 40.0771 43.8704 42.9726L43.4492 45.2362C43.4112 45.4404 43.1186 45.4404 43.0806 45.2362L42.6595 42.9726C42.1207 40.0771 39.8552 37.8118 36.9595 37.2731L34.6956 36.852C34.4914 36.814 34.4914 36.5215 34.6956 36.4835L36.9595 36.0623C39.8552 35.5236 42.1207 33.2584 42.6595 30.3629L43.0806 28.0993Z" fill="white"/>
-              <path d="M50.898 40.663C50.9127 40.584 51.0259 40.584 51.0406 40.663L51.2035 41.5386C51.4119 42.6586 52.2883 43.5349 53.4084 43.7433L54.2841 43.9062C54.3631 43.9209 54.3631 44.034 54.2841 44.0487L53.4084 44.2116C52.2883 44.42 51.4119 45.2963 51.2035 46.4163L51.0406 47.2919C51.0259 47.3709 50.9127 47.3709 50.898 47.2919L50.7351 46.4163C50.5267 45.2963 49.6504 44.42 48.5302 44.2116L47.6545 44.0487C47.5755 44.034 47.5755 43.9209 47.6545 43.9062L48.5302 43.7433C49.6504 43.5349 50.5267 42.6586 50.7351 41.5386L50.898 40.663Z" fill="white"/>
-              <defs><linearGradient id="paint_pop_init" x1="19.0464" y1="40.0309" x2="69.4464" y2="40.0309" gradientUnits="userSpaceOnUse"><stop stopColor="#FFB352"/><stop offset="0.5" stopColor="#FC6839"/><stop offset="1" stopColor="#EB2E24"/></linearGradient></defs>
-            </svg>
-          </div>
           <div className="flex-1 min-w-0 flex flex-col gap-2">
             <div className="text-sm text-gray-900 whitespace-pre-wrap">
               Here are alternatives I found for <span className="font-medium">&ldquo;{initialTitle.current.length > 40 ? initialTitle.current.slice(0, 37) + '...' : initialTitle.current}&rdquo;</span>
@@ -777,14 +776,6 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
               </div>
             ) : (
               <div className="flex gap-3 items-start">
-                <div className="shrink-0" style={{ marginTop: -4 }}>
-                  <svg width="28" height="28" viewBox="14 8 62 62" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="19.0464" y="12.4535" width="50.4" height="50.4" rx="25.2" fill="url(#paint_pop_msg)"/>
-                    <path d="M43.0806 28.0993C43.1186 27.8951 43.4112 27.8951 43.4492 28.0993L43.8704 30.3629C44.4091 33.2584 46.6746 35.5236 49.5704 36.0623L51.8342 36.4835C52.0384 36.5215 52.0384 36.814 51.8342 36.852L49.5704 37.2731C46.6746 37.8118 44.4091 40.0771 43.8704 42.9726L43.4492 45.2362C43.4112 45.4404 43.1186 45.4404 43.0806 45.2362L42.6595 42.9726C42.1207 40.0771 39.8552 37.8118 36.9595 37.2731L34.6956 36.852C34.4914 36.814 34.4914 36.5215 34.6956 36.4835L36.9595 36.0623C39.8552 35.5236 42.1207 33.2584 42.6595 30.3629L43.0806 28.0993Z" fill="white"/>
-                    <path d="M50.898 40.663C50.9127 40.584 51.0259 40.584 51.0406 40.663L51.2035 41.5386C51.4119 42.6586 52.2883 43.5349 53.4084 43.7433L54.2841 43.9062C54.3631 43.9209 54.3631 44.034 54.2841 44.0487L53.4084 44.2116C52.2883 44.42 51.4119 45.2963 51.2035 46.4163L51.0406 47.2919C51.0259 47.3709 50.9127 47.3709 50.898 47.2919L50.7351 46.4163C50.5267 45.2963 49.6504 44.42 48.5302 44.2116L47.6545 44.0487C47.5755 44.034 47.5755 43.9209 47.6545 43.9062L48.5302 43.7433C49.6504 43.5349 50.5267 42.6586 50.7351 41.5386L50.898 40.663Z" fill="white"/>
-                    <defs><linearGradient id="paint_pop_msg" x1="19.0464" y1="40.0309" x2="69.4464" y2="40.0309" gradientUnits="userSpaceOnUse"><stop stopColor="#FFB352"/><stop offset="0.5" stopColor="#FC6839"/><stop offset="1" stopColor="#EB2E24"/></linearGradient></defs>
-                  </svg>
-                </div>
                 <div className="flex-1 min-w-0 flex flex-col gap-2">
                   {msg.loading ? (
                     <div className="flex items-center gap-2 text-sm" style={{ color: '#FC6839' }}>
@@ -934,7 +925,7 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
   )
 }
 
-export default function FlowCanvas({ onContentChange }: { onContentChange?: (hasContent: boolean) => void }) {
+export default function FlowCanvas({ onContentChange, previewOpen, onPreviewClose }: { onContentChange?: (hasContent: boolean) => void; previewOpen?: boolean; onPreviewClose?: () => void }) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
@@ -1251,6 +1242,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
         type: mappedType,
         position,
         data: nodeData,
+        ...(mappedType === 'hotspotNode' ? { style: { paddingTop: 16, paddingBottom: 16 } } : {}),
       }
 
       setNodes((nds) => [...nds, newNode])
@@ -1379,7 +1371,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
             source: questionId,
             sourceHandle: `answer-${ti}`,
             target: cardId,
-            type: 'deletable',
+            type: 'deletableEdge',
           })
         })
       } else if (hasMultiplePersonas) {
@@ -1398,7 +1390,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
               source: questionId,
               sourceHandle: `answer-${pi}`,
               target: cardId,
-              type: 'deletable',
+              type: 'deletableEdge',
             })
           }
         })
@@ -1416,7 +1408,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
             source: questionId,
             sourceHandle: `answer-${i}`,
             target: cardId,
-            type: 'deletable',
+            type: 'deletableEdge',
           })
         })
       }
@@ -1453,7 +1445,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
             source: q1Id,
             sourceHandle: `answer-${pi}`,
             target: q2Id,
-            type: 'deletable',
+            type: 'deletableEdge',
           })
 
           ps.items.forEach((sel, mi) => {
@@ -1469,7 +1461,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
               source: q2Id,
               sourceHandle: `answer-${mi}`,
               target: cardId,
-              type: 'deletable',
+              type: 'deletableEdge',
             })
           })
 
@@ -1487,7 +1479,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
             source: q1Id,
             sourceHandle: `answer-${pi}`,
             target: cardId,
-            type: 'deletable',
+            type: 'deletableEdge',
           })
 
           yAccum += ROW_GAP
@@ -1620,7 +1612,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
               source: slotRef.ctaNodeId,
               sourceHandle: slotRef.sourceHandle,
               target: cardNodeId,
-              type: 'deletable',
+              type: 'deletableEdge',
             },
           ])
           setTimeout(() => document.dispatchEvent(new CustomEvent('sway-edge', { detail: { edgeId: slotEdgeId } })), 60)
@@ -1652,7 +1644,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
                 source: ctaNode.id,
                 sourceHandle: `answer-${newAnswerIndex}`,
                 target: cardNodeId,
-                type: 'deletable',
+                type: 'deletableEdge',
               },
             ])
             setTimeout(() => document.dispatchEvent(new CustomEvent('sway-edge', { detail: { edgeId: ctaEdgeId } })), 60)
@@ -1678,6 +1670,80 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
       }
     }
   }, [getNodes, getEdges, setNodes, setEdges])
+
+  // Handle hotspot-saved events dispatched by HotspotNode.handleSave
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { nodeId, pages: savedPages } = (e as CustomEvent).detail as {
+        nodeId: string
+        pages: Array<{ hotspots: Array<{ id: string; linkedDemoId?: string }> }>
+      }
+
+      const linkedHotspots = savedPages.flatMap(p => p.hotspots).filter(hs => hs.linkedDemoId)
+      if (linkedHotspots.length === 0) return
+
+      const currentNodes = getNodes()
+      const thisNode = currentNodes.find(n => n.id === nodeId)
+      const nodeWidth = typeof thisNode?.width === 'number' ? thisNode.width : 540
+      const baseX = (thisNode?.position.x ?? 0) + nodeWidth + 80
+      const baseY = thisNode?.position.y ?? 0
+
+      const demoNodeIdMap = new Map<string, string>()
+      const newDemoNodes: import('@xyflow/react').Node[] = []
+
+      linkedHotspots.forEach((hs, idx) => {
+        const demoId = hs.linkedDemoId!
+        if (demoNodeIdMap.has(demoId)) return
+        const existing = currentNodes.find(n => (n.data as Record<string, unknown>)?.demoId === demoId)
+        if (existing) {
+          demoNodeIdMap.set(demoId, existing.id)
+        } else {
+          const newId = `demoCard-${demoId}-${Date.now()}-${idx}`
+          demoNodeIdMap.set(demoId, newId)
+          const demo = allDemos.find(d => d.id === demoId)
+          if (demo) {
+            newDemoNodes.push({
+              id: newId,
+              type: 'demoCardNode',
+              position: { x: baseX, y: baseY + idx * 220 },
+              data: { demoId: demo.id, title: demo.title, creator: demo.creator, preview: demo.preview },
+            })
+          }
+        }
+      })
+
+      const newEdges = linkedHotspots
+        .filter(hs => demoNodeIdMap.has(hs.linkedDemoId!))
+        .map(hs => ({
+          id: `e-hotspot-${nodeId}-${hs.id}`,
+          source: nodeId,
+          sourceHandle: `hotspot-${hs.id}`,
+          target: demoNodeIdMap.get(hs.linkedDemoId!)!,
+          type: 'deletableEdge',
+          style: { stroke: '#FC6839', strokeWidth: 3, strokeDasharray: '8 4', strokeLinecap: 'round' as const },
+        }))
+
+      if (newDemoNodes.length > 0) {
+        setNodes(nds => [...nds.map(n => ({ ...n, selected: false })), ...newDemoNodes])
+      }
+
+      setTimeout(() => {
+        updateNodeInternals(nodeId)
+        setTimeout(() => {
+          setEdges(eds => [
+            ...eds.filter(e => !(e.source === nodeId && e.sourceHandle?.startsWith('hotspot-'))),
+            ...newEdges,
+          ])
+          newEdges.forEach(edge => {
+            setTimeout(() => document.dispatchEvent(new CustomEvent('sway-edge', { detail: { edgeId: edge.id } })), 60)
+          })
+        }, 300)
+      }, 400)
+    }
+
+    document.addEventListener('hotspot-saved', handler)
+    return () => document.removeEventListener('hotspot-saved', handler)
+  }, [getNodes, setNodes, setEdges, updateNodeInternals, allDemos])
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -1770,7 +1836,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
               source: slot.ctaNodeId,
               sourceHandle: slot.sourceHandle,
               target: newCardId,
-              type: 'deletable',
+              type: 'deletableEdge',
             },
           ])
         }, 100)
@@ -1787,6 +1853,8 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
   }, [setNodes])
 
   return (
+    <>
+    {previewOpen && <PrototypePreviewModal nodes={nodes} edges={edges} onClose={() => onPreviewClose?.()} />}
     <div ref={reactFlowWrapper} className="flex-1 h-full relative">
       <ReactFlow
         nodes={nodes}
@@ -1800,7 +1868,7 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         defaultEdgeOptions={{
-          type: 'deletable',
+          type: 'deletableEdge',
           style: { stroke: '#FC6839', strokeWidth: 3, strokeDasharray: '8 4', strokeLinecap: 'round' },
         }}
         defaultViewport={{ x: 0, y: 0, zoom: 0.75 }}
@@ -1969,5 +2037,6 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
         )}
       </div>
     </div>
+    </>
   )
 }

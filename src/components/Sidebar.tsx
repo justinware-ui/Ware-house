@@ -1,9 +1,9 @@
+'use client'
+
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Monitor,
-  MousePointerClick,
-  HelpCircle,
   FileText,
 } from 'lucide-react'
 import PreviewModal from './PreviewModal'
@@ -14,11 +14,39 @@ import { demos as realDemos } from '../data/demos'
 
 const thumbnails = [thumbTableHero, thumbContent]
 
+function CtaIcon({ size = 18, style }: { size?: number; style?: React.CSSProperties }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style={style}>
+      <path d="M7.57073 12.4878C6.32195 12.4228 5.26829 11.9415 4.40976 11.0439C3.55122 10.1463 3.12195 9.06667 3.12195 7.80488C3.12195 6.50407 3.57724 5.39837 4.4878 4.4878C5.39837 3.57724 6.50407 3.12195 7.80488 3.12195C9.06667 3.12195 10.1463 3.55122 11.0439 4.40976C11.9415 5.26829 12.4228 6.32195 12.4878 7.57073L10.8488 7.08293C10.6797 6.38049 10.3154 5.80488 9.7561 5.3561C9.19675 4.90732 8.54634 4.68293 7.80488 4.68293C6.94634 4.68293 6.21138 4.98862 5.6 5.6C4.98862 6.21138 4.68293 6.94634 4.68293 7.80488C4.68293 8.54634 4.90732 9.19675 5.3561 9.7561C5.80488 10.3154 6.38049 10.6797 7.08293 10.8488L7.57073 12.4878ZM8.50732 15.5707C8.39024 15.5967 8.27317 15.6098 8.1561 15.6098H7.80488C6.7252 15.6098 5.71057 15.4049 4.76098 14.9951C3.81138 14.5854 2.98537 14.0293 2.28293 13.3268C1.58049 12.6244 1.02439 11.7984 0.614634 10.8488C0.204878 9.89919 0 8.88455 0 7.80488C0 6.7252 0.204878 5.71057 0.614634 4.76098C1.02439 3.81138 1.58049 2.98537 2.28293 2.28293C2.98537 1.58049 3.81138 1.02439 4.76098 0.614634C5.71057 0.204878 6.7252 0 7.80488 0C8.88455 0 9.89919 0.204878 10.8488 0.614634C11.7984 1.02439 12.6244 1.58049 13.3268 2.28293C14.0293 2.98537 14.5854 3.81138 14.9951 4.76098C15.4049 5.71057 15.6098 6.7252 15.6098 7.80488V8.1561C15.6098 8.27317 15.5967 8.39024 15.5707 8.50732L14.0488 8.03902V7.80488C14.0488 6.06179 13.4439 4.58537 12.2341 3.37561C11.0244 2.16585 9.54797 1.56098 7.80488 1.56098C6.06179 1.56098 4.58537 2.16585 3.37561 3.37561C2.16585 4.58537 1.56098 6.06179 1.56098 7.80488C1.56098 9.54797 2.16585 11.0244 3.37561 12.2341C4.58537 13.4439 6.06179 14.0488 7.80488 14.0488H8.03902L8.50732 15.5707ZM14.4585 16L11.122 12.6634L10.1463 15.6098L7.80488 7.80488L15.6098 10.1463L12.6634 11.122L16 14.4585L14.4585 16Z" fill="currentColor"/>
+    </svg>
+  )
+}
+
+function DiscoveryIcon({ size = 18, style }: { size?: number; style?: React.CSSProperties }) {
+  return (
+    <svg width={size} height={size} viewBox="-3 -1.5 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style={style}>
+      <path d="M3.99627 -0.000547647C5.22027 -0.000547647 6.19827 0.335452 6.93027 1.00745C7.67427 1.67945 8.04627 2.59745 8.04627 3.76145C8.04627 4.97345 7.66227 5.88545 6.89427 6.49745C6.12627 7.10945 5.10627 7.41545 3.83427 7.41545L3.76227 8.83745H1.98027L1.89027 6.01145H2.48427C3.64827 6.01145 4.53627 5.85545 5.14827 5.54345C5.77227 5.23145 6.08427 4.63745 6.08427 3.76145C6.08427 3.12545 5.89827 2.62745 5.52627 2.26745C5.16627 1.90745 4.66227 1.72745 4.01427 1.72745C3.36627 1.72745 2.85627 1.90145 2.48427 2.24945C2.11227 2.59745 1.92627 3.08345 1.92627 3.70745H0.000273488C0.000273488 2.98745 0.162273 2.34545 0.486273 1.78145C0.810273 1.21745 1.27227 0.779452 1.87227 0.467453C2.48427 0.155452 3.19227 -0.000547647 3.99627 -0.000547647ZM2.84427 12.8155C2.47227 12.8155 2.16027 12.6895 1.90827 12.4375C1.65627 12.1855 1.53027 11.8735 1.53027 11.5015C1.53027 11.1295 1.65627 10.8175 1.90827 10.5655C2.16027 10.3135 2.47227 10.1875 2.84427 10.1875C3.20427 10.1875 3.51027 10.3135 3.76227 10.5655C4.01427 10.8175 4.14027 11.1295 4.14027 11.5015C4.14027 11.8735 4.01427 12.1855 3.76227 12.4375C3.51027 12.6895 3.20427 12.8155 2.84427 12.8155Z" fill="currentColor"/>
+    </svg>
+  )
+}
+
+function HotspotIcon({ size = 18 }: { size?: number; style?: React.CSSProperties }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <g transform="translate(-45.5254, -42.25)">
+        <circle cx="53.526" cy="50.2507" r="2.66667" fill="currentColor"/>
+        <path fillRule="evenodd" clipRule="evenodd" d="M52.5678 42.978C52.8813 42.9371 53.2007 42.916 53.5247 42.916C53.8488 42.916 54.1682 42.9371 54.4817 42.978C54.8468 43.0256 55.1042 43.3602 55.0565 43.7253C55.0089 44.0904 54.6743 44.3477 54.3092 44.3001C54.0528 44.2666 53.7909 44.2493 53.5247 44.2493C53.2585 44.2493 52.9967 44.2666 52.7402 44.3001C52.3751 44.3477 52.0406 44.0904 51.9929 43.7253C51.9453 43.3602 52.2027 43.0256 52.5678 42.978ZM57.0547 44.5538C57.279 44.2619 57.6976 44.2071 57.9895 44.4314C58.4973 44.8216 58.9525 45.2768 59.3427 45.7846C59.567 46.0765 59.5122 46.4951 59.2203 46.7194C58.9283 46.9437 58.5098 46.889 58.2855 46.597C57.9659 46.1811 57.593 45.8082 57.1771 45.4886C56.8851 45.2643 56.8303 44.8457 57.0547 44.5538ZM49.9948 44.5538C50.2191 44.8457 50.1643 45.2643 49.8724 45.4886C49.4565 45.8082 49.0836 46.1811 48.764 46.597C48.5397 46.889 48.1211 46.9437 47.8292 46.7194C47.5372 46.4951 47.4824 46.0765 47.7068 45.7846C48.097 45.2768 48.5522 44.8216 49.06 44.4314C49.3519 44.2071 49.7704 44.2619 49.9948 44.5538ZM60.0488 48.7176C60.4139 48.6699 60.7485 48.9273 60.7961 49.2924C60.837 49.6059 60.8581 49.9253 60.8581 50.2493C60.8581 50.5734 60.837 50.8928 60.7961 51.2063C60.7485 51.5714 60.4139 51.8288 60.0488 51.7811C59.6837 51.7335 59.4264 51.3989 59.474 51.0338C59.5074 50.7774 59.5247 50.5156 59.5247 50.2493C59.5247 49.9831 59.5074 49.7213 59.474 49.4649C59.4264 49.0998 59.6837 48.7652 60.0488 48.7176ZM47.0007 48.7176C47.3657 48.7652 47.6231 49.0998 47.5755 49.4649C47.542 49.7213 47.5247 49.9831 47.5247 50.2493C47.5247 50.5156 47.542 50.7774 47.5755 51.0338C47.6231 51.3989 47.3657 51.7335 47.0007 51.7811C46.6356 51.8288 46.301 51.5714 46.2534 51.2063C46.2125 50.8928 46.1914 50.5734 46.1914 50.2493C46.1914 49.9253 46.2125 49.6059 46.2534 49.2924C46.301 48.9273 46.6356 48.6699 47.0007 48.7176ZM59.2203 53.7793C59.5122 54.0036 59.567 54.4222 59.3427 54.7141C58.9525 55.2219 58.4973 55.6771 57.9895 56.0673C57.6976 56.2916 57.279 56.2368 57.0547 55.9449C56.8303 55.653 56.8851 55.2344 57.1771 55.0101C57.593 54.6905 57.9659 54.3176 58.2855 53.9017C58.5098 53.6097 58.9283 53.5549 59.2203 53.7793ZM47.8292 53.7793C48.1211 53.5549 48.5397 53.6097 48.764 53.9017C49.0836 54.3176 49.4565 54.6905 49.8724 55.0101C50.1643 55.2344 50.2191 55.653 49.9948 55.9449C49.7704 56.2368 49.3519 56.2916 49.06 56.0673C48.5522 55.6771 48.097 55.2219 47.7068 54.7141C47.4824 54.4222 47.5372 54.0036 47.8292 53.7793ZM51.9929 56.7734C52.0406 56.4083 52.3751 56.151 52.7402 56.1986C52.9967 56.2321 53.2585 56.2493 53.5247 56.2493C53.7909 56.2493 54.0528 56.2321 54.3092 56.1986C54.6743 56.151 55.0089 56.4083 55.0565 56.7734C55.1042 57.1385 54.8468 57.4731 54.4817 57.5207C54.1682 57.5616 53.8488 57.5827 53.5247 57.5827C53.2007 57.5827 52.8813 57.5616 52.5678 57.5207C52.2027 57.4731 51.9453 57.1385 51.9929 56.7734Z" fill="currentColor"/>
+      </g>
+    </svg>
+  )
+}
+
 const interactions = [
-  { id: 'fullscreen', label: 'Full Screen Dialog', icon: Monitor, color: '#8b5cf6' },
-  { id: 'cta', label: 'Call to Action', icon: MousePointerClick, color: '#FC6839' },
-  { id: 'discovery', label: 'Discovery Question', icon: HelpCircle, color: '#22c55e' },
-  { id: 'leadcapture', label: 'Lead Capture Form', icon: FileText, color: '#1e40af' },
+  { id: 'fullscreen', label: 'Full Screen Dialog', icon: Monitor, color: '#8b5cf6', bgColor: undefined as string | undefined },
+  { id: 'discovery', label: 'Discovery Question', icon: DiscoveryIcon, color: '#22c55e', bgColor: undefined as string | undefined },
+  { id: 'cta', label: 'Call to Action', icon: CtaIcon, color: '#FC6839', bgColor: undefined as string | undefined },
+  { id: 'leadcapture', label: 'Lead Capture Form', icon: FileText, color: '#1e40af', bgColor: undefined as string | undefined },
+  { id: 'hotspot', label: 'Screengrab & Hotspots', icon: HotspotIcon, color: '#D4A017', bgColor: '#FCE39F' },
 ]
 
 const tabs = ['Demos', 'Dynamic Tours', 'Recommended'] as const
@@ -38,6 +66,7 @@ const MAX_WIDTH = 620
 export default function Sidebar() {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>('Demos')
   const [width, setWidth] = useState(() => {
+    if (typeof window === 'undefined') return 420
     const saved = localStorage.getItem('sidebar-width')
     return saved ? Number(saved) : 420
   })
@@ -56,15 +85,22 @@ export default function Sidebar() {
   const [canScrollUp, setCanScrollUp] = useState(false)
   const [canScrollDown, setCanScrollDown] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const isDragging = useRef(false)
   const startX = useRef(0)
   const startWidth = useRef(0)
 
-  const expandPanel = useCallback(() => {
+  const expandPanel = useCallback((focusSearch = false) => {
     if (!collapsed) return
+    setTooltip(null)
     setContentVisible(false)
     setCollapsed(false)
-    setTimeout(() => setContentVisible(true), 320)
+    setTimeout(() => {
+      setContentVisible(true)
+      if (focusSearch) {
+        setTimeout(() => searchInputRef.current?.focus(), 50)
+      }
+    }, 320)
   }, [collapsed])
 
   const onResizeStart = useCallback((e: React.MouseEvent) => {
@@ -127,6 +163,7 @@ export default function Sidebar() {
             expandPanel()
           } else {
             setCollapsed(true)
+            setTooltip(null)
             setContentVisible(true)
           }
         }}
@@ -164,36 +201,51 @@ export default function Sidebar() {
 
       {/* Collapsed view */}
       {collapsed && (
-        <div className="flex flex-col items-center h-full cursor-pointer" onClick={expandPanel} style={{ paddingTop: 20 }}>
+        <div className="flex flex-col items-center h-full cursor-pointer" onClick={() => expandPanel()} style={{ paddingTop: 20 }}>
           {/* Interaction type squares */}
           <div className="shrink-0 flex flex-col items-center" style={{ gap: 11 }}>
-            {interactions.map(({ id, label, icon: Icon, color }) => (
+          {interactions.map(({ id, label, icon: Icon, color, bgColor }) => (
+            <div
+              key={id}
+              draggable
+              onDragStart={(e) => onDragStart(e, id, id === 'cta' ? { variant: 'cta' } : undefined)}
+              onMouseEnter={(e) => { const r = e.currentTarget.getBoundingClientRect(); setTooltip({ text: label, x: r.left, y: r.top + r.height / 2 }) }}
+              onMouseLeave={() => setTooltip(null)}
+              className="flex items-center justify-center cursor-grab border border-[#D0CBC6] hover:border-[#FC6839] hover:shadow-sm transition-all bg-white"
+              style={{
+                width: 60,
+                height: 60,
+                borderRadius: 8,
+                boxShadow: '0 2px 8px -4px rgba(48,41,33,0.2)',
+              }}
+            >
               <div
-                key={id}
-                draggable
-                onDragStart={(e) => onDragStart(e, id, id === 'cta' ? { variant: 'cta' } : undefined)}
-                onMouseEnter={(e) => { const r = e.currentTarget.getBoundingClientRect(); setTooltip({ text: label, x: r.left, y: r.top + r.height / 2 }) }}
-                onMouseLeave={() => setTooltip(null)}
-                className="flex items-center justify-center cursor-grab border border-[#D0CBC6] hover:border-[#FC6839] hover:shadow-sm transition-all bg-white"
-                style={{
-                  width: 60,
-                  height: 60,
-                  borderRadius: 8,
-                  boxShadow: '0 2px 8px -4px rgba(48,41,33,0.2)',
-                }}
+                className="flex items-center justify-center"
+                style={{ width: 32, height: 32, borderRadius: 4, backgroundColor: bgColor ?? `${color}33` }}
               >
-                <div
-                  className="flex items-center justify-center"
-                  style={{ width: 32, height: 32, borderRadius: 4, backgroundColor: `${color}33` }}
-                >
-                  <Icon size={18} style={{ color: '#293748' }} />
-                </div>
+                <Icon size={18} style={{ color: '#293748' }} />
               </div>
-            ))}
+            </div>
+          ))}
+          </div>
+
+          {/* Search icon circle */}
+          <div className="shrink-0 flex items-center justify-center" style={{ marginTop: 16 }}>
+            <div
+              onMouseEnter={(e) => { const r = e.currentTarget.getBoundingClientRect(); setTooltip({ text: 'Search', x: r.left, y: r.top + r.height / 2 }) }}
+              onMouseLeave={() => setTooltip(null)}
+              onClick={(e) => { e.stopPropagation(); expandPanel(true) }}
+              className="flex items-center justify-center cursor-pointer"
+              style={{ width: 40, height: 40, borderRadius: 20, border: '1px solid #D0CBC6', background: 'white' }}
+            >
+              <svg width="20" height="20" viewBox="0.8 -2.2 20 20" fill="none">
+                <path d="M16.75 14.917L12.0833 10.25C11.6667 10.583 11.1875 10.847 10.6458 11.042C10.1042 11.236 9.52778 11.333 8.91667 11.333C7.40278 11.333 6.12167 10.809 5.07333 9.761C4.02444 8.712 3.5 7.431 3.5 5.917C3.5 4.403 4.02444 3.121 5.07333 2.072C6.12167 1.024 7.40278 0.5 8.91667 0.5C10.4306 0.5 11.7119 1.024 12.7608 2.072C13.8092 3.121 14.3333 4.403 14.3333 5.917C14.3333 6.528 14.2361 7.104 14.0417 7.646C13.8472 8.187 13.5833 8.667 13.25 9.083L17.9375 13.771C18.0903 13.924 18.1667 14.111 18.1667 14.333C18.1667 14.556 18.0833 14.75 17.9167 14.917C17.7639 15.069 17.5694 15.146 17.3333 15.146C17.0972 15.146 16.9028 15.069 16.75 14.917ZM8.91667 9.667C9.95833 9.667 10.8439 9.302 11.5733 8.573C12.3022 7.844 12.6667 6.958 12.6667 5.917C12.6667 4.875 12.3022 3.989 11.5733 3.26C10.8439 2.531 9.95833 2.167 8.91667 2.167C7.875 2.167 6.98944 2.531 6.26 3.26C5.53111 3.989 5.16667 4.875 5.16667 5.917C5.16667 6.958 5.53111 7.844 6.26 8.573C6.98944 9.302 7.875 9.667 8.91667 9.667Z" fill="#172537"/>
+              </svg>
+            </div>
           </div>
 
           {/* Demo / Dynamic Tours / Recommended icon button */}
-          <div className="shrink-0 flex items-center justify-center" style={{ marginTop: 16 }}>
+          <div className="shrink-0 flex items-center justify-center" style={{ marginTop: 14 }}>
             <div
               onMouseEnter={(e) => { setDemoIconHover(true); const r = e.currentTarget.getBoundingClientRect(); setTooltip({ text: activeTab, x: r.left, y: r.top + r.height / 2 }) }}
               onMouseLeave={() => { setDemoIconHover(false); setTooltip(null) }}
@@ -248,20 +300,6 @@ export default function Sidebar() {
                   </svg>
                 )
               )}
-            </div>
-          </div>
-
-          {/* Search icon circle */}
-          <div className="shrink-0 flex items-center justify-center" style={{ marginTop: 14 }}>
-            <div
-              onMouseEnter={(e) => { const r = e.currentTarget.getBoundingClientRect(); setTooltip({ text: 'Search', x: r.left, y: r.top + r.height / 2 }) }}
-              onMouseLeave={() => setTooltip(null)}
-              className="flex items-center justify-center cursor-pointer"
-              style={{ width: 40, height: 40, borderRadius: 20, border: '1px solid #D0CBC6', background: 'white' }}
-            >
-              <svg width="20" height="20" viewBox="0.8 -2.2 20 20" fill="none">
-                <path d="M16.75 14.917L12.0833 10.25C11.6667 10.583 11.1875 10.847 10.6458 11.042C10.1042 11.236 9.52778 11.333 8.91667 11.333C7.40278 11.333 6.12167 10.809 5.07333 9.761C4.02444 8.712 3.5 7.431 3.5 5.917C3.5 4.403 4.02444 3.121 5.07333 2.072C6.12167 1.024 7.40278 0.5 8.91667 0.5C10.4306 0.5 11.7119 1.024 12.7608 2.072C13.8092 3.121 14.3333 4.403 14.3333 5.917C14.3333 6.528 14.2361 7.104 14.0417 7.646C13.8472 8.187 13.5833 8.667 13.25 9.083L17.9375 13.771C18.0903 13.924 18.1667 14.111 18.1667 14.333C18.1667 14.556 18.0833 14.75 17.9167 14.917C17.7639 15.069 17.5694 15.146 17.3333 15.146C17.0972 15.146 16.9028 15.069 16.75 14.917ZM8.91667 9.667C9.95833 9.667 10.8439 9.302 11.5733 8.573C12.3022 7.844 12.6667 6.958 12.6667 5.917C12.6667 4.875 12.3022 3.989 11.5733 3.26C10.8439 2.531 9.95833 2.167 8.91667 2.167C7.875 2.167 6.98944 2.531 6.26 3.26C5.53111 3.989 5.16667 4.875 5.16667 5.917C5.16667 6.958 5.53111 7.844 6.26 8.573C6.98944 9.302 7.875 9.667 8.91667 9.667Z" fill="#172537"/>
-              </svg>
             </div>
           </div>
 
@@ -322,7 +360,7 @@ export default function Sidebar() {
           Interactions
         </h2>
         <div className="grid grid-cols-4 gap-3">
-          {interactions.map(({ id, label, icon: Icon, color }) => (
+          {interactions.map(({ id, label, icon: Icon, color, bgColor }) => (
             <div
               key={id}
               draggable
@@ -335,7 +373,7 @@ export default function Sidebar() {
               <div className="w-full aspect-[4/3] flex items-center justify-center" style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 250ms ease-in' }}>
                 <div
                   className="flex items-center justify-center rounded-md"
-                  style={{ width: 32, height: 32, backgroundColor: `${color}33`, marginTop: 15 }}
+                  style={{ width: 32, height: 32, backgroundColor: bgColor ?? `${color}33`, marginTop: 15 }}
                 >
                   <Icon size={16} style={{ color: '#293748' }} />
                 </div>
@@ -348,8 +386,63 @@ export default function Sidebar() {
         </div>
       </div>
 
+      {/* Filter + search */}
+      <div className="px-9 pt-10 pb-6 flex items-center gap-2" style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 250ms ease-in' }}>
+        {/* Search field */}
+        <div
+          className="flex-1 min-w-0 flex items-center gap-2 bg-white transition-shadow duration-200"
+          style={{
+            height: 32,
+            borderRadius: 16,
+            border: searchFocused ? '2px solid #F44C10' : '1px solid #D0CBC6',
+            boxShadow: searchFocused ? '0 0 0 5px rgba(255, 150, 89, 0.5)' : 'none',
+            padding: searchFocused ? '0 15px' : '0 16px',
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
+            <mask id="mask_search_sidebar" style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="0" y="0" width="16" height="16">
+              <rect width="16" height="16" fill="#D9D9D9"/>
+            </mask>
+            <g mask="url(#mask_search_sidebar)">
+              <path d="M12.6 13.5333L8.86667 9.8C8.53333 10.0667 8.15 10.2778 7.71667 10.4333C7.28333 10.5889 6.82222 10.6667 6.33333 10.6667C5.12222 10.6667 4.09733 10.2473 3.25867 9.4087C2.41956 8.5696 2 7.5444 2 6.3333C2 5.1222 2.41956 4.0971 3.25867 3.258C4.09733 2.4193 5.12222 2 6.33333 2C7.54444 2 8.56956 2.4193 9.40867 3.258C10.2473 4.0971 10.6667 5.1222 10.6667 6.3333C10.6667 6.8222 10.5889 7.2833 10.4333 7.7167C10.2778 8.15 10.0667 8.5333 9.8 8.8667L13.55 12.6167C13.6722 12.7389 13.7333 12.8889 13.7333 13.0667C13.7333 13.2444 13.6667 13.4 13.5333 13.5333C13.4111 13.6556 13.2556 13.7167 13.0667 13.7167C12.8778 13.7167 12.7222 13.6556 12.6 13.5333ZM6.33333 9.3333C7.16667 9.3333 7.87511 9.0418 8.45867 8.4587C9.04178 7.8751 9.33333 7.1667 9.33333 6.3333C9.33333 5.5 9.04178 4.7916 8.45867 4.208C7.87511 3.6249 7.16667 3.3333 6.33333 3.3333C5.5 3.3333 4.79156 3.6249 4.208 4.208C3.62489 4.7916 3.33333 5.5 3.33333 6.3333C3.33333 7.1667 3.62489 7.8751 4.208 8.4587C4.79156 9.0418 5.5 9.3333 6.33333 9.3333Z" fill="#172537"/>
+            </g>
+          </svg>
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search"
+            className="text-sm outline-none bg-transparent flex-1 min-w-0 placeholder:opacity-50"
+            style={{ color: '#172537' }}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+          />
+        </div>
+
+        {/* Filter button */}
+        <button
+          className="shrink-0 flex items-center justify-center rounded-full transition-colors"
+          style={{
+            width: 32,
+            height: 32,
+            backgroundColor: filterHover ? '#7D2CAF' : '#9B50CA',
+            cursor: 'pointer',
+          }}
+          onMouseEnter={() => setFilterHover(true)}
+          onMouseLeave={() => setFilterHover(false)}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <mask id="mask_filter_icon" style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24">
+              <rect width="24" height="24" fill="#D9D9D9"/>
+            </mask>
+            <g mask="url(#mask_filter_icon)">
+              <path d="M14.0009 13V19C14.0009 19.2833 13.9052 19.5207 13.7139 19.712C13.5219 19.904 13.2842 20 13.0009 20H11.0009C10.7176 20 10.4802 19.904 10.2889 19.712C10.0969 19.5207 10.0009 19.2833 10.0009 19V13L4.20088 5.6C3.95088 5.26667 3.91355 4.91667 4.08888 4.55C4.26355 4.18333 4.56755 4 5.00088 4H19.0009C19.4342 4 19.7386 4.18333 19.9139 4.55C20.0886 4.91667 20.0509 5.26667 19.8009 5.6L14.0009 13ZM12.0009 12.3L16.9509 6H7.05088L12.0009 12.3Z" fill="white"/>
+            </g>
+          </svg>
+        </button>
+      </div>
+
       {/* Tabs */}
-      <div className="pt-14 flex items-center gap-6" style={{ borderBottom: '1px solid #D0CBC6', paddingLeft: 36, paddingRight: 36, opacity: contentVisible ? 1 : 0, transition: 'opacity 250ms ease-in' }}>
+      <div className="pt-4 flex items-center gap-6" style={{ borderBottom: '1px solid #D0CBC6', paddingLeft: 36, paddingRight: 36, opacity: contentVisible ? 1 : 0, transition: 'opacity 250ms ease-in' }}>
         {tabs.map((tab) => {
           const isActive = activeTab === tab
           return (
@@ -389,73 +482,9 @@ export default function Sidebar() {
         })}
       </div>
 
-      {/* Filter + search */}
-      <div className="px-9 pt-14 pb-6 flex items-center gap-2" style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 250ms ease-in' }}>
-        {/* Filter button (SVG) */}
-        <button
-          className="shrink-0"
-          style={{ cursor: 'pointer' }}
-          onMouseEnter={() => setFilterHover(true)}
-          onMouseLeave={() => setFilterHover(false)}
-        >
-          {filterHover ? (
-            <svg width="78" height="32" viewBox="0 0 78 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect width="78" height="32" rx="16" fill="#7D2CAF"/>
-              <path d="M18 11.624V12.98H14.508V15.128H17.184V16.46H14.508V20H12.828V11.624H18ZM20.0433 12.56C19.7473 12.56 19.4993 12.468 19.2993 12.284C19.1073 12.092 19.0113 11.856 19.0113 11.576C19.0113 11.296 19.1073 11.064 19.2993 10.88C19.4993 10.688 19.7473 10.592 20.0433 10.592C20.3393 10.592 20.5833 10.688 20.7753 10.88C20.9753 11.064 21.0753 11.296 21.0753 11.576C21.0753 11.856 20.9753 12.092 20.7753 12.284C20.5833 12.468 20.3393 12.56 20.0433 12.56ZM20.8713 13.352V20H19.1913V13.352H20.8713ZM24.2111 11.12V20H22.5311V11.12H24.2111ZM27.827 14.732V17.948C27.827 18.172 27.879 18.336 27.983 18.44C28.095 18.536 28.279 18.584 28.535 18.584H29.315V20H28.259C26.843 20 26.135 19.312 26.135 17.936V14.732H25.343V13.352H26.135V11.708H27.827V13.352H29.315V14.732H27.827ZM36.7033 16.532C36.7033 16.772 36.6873 16.988 36.6553 17.18H31.7953C31.8353 17.66 32.0033 18.036 32.2993 18.308C32.5953 18.58 32.9593 18.716 33.3913 18.716C34.0153 18.716 34.4593 18.448 34.7233 17.912H36.5353C36.3433 18.552 35.9753 19.08 35.4313 19.496C34.8873 19.904 34.2193 20.108 33.4273 20.108C32.7873 20.108 32.2113 19.968 31.6993 19.688C31.1953 19.4 30.7993 18.996 30.5113 18.476C30.2313 17.956 30.0913 17.356 30.0913 16.676C30.0913 15.988 30.2313 15.384 30.5113 14.864C30.7913 14.344 31.1833 13.944 31.6873 13.664C32.1913 13.384 32.7713 13.244 33.4273 13.244C34.0593 13.244 34.6233 13.38 35.1193 13.652C35.6233 13.924 36.0113 14.312 36.2833 14.816C36.5633 15.312 36.7033 15.884 36.7033 16.532ZM34.9633 16.052C34.9553 15.62 34.7993 15.276 34.4953 15.02C34.1913 14.756 33.8193 14.624 33.3793 14.624C32.9633 14.624 32.6113 14.752 32.3233 15.008C32.0433 15.256 31.8713 15.604 31.8073 16.052H34.9633ZM39.6096 14.384C39.8256 14.032 40.1056 13.756 40.4496 13.556C40.8016 13.356 41.2016 13.256 41.6496 13.256V15.02H41.2056C40.6776 15.02 40.2776 15.144 40.0056 15.392C39.7416 15.64 39.6096 16.072 39.6096 16.688V20H37.9296V13.352H39.6096V14.384Z" fill="white"/>
-              <mask id="mask_filter_hover" style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="50" y="8" width="16" height="16">
-                <rect x="50" y="8" width="16" height="16" fill="#D9D9D9"/>
-              </mask>
-              <g mask="url(#mask_filter_hover)">
-                <path d="M59.3331 16.6665V20.6665C59.3331 20.8554 59.2693 21.0136 59.1418 21.1412C59.0138 21.2692 58.8553 21.3332 58.6664 21.3332H57.3331C57.1442 21.3332 56.986 21.2692 56.8584 21.1412C56.7304 21.0136 56.6664 20.8554 56.6664 20.6665V16.6665L52.7998 11.7332C52.6331 11.5109 52.6082 11.2776 52.7251 11.0332C52.8416 10.7887 53.0442 10.6665 53.3331 10.6665H62.6664C62.9553 10.6665 63.1582 10.7887 63.2751 11.0332C63.3916 11.2776 63.3664 11.5109 63.1998 11.7332L59.3331 16.6665ZM57.9998 16.1998L61.2998 11.9998H54.6998L57.9998 16.1998Z" fill="white"/>
-              </g>
-            </svg>
-          ) : (
-            <svg width="78" height="32" viewBox="0 0 78 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect width="78" height="32" rx="16" fill="#9B50CA"/>
-              <path d="M18 11.624V12.98H14.508V15.128H17.184V16.46H14.508V20H12.828V11.624H18ZM20.0433 12.56C19.7473 12.56 19.4993 12.468 19.2993 12.284C19.1073 12.092 19.0113 11.856 19.0113 11.576C19.0113 11.296 19.1073 11.064 19.2993 10.88C19.4993 10.688 19.7473 10.592 20.0433 10.592C20.3393 10.592 20.5833 10.688 20.7753 10.88C20.9753 11.064 21.0753 11.296 21.0753 11.576C21.0753 11.856 20.9753 12.092 20.7753 12.284C20.5833 12.468 20.3393 12.56 20.0433 12.56ZM20.8713 13.352V20H19.1913V13.352H20.8713ZM24.2111 11.12V20H22.5311V11.12H24.2111ZM27.827 14.732V17.948C27.827 18.172 27.879 18.336 27.983 18.44C28.095 18.536 28.279 18.584 28.535 18.584H29.315V20H28.259C26.843 20 26.135 19.312 26.135 17.936V14.732H25.343V13.352H26.135V11.708H27.827V13.352H29.315V14.732H27.827ZM36.7033 16.532C36.7033 16.772 36.6873 16.988 36.6553 17.18H31.7953C31.8353 17.66 32.0033 18.036 32.2993 18.308C32.5953 18.58 32.9593 18.716 33.3913 18.716C34.0153 18.716 34.4593 18.448 34.7233 17.912H36.5353C36.3433 18.552 35.9753 19.08 35.4313 19.496C34.8873 19.904 34.2193 20.108 33.4273 20.108C32.7873 20.108 32.2113 19.968 31.6993 19.688C31.1953 19.4 30.7993 18.996 30.5113 18.476C30.2313 17.956 30.0913 17.356 30.0913 16.676C30.0913 15.988 30.2313 15.384 30.5113 14.864C30.7913 14.344 31.1833 13.944 31.6873 13.664C32.1913 13.384 32.7713 13.244 33.4273 13.244C34.0593 13.244 34.6233 13.38 35.1193 13.652C35.6233 13.924 36.0113 14.312 36.2833 14.816C36.5633 15.312 36.7033 15.884 36.7033 16.532ZM34.9633 16.052C34.9553 15.62 34.7993 15.276 34.4953 15.02C34.1913 14.756 33.8193 14.624 33.3793 14.624C32.9633 14.624 32.6113 14.752 32.3233 15.008C32.0433 15.256 31.8713 15.604 31.8073 16.052H34.9633ZM39.6096 14.384C39.8256 14.032 40.1056 13.756 40.4496 13.556C40.8016 13.356 41.2016 13.256 41.6496 13.256V15.02H41.2056C40.6776 15.02 40.2776 15.144 40.0056 15.392C39.7416 15.64 39.6096 16.072 39.6096 16.688V20H37.9296V13.352H39.6096V14.384Z" fill="white"/>
-              <mask id="mask_filter_default" style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="50" y="8" width="16" height="16">
-                <rect x="50" y="8" width="16" height="16" fill="#D9D9D9"/>
-              </mask>
-              <g mask="url(#mask_filter_default)">
-                <path d="M59.3331 16.6665V20.6665C59.3331 20.8554 59.2693 21.0136 59.1418 21.1412C59.0138 21.2692 58.8553 21.3332 58.6664 21.3332H57.3331C57.1442 21.3332 56.986 21.2692 56.8584 21.1412C56.7304 21.0136 56.6664 20.8554 56.6664 20.6665V16.6665L52.7998 11.7332C52.6331 11.5109 52.6082 11.2776 52.7251 11.0332C52.8416 10.7887 53.0442 10.6665 53.3331 10.6665H62.6664C62.9553 10.6665 63.1582 10.7887 63.2751 11.0332C63.3916 11.2776 63.3664 11.5109 63.1998 11.7332L59.3331 16.6665ZM57.9998 16.1998L61.2998 11.9998H54.6998L57.9998 16.1998Z" fill="white"/>
-              </g>
-            </svg>
-          )}
-        </button>
-
-        {/* Search field */}
-        <div
-          className="flex-1 min-w-0 flex items-center gap-2 bg-white transition-shadow duration-200"
-          style={{
-            height: 32,
-            borderRadius: 16,
-            border: searchFocused ? '2px solid #F44C10' : '1px solid #D0CBC6',
-            boxShadow: searchFocused ? '0 0 0 5px rgba(255, 150, 89, 0.5)' : 'none',
-            padding: searchFocused ? '0 15px' : '0 16px',
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
-            <mask id="mask_search_sidebar" style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="0" y="0" width="16" height="16">
-              <rect width="16" height="16" fill="#D9D9D9"/>
-            </mask>
-            <g mask="url(#mask_search_sidebar)">
-              <path d="M12.6 13.5333L8.86667 9.8C8.53333 10.0667 8.15 10.2778 7.71667 10.4333C7.28333 10.5889 6.82222 10.6667 6.33333 10.6667C5.12222 10.6667 4.09733 10.2473 3.25867 9.4087C2.41956 8.5696 2 7.5444 2 6.3333C2 5.1222 2.41956 4.0971 3.25867 3.258C4.09733 2.4193 5.12222 2 6.33333 2C7.54444 2 8.56956 2.4193 9.40867 3.258C10.2473 4.0971 10.6667 5.1222 10.6667 6.3333C10.6667 6.8222 10.5889 7.2833 10.4333 7.7167C10.2778 8.15 10.0667 8.5333 9.8 8.8667L13.55 12.6167C13.6722 12.7389 13.7333 12.8889 13.7333 13.0667C13.7333 13.2444 13.6667 13.4 13.5333 13.5333C13.4111 13.6556 13.2556 13.7167 13.0667 13.7167C12.8778 13.7167 12.7222 13.6556 12.6 13.5333ZM6.33333 9.3333C7.16667 9.3333 7.87511 9.0418 8.45867 8.4587C9.04178 7.8751 9.33333 7.1667 9.33333 6.3333C9.33333 5.5 9.04178 4.7916 8.45867 4.208C7.87511 3.6249 7.16667 3.3333 6.33333 3.3333C5.5 3.3333 4.79156 3.6249 4.208 4.208C3.62489 4.7916 3.33333 5.5 3.33333 6.3333C3.33333 7.1667 3.62489 7.8751 4.208 8.4587C4.79156 9.0418 5.5 9.3333 6.33333 9.3333Z" fill="#172537"/>
-            </g>
-          </svg>
-          <input
-            type="text"
-            placeholder="Search"
-            className="text-sm outline-none bg-transparent flex-1 min-w-0 placeholder:opacity-50"
-            style={{ color: '#172537' }}
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
-          />
-        </div>
-      </div>
-
       {/* Demo list */}
-      <div className="relative flex-1 overflow-hidden mb-6">
-        <div className="absolute top-0 left-0 right-0 h-3 z-10 pointer-events-none transition-opacity duration-200" style={{ background: 'radial-gradient(ellipse 70% 100% at 50% 0%, rgba(0,0,0,0.06) 0%, transparent 100%)', opacity: canScrollUp && contentVisible ? 1 : 0 }} />
+      <div className="relative flex-1 overflow-hidden pt-12 mb-6">
+        <div className="absolute top-12 left-0 right-0 h-3 z-10 pointer-events-none transition-opacity duration-200" style={{ background: 'radial-gradient(ellipse 70% 100% at 50% 0%, rgba(0,0,0,0.06) 0%, transparent 100%)', opacity: canScrollUp && contentVisible ? 1 : 0 }} />
         <div className="absolute bottom-0 left-0 right-0 h-3 z-10 pointer-events-none transition-opacity duration-200" style={{ background: 'radial-gradient(ellipse 70% 100% at 50% 100%, rgba(0,0,0,0.06) 0%, transparent 100%)', opacity: canScrollDown && contentVisible ? 1 : 0 }} />
       <div ref={scrollRef} className="h-full overflow-y-auto px-9 pt-1 pb-1" onScroll={updateScrollShadows}>
         {demos.map((demo) => (

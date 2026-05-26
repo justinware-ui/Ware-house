@@ -1,3 +1,5 @@
+'use client'
+
 import { useState, useCallback, useMemo, useRef, useLayoutEffect, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Handle, Position, type NodeProps, useReactFlow, useUpdateNodeInternals } from '@xyflow/react'
@@ -668,12 +670,13 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
         <>
           {/* Header field */}
           <div className="mb-7 px-1" style={{ marginTop: 6 }}>
-            <input
-              type="text"
+            <textarea
               value={header}
-              onChange={(e) => setHeader(e.target.value)}
+              onChange={(e) => setHeader(wrapText(e.target.value))}
               placeholder="Type your header here"
-              className="nodrag w-full text-base font-semibold italic text-gray-800 placeholder:text-gray-800 placeholder:font-semibold placeholder:italic placeholder:opacity-100 focus:placeholder:opacity-60 outline-none bg-transparent"
+              rows={Math.max(1, header.split('\n').length)}
+              className="nodrag w-full text-base font-semibold italic text-gray-800 placeholder:text-gray-800 placeholder:font-semibold placeholder:italic placeholder:opacity-100 focus:placeholder:opacity-60 outline-none bg-transparent resize-none overflow-hidden"
+              style={{ lineHeight: 1.5 }}
               data-cta-field
               onFocus={handleFieldFocus}
               onBlur={handleFieldBlur}

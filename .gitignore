@@ -1,8 +1,17 @@
+# dependencies
 node_modules/
+
+# Next.js
+.next/
+out/
 dist/
-.vite/
-*.local
-.DS_Store
+
+# env files
 .env
 .env.*
 !.env.example
+
+# misc
+.DS_Store
+*.local
+tsconfig.tsbuildinfo

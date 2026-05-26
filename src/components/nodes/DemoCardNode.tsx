@@ -1,3 +1,5 @@
+'use client'
+
 import { X } from 'lucide-react'
 import { Handle, Position, useReactFlow, type NodeProps } from '@xyflow/react'
 import thumbTableHero from '../../assets/thumb-table-hero.svg'

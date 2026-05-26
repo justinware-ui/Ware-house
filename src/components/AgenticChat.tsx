@@ -1,3 +1,5 @@
+'use client'
+
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Mic, Send, ChevronDown, ChevronRight } from 'lucide-react'
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
@@ -5,32 +7,32 @@ import { dingHigh, dingLow } from '../lib/audioDing'
 import AudioWaveform from './AudioWaveform'
 import PreviewModal from './PreviewModal'
 import {
-  buildProposal,
-  generateToolCalls,
   type DemoProposal,
   type ToolGroup,
   type ConfidenceLevel,
-  detectIntent,
-  extractPersonas,
-  extractPainPoints,
   rejectDemo,
   getRejectedIds,
   type CanvasState,
+  buildProposal,
+  generateToolCalls,
+  detectIntent,
+  extractPersonas,
+  extractPainPoints,
 } from '../lib/aiEngine'
 import thumbTableHero from '../assets/thumb-table-hero.svg'
 import thumbContent from '../assets/thumb-content.svg'
-import t1Default from '../assets/templates/t1-default.svg?url'
-import t1Hover from '../assets/templates/t1-hover.svg?url'
-import t1Active from '../assets/templates/t1-active.svg?url'
-import t2Default from '../assets/templates/t2-default.svg?url'
-import t2Hover from '../assets/templates/t2-hover.svg?url'
-import t2Active from '../assets/templates/t2-active.svg?url'
-import t3Default from '../assets/templates/t3-default.svg?url'
-import t3Hover from '../assets/templates/t3-hover.svg?url'
-import t3Active from '../assets/templates/t3-active.svg?url'
-import t4Default from '../assets/templates/t4-default.svg?url'
-import t4Hover from '../assets/templates/t4-hover.svg?url'
-import t4Active from '../assets/templates/t4-active.svg?url'
+import t1Default from '../assets/templates/t1-default.svg'
+import t1Hover from '../assets/templates/t1-hover.svg'
+import t1Active from '../assets/templates/t1-active.svg'
+import t2Default from '../assets/templates/t2-default.svg'
+import t2Hover from '../assets/templates/t2-hover.svg'
+import t2Active from '../assets/templates/t2-active.svg'
+import t3Default from '../assets/templates/t3-default.svg'
+import t3Hover from '../assets/templates/t3-hover.svg'
+import t3Active from '../assets/templates/t3-active.svg'
+import t4Default from '../assets/templates/t4-default.svg'
+import t4Hover from '../assets/templates/t4-hover.svg'
+import t4Active from '../assets/templates/t4-active.svg'
 
 const demoThumbnails = [thumbTableHero, thumbContent]
 function getDemoThumb(title: string) {
@@ -42,6 +44,7 @@ function getDemoThumb(title: string) {
 type ConvoStep =
   | 'ask_purpose'
   | 'awaiting_purpose'
+  | 'awaiting_template'
   | 'ask_pain_points'
   | 'awaiting_pain_points'
   | 'thinking'
@@ -102,6 +105,7 @@ interface Props {
 export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleContent, onCreateNode, removedDemoIds, inputBottom, canvasState }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
+  const [pendingPersonas, setPendingPersonas] = useState<string[]>([])
   const hasSent = messages.some((m) => m.role === 'user')
   const effectiveHasSent = hasSent || !!inputBottom
   const [step, setStep] = useState<ConvoStep>('ask_purpose')
@@ -250,223 +254,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
     return () => window.removeEventListener('resize', update)
   }, [mode, effectiveHasSent, inputHeight])
 
-  const handleSend = () => {
-    const text = input.trim()
-    if (!text) return
-    setInput('')
-    if (textareaRef.current) textareaRef.current.style.height = 'auto'
-    if (isListening) {
-      stopVoice()
-      resetTranscript()
-    }
-
-    const isFirst = !messages.some((m) => m.role === 'user')
-
-    const processMessage = () => {
-      addMessage({ role: 'user', content: text, actions: true })
-
-      // Reject generic meta-descriptions that describe the demo-building task
-      // rather than providing actual personas or topics
-      const wordCount = text.split(/\s+/).length
-      const isMetaDescription = wordCount > 15 && /\b(helping|identify|ask.*question|choose|relevant content|should include|find most important)\b/i.test(text)
-      if (isMetaDescription && step !== 'post_proposal') {
-        addMessage({
-          role: 'ai',
-          content: step === 'awaiting_pain_points'
-            ? "Could you give me the specific topics as a short list? For example: \"analytics, demo creation, tours, demo management\" — I'll use those as the answer choices and find the best content for each."
-            : "I need a bit more structure to work with. Who are the personas this demo is for? For example: \"VPs of Sales and Marketing Directors\".",
-        })
-        return
-      }
-
-      // FSD help sub-flows always take priority when active
-      if (step === 'awaiting_fsd_help') { handleFSDHelpResponse(text); return }
-      if (step === 'awaiting_fsd_content') { handleFSDContentResponse(text); return }
-
-      // Use intent detection for flexible routing
-      const intent = detectIntent(text, personas.length > 0, !!latestProposal)
-
-      if (intent === 'request_fsd' && step !== 'thinking') {
-        handleFSDRequest(text)
-        return
-      }
-
-      // Handle "provide_both" — user gave personas + pain points in one message
-      if (intent === 'provide_both') {
-        const extracted = extractPersonas(text)
-        const updatedPersonas = extracted.map((n) => ({ name: n, painPoints: [] as string[] }))
-        const painPointsByPersona = extractPainPoints(text, updatedPersonas)
-        const withPainPoints = updatedPersonas.map((p, i) => ({
-          ...p,
-          painPoints: painPointsByPersona[i]?.length > 0 ? painPointsByPersona[i] : ['general solutions'],
-        }))
-        setPersonas(withPainPoints)
-        setStep('thinking')
-        const thinkingId = addMessage({
-          role: 'ai', content: '', thinking: true,
-          toolGroups: generateToolCalls(withPainPoints),
-        })
-        simulateToolProgress(thinkingId, withPainPoints)
-        return
-      }
-
-      // Route based on intent, with fallback to step-based logic
-      switch (intent) {
-        case 'provide_personas':
-          handlePurposeResponse(text)
-          break
-        case 'provide_pain_points':
-          if (personas.length > 0) {
-            handlePainPointsResponse(text)
-          } else {
-            // They gave pain points but no personas yet — ask for personas
-            addMessage({
-              role: 'ai',
-              content: "I'd love to work with those priorities! Who are the personas or audiences you're building this for?",
-            })
-            setStep('awaiting_purpose')
-          }
-          break
-        case 'request_more_content':
-          handleMoreContentRequest(text)
-          break
-        case 'satisfied':
-          handleSatisfied()
-          break
-        case 'create_demo':
-          handleSatisfied()
-          break
-        case 'request_changes':
-          handleChangeRequest(text)
-          break
-        case 'ask_question':
-          handleQuestion(text)
-          break
-        default:
-          // Fall back to step-based routing
-          if (step === 'awaiting_purpose') handlePurposeResponse(text)
-          else if (step === 'awaiting_pain_points') {
-            // Check if the text is specific topics or a generic description
-            const parts = text.split(/[,;.\n]/).map(s => s.trim()).filter(s => s.length > 2)
-            const avgWords = parts.reduce((s, p) => s + p.split(/\s+/).length, 0) / (parts.length || 1)
-            if (avgWords > 8) {
-              addMessage({
-                role: 'ai',
-                content: "Could you give me the specific topics as a short list? For example: \"event management, lead capture, product demos\" — I'll use those as the answer choices and find the best content for each.",
-              })
-            } else {
-              handlePainPointsResponse(text)
-            }
-          }
-          else if (step === 'post_proposal') handleMoreContentRequest(text)
-          else if (step === 'survey') {
-            addMessage({ role: 'ai', content: "Thanks for the feedback! I'll keep improving. Your demo is ready on the canvas — feel free to edit anything directly." })
-          } else {
-            addMessage({
-              role: 'ai',
-              content: "I'm not sure I understood that. Could you tell me more about the demo you're building and who it's for?",
-            })
-          }
-      }
-    }
-
-    if (isFirst) {
-      onFirstSend?.(text)
-      setTimeout(processMessage, 700)
-    } else {
-      processMessage()
-    }
-  }
-
-  const handlePurposeResponse = (text: string) => {
-    const extractedPersonas = extractPersonas(text)
-    const isGeneric = extractedPersonas.length === 1 && extractedPersonas[0] === 'General audience'
-
-    if (isGeneric) {
-      setPersonas([{ name: 'General audience', painPoints: [] }])
-      setTimeout(() => {
-        addMessage({
-          role: 'ai',
-          content: "Perfect! I have some templates you can choose from. Select one of these to get started.",
-          templatePicker: true,
-        })
-        setStep('awaiting_purpose')
-      }, 1200)
-      return
-    }
-
-    setPersonas(extractedPersonas.map((n) => ({ name: n, painPoints: [] })))
-
-    setTimeout(() => {
-      const label = extractedPersonas.length > 1 ? 'Personas' : 'Persona'
-      const personaList = extractedPersonas.map((p, i) => `${i + 1}. ${label}: ${p}`).join('\n')
-      addMessage({
-        role: 'ai',
-        content: `Can you tell me what they care about most? Or what problem you solve for them:\n\n${personaList}`,
-        showVote: true,
-      })
-      setStep('awaiting_pain_points')
-    }, 1200)
-  }
-
-  const handlePersonaSelect = (label: string) => {
-    const isFirst = !messages.some((m) => m.role === 'user')
-    addMessage({ role: 'user', content: label, actions: true })
-    if (isFirst && onFirstSend) onFirstSend(label)
-    setPersonas([{ name: label, painPoints: [] }])
-    setTimeout(() => {
-      addMessage({
-        role: 'ai',
-        content: "Perfect! I have some templates you can choose from. Select one of these to get started.",
-        templatePicker: true,
-      })
-      setStep('awaiting_purpose')
-    }, 600)
-  }
-
-  const handleTemplateSelect = (templateLabel: string) => {
-    addMessage({ role: 'user', content: templateLabel, actions: true })
-    setTimeout(() => {
-      addMessage({
-        role: 'ai',
-        content: `${templateLabel} is a great choice. You can modify and make changes to it after I put it together for you. Before I get started, tell me the kind of topics your audience will be interested in?`,
-        showVote: true,
-      })
-      setStep('awaiting_pain_points')
-    }, 600)
-  }
-
-  const handlePainPointsResponse = (text: string) => {
-    const painPointsByPersona = extractPainPoints(text, personas)
-
-    // If every persona only got 'general solutions', the input wasn't usable topics
-    const allGeneric = painPointsByPersona.every(pp =>
-      pp.length === 1 && pp[0] === 'general solutions'
-    )
-    if (allGeneric) {
-      addMessage({
-        role: 'ai',
-        content: "Could you give me the specific topics as a short list? For example: \"event management, lead capture, product demos\" — I'll use those as the answer choices and find the best content for each.",
-      })
-      return
-    }
-
-    const updatedPersonas = personas.map((p, i) => ({
-      ...p,
-      painPoints: painPointsByPersona[i] || ['general solutions'],
-    }))
-    setPersonas(updatedPersonas)
-    setStep('thinking')
-
-    const thinkingId = addMessage({
-      role: 'ai',
-      content: '',
-      thinking: true,
-      toolGroups: generateToolCalls(updatedPersonas),
-    })
-
-    simulateToolProgress(thinkingId, updatedPersonas)
-  }
+  // ─── Client-side AI engine ──────────────────────────────────────────────────
 
   const simulateToolProgress = (msgId: string, finalPersonas: typeof personas) => {
     const toolGroups = generateToolCalls(finalPersonas)
@@ -500,152 +288,108 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
 
           const autoSelected: Record<string, boolean> = {}
           const autoItems: SelectedContent[] = []
-
           proposal.personas.forEach((persona, pi) => {
-            const hasPPMatches = persona.painPointMatches && persona.painPointMatches.length >= 2
-            if (hasPPMatches && persona.painPointMatches) {
+            const hasPP = persona.painPointMatches && persona.painPointMatches.length >= 2
+            if (hasPP && persona.painPointMatches) {
               persona.painPointMatches.forEach((ppGroup, gi) => {
-                // Only put the single best-performing content on stage per topic
                 const best = ppGroup.matches[0]
-                if (best) {
-                  const key = `${pi}-pp${gi}-0`
-                  autoSelected[key] = true
-                  autoItems.push({ persona: persona.name, demo: best })
-                }
+                if (best) { autoSelected[`${pi}-pp${gi}-0`] = true; autoItems.push({ persona: persona.name, demo: best }) }
               })
             } else {
               const best = persona.matches[0]
-              if (best) {
-                const key = `${pi}-0`
-                autoSelected[key] = true
-                autoItems.push({ persona: persona.name, demo: best })
-              }
+              if (best) { autoSelected[`${pi}-0`] = true; autoItems.push({ persona: persona.name, demo: best }) }
             }
           })
-
           setGlobalSelected(autoSelected)
-
-          addMessage({
-            role: 'ai',
-            content: `Here's what I put together — I placed the highest-performing content on the canvas for each topic. You can swap or adjust anything you want:`,
-            proposal,
-          })
-
+          addMessage({ role: 'ai', content: `Here's what I put together — I placed the highest-performing content on the canvas for each topic. You can swap or adjust anything you want:`, proposal })
           onCreateDemo?.(proposal, autoItems)
-
           setTimeout(() => {
-            addMessage({
-              role: 'ai',
-              content: "Should I look for different content or create a different flow?",
-              showVote: true,
-            })
+            addMessage({ role: 'ai', content: "Should I look for different content or create a different flow?", showVote: true })
             setStep('post_proposal')
             scrollToBottom()
           }, 500)
-
           scrollToBottom()
         }, 800)
       }
     }, 700)
   }
 
+  const handlePurposeResponse = (text: string) => {
+    const extractedPersonas = extractPersonas(text)
+    const isGeneric = extractedPersonas.length === 1 && extractedPersonas[0] === 'General audience'
+    if (isGeneric) {
+      setPersonas([{ name: 'General audience', painPoints: [] }])
+      setTimeout(() => {
+        addMessage({ role: 'ai', content: "Got it! Who are the main personas or audiences this demo is for? For example: \"VPs of Sales and Marketing Directors\" or \"IT Admins and End Users\"." })
+        setStep('awaiting_purpose')
+      }, 1200)
+      return
+    }
+    setPersonas(extractedPersonas.map((n) => ({ name: n, painPoints: [] })))
+    setTimeout(() => {
+      const label = extractedPersonas.length > 1 ? 'Personas' : 'Persona'
+      const personaList = extractedPersonas.map((p, i) => `${i + 1}. ${label}: ${p}`).join('\n')
+      addMessage({ role: 'ai', content: `Can you tell me what they care about most? Or what problem you solve for them:\n\n${personaList}`, showVote: true })
+      setStep('awaiting_pain_points')
+    }, 1200)
+  }
+
+  const handlePainPointsResponse = (text: string) => {
+    const painPointsByPersona = extractPainPoints(text, personas)
+    const allGeneric = painPointsByPersona.every(pp => pp.length === 1 && pp[0] === 'general solutions')
+    if (allGeneric) {
+      addMessage({ role: 'ai', content: "Could you give me the specific topics as a short list? For example: \"event management, lead capture, product demos\" — I'll use those as the answer choices and find the best content for each." })
+      return
+    }
+    const updatedPersonas = personas.map((p, i) => ({ ...p, painPoints: painPointsByPersona[i] || ['general solutions'] }))
+    setPersonas(updatedPersonas)
+    setStep('thinking')
+    const thinkingId = addMessage({ role: 'ai', content: '', thinking: true, toolGroups: generateToolCalls(updatedPersonas) })
+    simulateToolProgress(thinkingId, updatedPersonas)
+  }
+
   const handleMoreContentRequest = (text: string) => {
-    const lower = text.toLowerCase()
-    const wantsMore = /more|other|additional|alternative|different|better|higher|another|else|options/i.test(lower)
-    const isHappy = /looks good|perfect|great|love it|awesome|let's go|done|satisfied|that works|i'm good|ship it|create|build/i.test(lower)
-
-    if (isHappy) {
-      addMessage({
-        role: 'ai',
-        content: "Glad you like it! The demo is already on the canvas — feel free to edit, swap content, or rearrange elements anytime.",
-      })
-      return
-    }
-
-    if (!wantsMore) {
-      addMessage({
-        role: 'ai',
-        content: "I can help with that! Would you like to see more content options, or are you happy with what's on the canvas? Just let me know.",
-      })
-      return
-    }
+    const isHappy = /looks good|perfect|great|love it|awesome|let's go|done|satisfied|that works|i'm good|ship it|create|build/i.test(text)
+    if (isHappy) { addMessage({ role: 'ai', content: "Glad you like it! The demo is already on the canvas — feel free to edit, swap content, or rearrange elements anytime." }); return }
+    const wantsMore = /more|other|additional|alternative|different|better|higher|another|else|options/i.test(text)
+    if (!wantsMore) { addMessage({ role: 'ai', content: "I can help with that! Would you like to see more content options, or are you happy with what's on the canvas? Just let me know." }); return }
 
     const newOffset = contentOffset + 3
     setContentOffset(newOffset)
-
-    addMessage({ role: 'ai', content: '', thinking: true, toolGroups: [{ label: 'Searching for more content', tools: [{ name: 'search_library', description: 'Searching demo library for additional matches...', status: 'running' }, ...(getRejectedIds().size > 0 ? [{ name: 'filter_rejected', description: `Excluding ${getRejectedIds().size} previously rejected item${getRejectedIds().size !== 1 ? 's' : ''}`, status: 'running' as const }] : []) ] }] })
-
+    addMessage({ role: 'ai', content: '', thinking: true, toolGroups: [{ label: 'Searching for more content', tools: [{ name: 'search_library', description: 'Searching demo library for additional matches...', status: 'running' }, ...(getRejectedIds().size > 0 ? [{ name: 'filter_rejected', description: `Excluding ${getRejectedIds().size} previously rejected item${getRejectedIds().size !== 1 ? 's' : ''}`, status: 'running' as const }] : [])] }] })
     setTimeout(() => {
       const proposal = buildProposal(personas, newOffset, getRejectedIds())
       const hasResults = proposal.personas.some((p) => p.matches.length > 0)
-
       if (hasResults) {
-        const allLow = proposal.personas.every((p) =>
-          p.matches.every((m) => m.confidence === 'low'),
-        )
-
+        const allLow = proposal.personas.every((p) => p.matches.every((m) => m.confidence === 'low'))
         setMessages((prev) => prev.filter((m) => !m.thinking))
         setLatestProposal(proposal)
-
         const autoSelected: Record<string, boolean> = {}
         const autoItems: SelectedContent[] = []
-
         proposal.personas.forEach((persona, pi) => {
-          const hasPPMatches = persona.painPointMatches && persona.painPointMatches.length >= 2
-          if (hasPPMatches && persona.painPointMatches) {
+          const hasPP = persona.painPointMatches && persona.painPointMatches.length >= 2
+          if (hasPP && persona.painPointMatches) {
             persona.painPointMatches.forEach((ppGroup, gi) => {
               const best = ppGroup.matches[0]
-              if (best) {
-                const key = `${pi}-pp${gi}-0`
-                autoSelected[key] = true
-                autoItems.push({ persona: persona.name, demo: best })
-              }
+              if (best) { autoSelected[`${pi}-pp${gi}-0`] = true; autoItems.push({ persona: persona.name, demo: best }) }
             })
           } else {
             const best = persona.matches[0]
-            if (best) {
-              const key = `${pi}-0`
-              autoSelected[key] = true
-              autoItems.push({ persona: persona.name, demo: best })
-            }
+            if (best) { autoSelected[`${pi}-0`] = true; autoItems.push({ persona: persona.name, demo: best }) }
           }
         })
-
         setGlobalSelected(autoSelected)
         onCreateDemo?.(proposal, autoItems)
-
         if (allLow) {
-          addMessage({
-            role: 'ai',
-            content: "I found a few more options but the relevance is lower. I've updated the canvas with the best of what's available:",
-            proposal,
-            showVote: true,
-          })
-          addMessage({
-            role: 'ai',
-            content: "These are the best remaining matches. If none of these work, I'd recommend creating new content tailored to your personas. Here are some tips:\n\n• **Keep it focused** — one demo per pain point performs best\n• **Use their language** — mirror the terms your buyers use\n• **Start with a tour** — they're quick to create and highly engaging\n\n📚 [Visit the Knowledge Base](https://knowledge.goconsensus.com) for step-by-step guides on creating effective demos.",
-          })
+          addMessage({ role: 'ai', content: "I found a few more options but the relevance is lower. I've updated the canvas with the best of what's available:", proposal, showVote: true })
+          addMessage({ role: 'ai', content: "These are the best remaining matches. If none of these work, I'd recommend creating new content tailored to your personas." })
         } else {
-          addMessage({
-            role: 'ai',
-            content: "Here are some additional options — I've updated the canvas with the top picks:",
-            proposal,
-            showVote: true,
-          })
-          addMessage({
-            role: 'ai',
-            content: "Would you like to see even more options, or are these working for you?",
-          })
+          addMessage({ role: 'ai', content: "Here are some additional options — I've updated the canvas with the top picks:", proposal, showVote: true })
+          addMessage({ role: 'ai', content: "Would you like to see even more options, or are these working for you?" })
         }
       } else {
         setMessages((prev) => prev.filter((m) => !m.thinking))
-
-        addMessage({
-          role: 'ai',
-          content: "I've gone through all the available content in your library and there aren't any more relevant matches for your personas. Here's what I'd suggest:\n\n**Create new content:**\n" +
-            personas.map((p) => `• **${p.name}** — Focus on ${p.painPoints.join(', ')}. A ${/president|vp|vice president|chief|c suite/i.test(p.name) ? 'video' : 'tour'} would work best for this audience.`).join('\n') +
-            "\n\n**Tips for creating high-performing demos:**\n• Keep demos under 3 minutes for maximum engagement\n• Lead with the pain point, then show the solution\n• Include a clear CTA at the end\n\n📚 [Visit the Knowledge Base](https://knowledge.goconsensus.com) for templates and best practices.",
-        })
+        addMessage({ role: 'ai', content: "I've gone through all the available content and there aren't any more relevant matches. Feel free to edit the canvas directly or let me know how I can help." })
         setStep('survey')
       }
       scrollToBottom()
@@ -655,10 +399,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
   const handleFSDRequest = (text: string) => {
     setTimeout(() => {
       onCreateNode?.('fullScreenDialogNode')
-      addMessage({
-        role: 'ai',
-        content: "Done! I've placed a Full Screen Dialog on the canvas. Would you like help writing the header and description?",
-      })
+      addMessage({ role: 'ai', content: "Done! I've placed a Full Screen Dialog on the canvas. Would you like help writing the header and description?" })
       setStep('awaiting_fsd_help')
       scrollToBottom()
     }, 600)
@@ -666,26 +407,14 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
 
   const handleFSDHelpResponse = (text: string) => {
     const lower = text.toLowerCase()
-    const wantsHelp = /yes|sure|please|help|yeah|yep|ok|go ahead|absolutely|definitely/i.test(lower)
-    const noHelp = /no|nah|i'm good|i got it|skip|not now|later/i.test(lower)
-
-    if (wantsHelp) {
-      addMessage({
-        role: 'ai',
-        content: "Great! Tell me a bit about what this introduction should say — who is it for and what should they know upfront? I'll draft a header and description for you.",
-      })
+    if (/yes|sure|please|help|yeah|yep|ok|go ahead|absolutely|definitely/i.test(lower)) {
+      addMessage({ role: 'ai', content: "Great! Tell me a bit about what this introduction should say — who is it for and what should they know upfront? I'll draft a header and description for you." })
       setStep('awaiting_fsd_content')
-    } else if (noHelp) {
-      addMessage({
-        role: 'ai',
-        content: "No problem! The Full Screen Dialog is on the canvas — just click into it to start editing. Let me know if you need anything else.",
-      })
+    } else if (/no|nah|i'm good|i got it|skip|not now|later/i.test(lower)) {
+      addMessage({ role: 'ai', content: "No problem! The Full Screen Dialog is on the canvas — just click into it to start editing. Let me know if you need anything else." })
       setStep('post_proposal')
     } else {
-      addMessage({
-        role: 'ai',
-        content: "I can help write the header and description for your introduction. Just say **yes** and tell me what it should be about, or **no** if you'd rather write it yourself.",
-      })
+      addMessage({ role: 'ai', content: "I can help write the header and description for your introduction. Just say **yes** and tell me what it should be about, or **no** if you'd rather write it yourself." })
     }
   }
 
@@ -695,42 +424,25 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
       const topic = words.slice(0, 5).join(' ') || 'your product'
       const header = `Welcome to your personalized ${topic} experience`
       const description = `We've put together a tailored walkthrough based on what matters most to you. Explore the sections below to see how ${topic} can help you achieve your goals.`
-
       onCreateNode?.('fullScreenDialogNode', { header, message: description })
-
-      addMessage({
-        role: 'ai',
-        content: `Here's what I came up with:\n\n**Header:** ${header}\n\n**Description:** ${description}\n\nI've updated the Full Screen Dialog on the canvas. Feel free to edit it directly or let me know if you'd like me to adjust anything.`,
-      })
+      addMessage({ role: 'ai', content: `Here's what I came up with:\n\n**Header:** ${header}\n\n**Description:** ${description}\n\nI've updated the Full Screen Dialog on the canvas. Feel free to edit it directly or let me know if you'd like me to adjust anything.` })
       setStep('post_proposal')
       scrollToBottom()
     }, 1000)
   }
 
   const handleSatisfied = () => {
-    addMessage({
-      role: 'ai',
-      content: "Glad you like it! The demo is already on the canvas — feel free to edit, swap content, or rearrange elements anytime.",
-    })
+    addMessage({ role: 'ai', content: "Glad you like it! The demo is already on the canvas — feel free to edit, swap content, or rearrange elements anytime." })
   }
 
   const handleChangeRequest = (text: string) => {
     const lower = text.toLowerCase()
     if (/swap|switch|replace/i.test(lower)) {
-      addMessage({
-        role: 'ai',
-        content: "You can swap content directly by clicking the replace icon on any content card in the chat, or deselect it and pick a different one. I can also search for more options — just tell me what you're looking for.",
-      })
+      addMessage({ role: 'ai', content: "You can swap content directly by clicking the replace icon on any content card in the chat, or deselect it and pick a different one. I can also search for more options — just tell me what you're looking for." })
     } else if (/remove|delete/i.test(lower)) {
-      addMessage({
-        role: 'ai',
-        content: "You can remove content from the canvas by clicking the X on any card, or deselect it in the chat. What would you like to change?",
-      })
+      addMessage({ role: 'ai', content: "You can remove content from the canvas by clicking the X on any card, or deselect it in the chat. What would you like to change?" })
     } else {
-      addMessage({
-        role: 'ai',
-        content: "I can help with changes! You can edit content directly on the canvas, or tell me what you'd like different and I'll search for alternatives.",
-      })
+      addMessage({ role: 'ai', content: "I can help with changes! You can edit content directly on the canvas, or tell me what you'd like different and I'll search for alternatives." })
     }
     setStep('post_proposal')
   }
@@ -738,26 +450,123 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
   const handleQuestion = (text: string) => {
     const lower = text.toLowerCase()
     if (/how.*work|what.*do/i.test(lower) && /discovery|question/i.test(lower)) {
-      addMessage({
-        role: 'ai',
-        content: "A discovery question lets your viewers self-select their path. They see a question with multiple answers, and each answer leads to content tailored to that choice. It's great for personalizing the demo experience based on role, interest, or use case.",
-      })
+      addMessage({ role: 'ai', content: "A discovery question lets your viewers self-select their path. They see a question with multiple answers, and each answer leads to content tailored to that choice. It's great for personalizing the demo experience based on role, interest, or use case." })
     } else if (/template|structure|flow/i.test(lower)) {
-      addMessage({
-        role: 'ai',
-        content: "I use three templates based on your personas:\n\n• **Single Asset** — one video or tour for one persona\n• **1 Discovery Branch** — a question that routes to different content per persona\n• **2 Discovery Branches** — two levels of questions for deeper personalization\n\nThe template is automatically chosen based on how many personas and pain points you give me.",
-      })
+      addMessage({ role: 'ai', content: "I use three templates based on your personas:\n\n• **Single Asset** — one video or tour for one persona\n• **1 Discovery Branch** — a question that routes to different content per persona\n• **2 Discovery Branches** — two levels of questions for deeper personalization\n\nThe template is automatically chosen based on how many personas and pain points you give me." })
     } else if (/confidence|rating|score|high|medium|low/i.test(lower)) {
-      addMessage({
-        role: 'ai',
-        content: "Content confidence is based on two factors:\n\n• **✅ High** — strong keyword match + above-average engagement\n• **🟡 Medium** — strong keyword match but lower engagement\n• **❌ Low** — indirect match and lower engagement\n\nHigher confidence means the content is more likely to resonate with your audience.",
-      })
+      addMessage({ role: 'ai', content: "Content confidence is based on two factors:\n\n• **✅ High** — strong keyword match + above-average engagement\n• **🟡 Medium** — strong keyword match but lower engagement\n• **❌ Low** — indirect match and lower engagement\n\nHigher confidence means the content is more likely to resonate with your audience." })
     } else {
+      addMessage({ role: 'ai', content: "Great question! I can help with building demos, selecting content, and structuring discovery flows. What would you like to know more about?" })
+    }
+  }
+
+  // ─── handleSend routes through client-side engine ───────────────────────────
+
+  const handleSend = () => {
+    // If no text but personas are staged, send them
+    if (!input.trim() && pendingPersonas.length > 0 && step === 'awaiting_purpose') {
+      handlePersonaSend(pendingPersonas)
+      return
+    }
+
+    const text = input.trim()
+    if (!text) return
+    setInput('')
+    if (textareaRef.current) textareaRef.current.style.height = 'auto'
+    if (isListening) {
+      stopVoice()
+      resetTranscript()
+    }
+
+    const isFirst = !messages.some((m) => m.role === 'user')
+
+    const processMessage = () => {
+      addMessage({ role: 'user', content: text, actions: true })
+
+      if (step === 'awaiting_fsd_help') { handleFSDHelpResponse(text); return }
+      if (step === 'awaiting_fsd_content') { handleFSDContentResponse(text); return }
+
+      const intent = detectIntent(text, personas.length > 0, !!latestProposal)
+      if (intent === 'request_fsd') { handleFSDRequest(text); return }
+
+      if (intent === 'provide_both') {
+        const extracted = extractPersonas(text)
+        const updatedPersonas = extracted.map((n) => ({ name: n, painPoints: [] as string[] }))
+        const painPointsByPersona = extractPainPoints(text, updatedPersonas)
+        const withPainPoints = updatedPersonas.map((p, i) => ({ ...p, painPoints: painPointsByPersona[i]?.length > 0 ? painPointsByPersona[i] : ['general solutions'] }))
+        setPersonas(withPainPoints)
+        setStep('thinking')
+        const thinkingId = addMessage({ role: 'ai', content: '', thinking: true, toolGroups: generateToolCalls(withPainPoints) })
+        simulateToolProgress(thinkingId, withPainPoints)
+        return
+      }
+
+      switch (intent) {
+        case 'provide_personas': handlePurposeResponse(text); break
+        case 'provide_pain_points':
+          if (personas.length > 0) { handlePainPointsResponse(text) }
+          else { addMessage({ role: 'ai', content: "I'd love to work with those priorities! Who are the personas or audiences you're building this for?" }); setStep('awaiting_purpose') }
+          break
+        case 'request_more_content': handleMoreContentRequest(text); break
+        case 'satisfied': handleSatisfied(); break
+        case 'create_demo': handleSatisfied(); break
+        case 'request_changes': handleChangeRequest(text); break
+        case 'ask_question': handleQuestion(text); break
+        default:
+          if (step === 'awaiting_purpose') handlePurposeResponse(text)
+          else if (step === 'awaiting_pain_points') {
+            const parts = text.split(/[,;.\n]/).map(s => s.trim()).filter(s => s.length > 2)
+            const avgWords = parts.reduce((s, p) => s + p.split(/\s+/).length, 0) / (parts.length || 1)
+            if (avgWords > 8) { addMessage({ role: 'ai', content: "Could you give me the specific topics as a short list? For example: \"event management, lead capture, product demos\"" }) }
+            else { handlePainPointsResponse(text) }
+          }
+          else if (step === 'post_proposal') handleMoreContentRequest(text)
+          else { addMessage({ role: 'ai', content: "I'm not sure I understood that. Could you tell me more about the demo you're building and who it's for?" }) }
+      }
+    }
+
+    if (isFirst) {
+      onFirstSend?.(text)
+      setTimeout(processMessage, 700)
+    } else {
+      processMessage()
+    }
+  }
+
+  const togglePendingPersona = useCallback((label: string) => {
+    setPendingPersonas((prev) =>
+      prev.includes(label) ? prev.filter((p) => p !== label) : [...prev, label],
+    )
+  }, [])
+
+  const handlePersonaSend = useCallback((labels: string[]) => {
+    if (!labels.length) return
+    const personaText = labels.join(', ')
+    setPendingPersonas([])
+    const isFirst = !messages.some((m) => m.role === 'user')
+    addMessage({ role: 'user', content: personaText, actions: true })
+    if (isFirst && onFirstSend) onFirstSend(personaText)
+    setPersonas(labels.map((name) => ({ name, painPoints: [] })))
+    setStep('awaiting_pain_points')
+    setTimeout(() => {
       addMessage({
         role: 'ai',
-        content: "Great question! I can help with building demos, selecting content, and structuring discovery flows. What would you like to know more about?",
+        content: `Great! Tell me the kind of topics your audience will be interested in?`,
+        showVote: true,
       })
-    }
+    }, 600)
+  }, [messages, addMessage, onFirstSend])
+
+  const handleTemplateSelect = (templateLabel: string) => {
+    addMessage({ role: 'user', content: templateLabel, actions: true })
+    setStep('awaiting_pain_points')
+    setTimeout(() => {
+      addMessage({
+        role: 'ai',
+        content: `${templateLabel} is a great choice. You can modify and make changes to it after I put it together for you. Before I get started, tell me the kind of topics your audience will be interested in?`,
+        showVote: true,
+      })
+    }, 600)
   }
 
   const handleVote = (msgId: string, vote: 'up' | 'down') => {
@@ -790,7 +599,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
       <div ref={scrollWrapRef} data-scroll-area className={mode === 'full' ? 'relative overflow-hidden' : 'relative flex-1 overflow-hidden'} style={mode === 'full' ? { height: effectiveHasSent && scrollMaxH ? scrollMaxH : undefined, maxHeight: 'calc(100vh - 340px)' } : undefined}>
         <div className="absolute top-0 left-0 right-0 h-3 z-10 pointer-events-none transition-opacity duration-200" style={{ background: 'radial-gradient(ellipse 70% 100% at 50% 0%, rgba(0,0,0,0.06) 0%, transparent 100%)', opacity: canScrollUp ? 1 : 0 }} />
         <div className="absolute bottom-0 left-0 right-0 h-3 z-10 pointer-events-none transition-opacity duration-200" style={{ background: 'radial-gradient(ellipse 70% 100% at 50% 100%, rgba(0,0,0,0.06) 0%, transparent 100%)', opacity: canScrollDown ? 1 : 0 }} />
-      <div ref={scrollRef} className="h-full overflow-y-auto pl-4 pr-8 py-4 flex flex-col" style={{ scrollbarGutter: 'stable' }}>
+      <div ref={scrollRef} className="h-full overflow-y-auto px-8 py-4 flex flex-col" style={{ scrollbarGutter: 'stable' }}>
         {messages.map((msg, idx) => {
           const prev = messages[idx - 1]
           const isNewSection = prev && prev.role !== msg.role
@@ -810,6 +619,8 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
                   onVote={handleVote}
                   selected={globalSelected}
                   dismissed={dismissed}
+                  pendingPersonas={pendingPersonas}
+                  onPersonaToggle={togglePendingPersona}
                   onToggleSelect={(key) => {
                     const nowSelected = !globalSelected[key]
 
@@ -861,10 +672,9 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
                       setGlobalSelected((prev) => ({ ...prev, [key]: nowSelected }))
                     }
                   }}
-                  onPersonaSelect={msg.personaPicker ? handlePersonaSelect : undefined}
                   showPersonaPicker={msg.personaPicker ? step === 'awaiting_purpose' : false}
                   onTemplateSelect={msg.templatePicker ? handleTemplateSelect : undefined}
-                  showTemplatePicker={msg.templatePicker ? step === 'awaiting_purpose' : false}
+                  showTemplatePicker={msg.templatePicker ? step === 'awaiting_template' : false}
                 />
               )}
             </div>
@@ -904,7 +714,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
         className={
           mode === 'full'
             ? 'pointer-events-auto mt-[18px]'
-            : 'border-t border-gray-100 px-4 pt-4 pb-7 bg-white overflow-visible relative z-10'
+            : 'border-t border-gray-100 px-8 pt-4 pb-7 bg-white overflow-visible relative z-10'
         }
         style={
           mode === 'full' && effectiveHasSent
@@ -933,6 +743,27 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
           }}
         >
 
+          {pendingPersonas.length > 0 && step === 'awaiting_purpose' && (
+            <div className="flex flex-wrap gap-1.5 px-4 pt-3">
+              {pendingPersonas.map((p) => (
+                <span
+                  key={p}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium"
+                  style={{ backgroundColor: 'rgba(252,104,57,0.12)', color: '#F44C10', border: '1.5px solid #FC6839' }}
+                >
+                  {p}
+                  <button
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => togglePendingPersona(p)}
+                    className="ml-0.5 hover:opacity-60 transition-opacity leading-none"
+                    style={{ fontSize: 14, lineHeight: 1 }}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
           <div className="flex-1 px-4 pt-4 pb-1">
             <textarea
               ref={textareaRef}
@@ -963,7 +794,7 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
                 <AudioWaveform analyserRef={analyserRef} active={isListening} />
               </div>
             )}
-            {input.trim() ? (
+            {input.trim() || (pendingPersonas.length > 0 && step === 'awaiting_purpose') ? (
               <button
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={handleSend}
@@ -993,8 +824,8 @@ export default function AgenticChat({ mode, onFirstSend, onCreateDemo, onToggleC
                   <Mic size={18} />
                 </button>
                 {!isListening && voiceSupported && (
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 z-50 px-2 py-1 rounded bg-[#172537] text-white text-[10px] whitespace-nowrap opacity-0 pointer-events-none group-hover/mic:opacity-100 transition-opacity shadow-md">
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-[#172537]" aria-hidden />
+                  <div className="absolute bottom-full right-0 mb-1.5 z-50 px-2 py-1 rounded bg-[#172537] text-white text-[10px] whitespace-nowrap opacity-0 pointer-events-none group-hover/mic:opacity-100 transition-opacity shadow-md">
+                    <div className="absolute top-full right-2 border-4 border-transparent border-t-[#172537]" aria-hidden />
                     Press and hold to record
                   </div>
                 )}
@@ -1068,41 +899,38 @@ function UserMessage({ msg }: { msg: ChatMessage }) {
   )
 }
 
-function PersonaPickerButtons({ onSelect }: { onSelect: (label: string) => void }) {
-  const [picked, setPicked] = useState<string | null>(null)
+function PersonaPickerButtons({
+  selected,
+  onToggle,
+}: {
+  selected: string[]
+  onToggle: (label: string) => void
+}) {
   const [hovered, setHovered] = useState<string | null>(null)
-
-  const handleClick = (label: string) => {
-    setPicked(label)
-    setTimeout(() => onSelect(label), 120)
-  }
 
   return (
     <div className="flex flex-wrap gap-2 mt-3">
       {PERSONA_OPTIONS.map((label) => {
-        const isActive = picked === label
-        const isHovered = hovered === label && !picked
-        const isDimmed = picked !== null && picked !== label
+        const isActive = selected.includes(label)
+        const isHovered = hovered === label
         const highlighted = isActive || isHovered
         return (
           <button
             key={label}
-            onClick={() => handleClick(label)}
+            onClick={() => onToggle(label)}
             onMouseEnter={() => setHovered(label)}
             onMouseLeave={() => setHovered(null)}
-            disabled={picked !== null}
             style={{
               width: 90,
               height: 32,
               borderRadius: 15,
               border: `2px solid ${highlighted ? '#F44C10' : '#FC6839'}`,
-              background: highlighted ? 'rgba(252,104,57,0.15)' : 'transparent',
+              background: isActive ? 'rgba(252,104,57,0.15)' : 'transparent',
               color: highlighted ? '#F44C10' : '#FC6839',
-              opacity: isDimmed ? 0.3 : 1,
               fontSize: 12,
               fontWeight: 500,
-              cursor: picked !== null ? 'default' : 'pointer',
-              transition: 'opacity 0.15s ease, background 0.15s ease, border-color 0.15s ease, color 0.15s ease',
+              cursor: 'pointer',
+              transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease',
               flexShrink: 0,
             }}
           >
@@ -1192,8 +1020,9 @@ function AiMessage({
   selected,
   dismissed,
   onToggleSelect,
-  onPersonaSelect,
   showPersonaPicker,
+  pendingPersonas,
+  onPersonaToggle,
   onTemplateSelect,
   showTemplatePicker,
 }: {
@@ -1207,27 +1036,14 @@ function AiMessage({
   selected: Record<string, boolean>
   dismissed: Set<string>
   onToggleSelect: (key: string) => void
-  onPersonaSelect?: (label: string) => void
   showPersonaPicker?: boolean
+  pendingPersonas?: string[]
+  onPersonaToggle?: (label: string) => void
   onTemplateSelect?: (label: string) => void
   showTemplatePicker?: boolean
 }) {
   return (
     <div className="flex gap-3 items-start">
-      {/* AI avatar */}
-      <div className="shrink-0" style={{ marginTop: -4, ...(pulseGlow ? { animation: 'pulse-glow 3s ease-in-out infinite' } : {}) }}>
-        <svg width="28" height="28" viewBox="14 8 62 62" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="19.0464" y="12.4535" width="50.4" height="50.4" rx="25.2" fill="url(#paint_ai_msg)" />
-          <path d="M43.0806 28.0993C43.1186 27.8951 43.4112 27.8951 43.4492 28.0993L43.8704 30.3629C44.4091 33.2584 46.6746 35.5236 49.5704 36.0623L51.8342 36.4835C52.0384 36.5215 52.0384 36.814 51.8342 36.852L49.5704 37.2731C46.6746 37.8118 44.4091 40.0771 43.8704 42.9726L43.4492 45.2362C43.4112 45.4404 43.1186 45.4404 43.0806 45.2362L42.6595 42.9726C42.1207 40.0771 39.8552 37.8118 36.9595 37.2731L34.6956 36.852C34.4914 36.814 34.4914 36.5215 34.6956 36.4835L36.9595 36.0623C39.8552 35.5236 42.1207 33.2584 42.6595 30.3629L43.0806 28.0993Z" fill="white"/>
-          <path d="M50.898 40.663C50.9127 40.584 51.0259 40.584 51.0406 40.663L51.2035 41.5386C51.4119 42.6586 52.2883 43.5349 53.4084 43.7433L54.2841 43.9062C54.3631 43.9209 54.3631 44.034 54.2841 44.0487L53.4084 44.2116C52.2883 44.42 51.4119 45.2963 51.2035 46.4163L51.0406 47.2919C51.0259 47.3709 50.9127 47.3709 50.898 47.2919L50.7351 46.4163C50.5267 45.2963 49.6504 44.42 48.5302 44.2116L47.6545 44.0487C47.5755 44.034 47.5755 43.9209 47.6545 43.9062L48.5302 43.7433C49.6504 43.5349 50.5267 42.6586 50.7351 41.5386L50.898 40.663Z" fill="white"/>
-          <defs>
-            <linearGradient id="paint_ai_msg" x1="19.0464" y1="40.0309" x2="69.4464" y2="40.0309" gradientUnits="userSpaceOnUse">
-              <stop stopColor="#FFB352"/><stop offset="0.5" stopColor="#FC6839"/><stop offset="1" stopColor="#EB2E24"/>
-            </linearGradient>
-          </defs>
-        </svg>
-      </div>
-
       <div className="flex-1 min-w-0 flex flex-col gap-2">
         {/* Thinking indicator */}
         {msg.thinking && (
@@ -1292,14 +1108,11 @@ function AiMessage({
         )}
 
         {/* Persona picker buttons */}
-        {msg.personaPicker && showPersonaPicker && onPersonaSelect && (
-          <PersonaPickerButtons onSelect={onPersonaSelect} />
+        {msg.personaPicker && showPersonaPicker && onPersonaToggle && (
+          <PersonaPickerButtons selected={pendingPersonas ?? []} onToggle={onPersonaToggle} />
         )}
 
-        {/* Template picker cards */}
-        {msg.templatePicker && showTemplatePicker && onTemplateSelect && (
-          <TemplatePickerCards onSelect={onTemplateSelect} />
-        )}
+        {/* Template picker cards — removed */}
 
         {/* Proposal rendering */}
         {msg.proposal && <ProposalView proposal={msg.proposal} expandedInfo={expandedInfo} onToggleInfo={onToggleInfo} selected={selected} dismissed={dismissed} onToggleSelect={onToggleSelect} />}
