@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createPortal } from 'react-dom'
 import type { Node, Edge } from '@xyflow/react'
 import { ExternalLink, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import type { HotspotPage } from './HotspotBuilderModal'
@@ -46,7 +45,7 @@ export default function PrototypePreviewModal({ nodes, edges, onClose }: Props) 
   }, [onClose, steps.length])
 
   if (steps.length === 0) {
-    return createPortal(
+    return (
       <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80" onClick={onClose}>
         <div className="bg-white rounded-2xl px-10 py-10 text-center shadow-2xl max-w-sm mx-4" onClick={(e) => e.stopPropagation()}>
           <p className="text-gray-700 font-medium mb-2">Nothing to preview yet</p>
@@ -55,14 +54,13 @@ export default function PrototypePreviewModal({ nodes, edges, onClose }: Props) 
             Close
           </button>
         </div>
-      </div>,
-      document.body,
+      </div>
     )
   }
 
   const step = steps[stepIdx]
 
-  return createPortal(
+  return (
     <div className="fixed inset-0 z-[10000] flex flex-col" style={{ backgroundColor: '#0e0e0e' }}>
       {/* Top bar */}
       <div className="flex items-center justify-between px-6 py-3 shrink-0 border-b border-white/10">
@@ -147,8 +145,7 @@ export default function PrototypePreviewModal({ nodes, edges, onClose }: Props) 
           </button>
         )}
       </div>
-    </div>,
-    document.body,
+    </div>
   )
 }
 
@@ -157,9 +154,18 @@ export default function PrototypePreviewModal({ nodes, edges, onClose }: Props) 
 function StepContent({ node }: { node: Node }) {
   if (node.type === 'demoCardNode') return <DemoStep node={node} />
   if (node.type === 'fullScreenDialogNode') return <FullScreenStep node={node} />
-  if (node.type === 'ctaNode') return <DiscoveryStep node={node} />
+  if (node.type === 'ctaNode') return <QuestionStep node={nodeToQuestionPreview(node)} />
   if (node.type === 'hotspotNode') return <HotspotStep node={node} />
+  if (node.type === 'questionNode') return <QuestionStep node={node} />
   return <p className="text-white/40 text-sm">Unknown step type: {node.type}</p>
+}
+
+function nodeToQuestionPreview(node: Node): Node {
+  if (node.type !== 'ctaNode') return node
+  const { question, answers } = node.data as { question?: string; answers?: string[] }
+  const base = Date.now()
+  const options = (answers ?? []).map((value, i) => ({ id: base + i, value }))
+  return { ...node, data: { question, options } }
 }
 
 function DemoStep({ node }: { node: Node }) {
@@ -261,42 +267,6 @@ function FullScreenStep({ node }: { node: Node }) {
   )
 }
 
-function DiscoveryStep({ node }: { node: Node }) {
-  const { question, answers } = node.data as { question?: string; answers?: string[] }
-  const [selected, setSelected] = useState<number | null>(null)
-  const validAnswers = (answers ?? []).filter((a) => a.trim())
-
-  return (
-    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl px-10 py-10">
-      <p className="text-lg font-semibold text-gray-900 mb-8">
-        {question || 'What do you like better?'}
-      </p>
-      <div className="flex flex-col gap-3">
-        {validAnswers.length > 0
-          ? validAnswers.map((answer, i) => (
-              <button
-                key={i}
-                onClick={() => setSelected(i)}
-                className="w-full text-left px-5 py-4 rounded-xl border text-sm text-gray-800 transition-colors"
-                style={{
-                  borderColor: selected === i ? '#FC6839' : '#e5e7eb',
-                  backgroundColor: selected === i ? '#fff7f5' : 'white',
-                }}
-              >
-                {answer}
-              </button>
-            ))
-          : (
-            <>
-              <div className="w-full px-5 py-4 rounded-xl border border-gray-200 text-sm text-gray-300">Option 1</div>
-              <div className="w-full px-5 py-4 rounded-xl border border-gray-200 text-sm text-gray-300">Option 2</div>
-            </>
-          )}
-      </div>
-    </div>
-  )
-}
-
 function HotspotStep({ node }: { node: Node }) {
   const { screenshotName, pages } = node.data as {
     screenshotName?: string
@@ -327,3 +297,47 @@ function HotspotStep({ node }: { node: Node }) {
     </div>
   )
 }
+
+function QuestionStep({ node }: { node: Node }) {
+  const { question, options } = node.data as {
+    question?: string
+    options?: { id: number; value: string; description?: string }[]
+  }
+  const validOptions = (options ?? []).filter((o) => o.value.trim())
+
+  return (
+    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl px-10 py-10">
+      <p className="text-lg font-semibold text-gray-900 mb-8">
+        {question || 'Type your question here'}
+      </p>
+      <div className="flex flex-col gap-3">
+        {validOptions.length > 0 ? validOptions.map((option) => {
+          const tip = option.description?.trim()
+          return (
+            <button
+              key={option.id}
+              className={`w-full text-left px-5 py-4 rounded-xl border border-gray-200 text-sm text-gray-800 hover:border-[#FC6839] hover:bg-orange-50 transition-colors relative ${tip ? 'group/answer' : ''}`}
+            >
+              {option.value}
+              {tip && (
+                <span
+                  className="absolute bottom-full left-5 mb-2 px-2.5 py-1.5 rounded-lg bg-gray-800 text-white text-xs opacity-0 pointer-events-none group-hover/answer:opacity-100 transition-opacity shadow-lg z-10"
+                  style={{ maxWidth: 320 }}
+                >
+                  {tip}
+                  <span className="absolute top-full left-4 border-4 border-transparent border-t-gray-800" />
+                </span>
+              )}
+            </button>
+          )
+        }) : (
+          <>
+            <div className="w-full px-5 py-4 rounded-xl border border-gray-200 text-sm text-gray-300">Answer 1</div>
+            <div className="w-full px-5 py-4 rounded-xl border border-gray-200 text-sm text-gray-300">Answer 2</div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+

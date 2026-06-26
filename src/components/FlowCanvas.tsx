@@ -11,7 +11,6 @@ import { findReplacements, rejectDemo, searchContent } from '../lib/aiEngine'
 import type { ConfidenceLevel } from '../lib/aiEngine'
 import { demos as allDemos } from '../data/demos'
 import PreviewModal from './PreviewModal'
-import PrototypePreviewModal from './PrototypePreviewModal'
 import thumbTableHero from '../assets/thumb-table-hero.svg'
 import thumbContent from '../assets/thumb-content.svg'
 import {
@@ -35,7 +34,11 @@ import CtaNode from './nodes/CtaNode'
 import DemoCardNode from './nodes/DemoCardNode'
 import FullScreenDialogNode from './nodes/FullScreenDialogNode'
 import HotspotNode from './nodes/HotspotNode'
+import QuestionNode from './nodes/QuestionNode'
 import DeletableEdge from './edges/DeletableEdge'
+import { DEFAULT_QUESTION_DATA, optionsFromValues } from '@/types/questionNode'
+import type { QuestionNodeData } from '@/types/questionNode'
+import { NODE_DEFAULT_WIDTH } from './nodes/nodeFieldStyles'
 
 const edgeTypes = {
   deletable: DeletableEdge,
@@ -49,6 +52,7 @@ const nodeTypes = {
   demoCardNode: DemoCardNode,
   fullScreenDialogNode: FullScreenDialogNode,
   hotspotNode: HotspotNode,
+  questionNode: QuestionNode,
 }
 
 const initialNodes: Node[] = []
@@ -61,7 +65,7 @@ const getNodeId = () => `dnd-${++nodeId}`
 const nodeTypeMap: Record<string, string> = {
   fullscreen: 'fullScreenDialogNode',
   cta: 'fullScreenDialogNode',
-  discovery: 'ctaNode',
+  discovery: 'questionNode',
   hotspot: 'hotspotNode',
   'card-demos': 'demoCardNode',
   'card-dynamic-tours': 'demoCardNode',
@@ -925,7 +929,7 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
   )
 }
 
-export default function FlowCanvas({ onContentChange, previewOpen, onPreviewClose }: { onContentChange?: (hasContent: boolean) => void; previewOpen?: boolean; onPreviewClose?: () => void }) {
+export default function FlowCanvas({ onContentChange }: { onContentChange?: (hasContent: boolean) => void }) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
@@ -954,7 +958,7 @@ export default function FlowCanvas({ onContentChange, previewOpen, onPreviewClos
   const canvasState = useMemo<CanvasState>(() => ({
     hasDemoCards: nodes.some((n) => n.type === 'demoCardNode'),
     demoCardCount: nodes.filter((n) => n.type === 'demoCardNode').length,
-    hasDiscoveryQuestion: nodes.some((n) => n.type === 'ctaNode'),
+    hasDiscoveryQuestion: nodes.some((n) => n.type === 'questionNode' || n.type === 'ctaNode'),
     hasFullScreenDialog: nodes.some((n) => n.type === 'fullScreenDialogNode'),
     hasStartNode: nodes.some((n) => n.type === 'startNode'),
     nodeCount: nodes.length,
@@ -1236,6 +1240,9 @@ export default function FlowCanvas({ onContentChange, previewOpen, onPreviewClos
       if (rawData) {
         try { nodeData = JSON.parse(rawData) } catch { /* ignore */ }
       }
+      if (mappedType === 'questionNode' && Object.keys(nodeData).length === 0) {
+        nodeData = { ...DEFAULT_QUESTION_DATA }
+      }
 
       const newNode: Node = {
         id: getNodeId(),
@@ -1310,14 +1317,16 @@ export default function FlowCanvas({ onContentChange, previewOpen, onPreviewClos
       const answers = useTopics ? proposal.topics! : (hasMultiplePersonas ? uniquePersonas : selectedContent.map((s) =>
         s.demo.demo.title.length > 45 ? s.demo.demo.title.slice(0, 42) + '...' : s.demo.demo.title
       ))
+      const options = optionsFromValues(answers)
 
       newNodes.push({
         id: questionId,
-        type: 'ctaNode',
+        type: 'questionNode',
         position: { x: startX, y: startY },
         data: {
+          ...DEFAULT_QUESTION_DATA,
           question: useTopics ? proposal.discoveryQuestion : (hasMultiplePersonas ? proposal.discoveryQuestion : 'Which of these is most relevant to you?'),
-          answers,
+          options,
         },
       })
 
@@ -1369,7 +1378,7 @@ export default function FlowCanvas({ onContentChange, previewOpen, onPreviewClos
           newEdges.push({
             id: `e-${questionId}-${cardId}`,
             source: questionId,
-            sourceHandle: `answer-${ti}`,
+            sourceHandle: `option-${options[ti]!.id}`,
             target: cardId,
             type: 'deletableEdge',
           })
@@ -1388,7 +1397,7 @@ export default function FlowCanvas({ onContentChange, previewOpen, onPreviewClos
             newEdges.push({
               id: `e-${questionId}-${cardId}`,
               source: questionId,
-              sourceHandle: `answer-${pi}`,
+              sourceHandle: `option-${options[pi]!.id}`,
               target: cardId,
               type: 'deletableEdge',
             })
@@ -1406,7 +1415,7 @@ export default function FlowCanvas({ onContentChange, previewOpen, onPreviewClos
           newEdges.push({
             id: `e-${questionId}-${cardId}`,
             source: questionId,
-            sourceHandle: `answer-${i}`,
+            sourceHandle: `option-${options[i]!.id}`,
             target: cardId,
             type: 'deletableEdge',
           })
@@ -1418,11 +1427,12 @@ export default function FlowCanvas({ onContentChange, previewOpen, onPreviewClos
     // Question 1 (persona) → Question 2 (interest/content) → content cards
     if (effectiveTemplate === '2_disco_branch') {
       const q1Id = getNodeId()
+      const q1Options = optionsFromValues(uniquePersonas)
       newNodes.push({
         id: q1Id,
-        type: 'ctaNode',
+        type: 'questionNode',
         position: { x: startX, y: startY },
-        data: { question: proposal.discoveryQuestion, answers: uniquePersonas },
+        data: { ...DEFAULT_QUESTION_DATA, question: proposal.discoveryQuestion, options: q1Options },
       })
 
       let yAccum = startY
@@ -1434,16 +1444,17 @@ export default function FlowCanvas({ onContentChange, previewOpen, onPreviewClos
           const subAnswers = ps.items.map((s) =>
             s.demo.demo.title.length > 45 ? s.demo.demo.title.slice(0, 42) + '...' : s.demo.demo.title
           )
+          const q2Options = optionsFromValues(subAnswers)
           newNodes.push({
             id: q2Id,
-            type: 'ctaNode',
+            type: 'questionNode',
             position: { x: startX + COL_GAP, y: branchY },
-            data: { question: `What's most important to you?`, answers: subAnswers },
+            data: { ...DEFAULT_QUESTION_DATA, question: `What's most important to you?`, options: q2Options },
           })
           newEdges.push({
             id: `e-${q1Id}-${q2Id}`,
             source: q1Id,
-            sourceHandle: `answer-${pi}`,
+            sourceHandle: `option-${q1Options[pi]!.id}`,
             target: q2Id,
             type: 'deletableEdge',
           })
@@ -1459,7 +1470,7 @@ export default function FlowCanvas({ onContentChange, previewOpen, onPreviewClos
             newEdges.push({
               id: `e-${q2Id}-${cardId}`,
               source: q2Id,
-              sourceHandle: `answer-${mi}`,
+              sourceHandle: `option-${q2Options[mi]!.id}`,
               target: cardId,
               type: 'deletableEdge',
             })
@@ -1477,7 +1488,7 @@ export default function FlowCanvas({ onContentChange, previewOpen, onPreviewClos
           newEdges.push({
             id: `e-${q1Id}-${cardId}`,
             source: q1Id,
-            sourceHandle: `answer-${pi}`,
+            sourceHandle: `option-${q1Options[pi]!.id}`,
             target: cardId,
             type: 'deletableEdge',
           })
@@ -1535,7 +1546,9 @@ export default function FlowCanvas({ onContentChange, previewOpen, onPreviewClos
     const currentEdges = getEdges()
 
     if (selected) {
-      const ctaNodes = currentNodes.filter((n) => n.type === 'ctaNode')
+      const questionNodes = currentNodes.filter((n) => n.type === 'questionNode')
+      const legacyCtaNodes = currentNodes.filter((n) => n.type === 'ctaNode')
+      const discoveryNodes = [...questionNodes, ...legacyCtaNodes]
       const demoCards = currentNodes.filter((n) => n.type === 'demoCardNode')
 
       // Check for a vacated slot from a previously removed card
@@ -1548,11 +1561,11 @@ export default function FlowCanvas({ onContentChange, previewOpen, onPreviewClos
         vacatedSlotsRef.current.delete(categoryKey)
       }
 
-      // Second: look for any vacated slot whose CTA node is on stage
+      // Second: look for any vacated slot whose discovery question node is on stage
       if (!slot) {
-        const ctaIds = new Set(ctaNodes.map((n) => n.id))
+        const discoveryIds = new Set(discoveryNodes.map((n) => n.id))
         for (const [key, val] of vacatedSlotsRef.current.entries()) {
-          if (ctaIds.has(val.ctaNodeId)) {
+          if (discoveryIds.has(val.ctaNodeId)) {
             slot = val
             vacatedSlotsRef.current.delete(key)
             break
@@ -1560,24 +1573,28 @@ export default function FlowCanvas({ onContentChange, previewOpen, onPreviewClos
         }
       }
 
-      // Third: if still no slot, check for orphaned answer handles on any CTA node
-      if (!slot && ctaNodes.length > 0) {
-        for (const cta of ctaNodes) {
-          const answers: string[] = (cta.data as { answers?: string[] }).answers ?? []
-          for (let ai = 0; ai < answers.length; ai++) {
-            const handle = `answer-${ai}`
-            const hasEdge = currentEdges.some((e) => e.source === cta.id && e.sourceHandle === handle)
+      // Third: if still no slot, check for orphaned option handles on any discovery question node
+      if (!slot && discoveryNodes.length > 0) {
+        for (const node of discoveryNodes) {
+          const handles =
+            node.type === 'questionNode'
+              ? ((node.data as QuestionNodeData).options ?? []).map((opt) => `option-${opt.id}`)
+              : ((node.data as { answers?: string[] }).answers ?? []).map((_, ai) => `answer-${ai}`)
+
+          for (let hi = 0; hi < handles.length; hi++) {
+            const handle = handles[hi]!
+            const hasEdge = currentEdges.some((e) => e.source === node.id && e.sourceHandle === handle)
             if (!hasEdge) {
               const usedPositions = demoCards
-                .filter((dc) => currentEdges.some((e) => e.source === cta.id && e.target === dc.id))
+                .filter((dc) => currentEdges.some((e) => e.source === node.id && e.target === dc.id))
                 .map((dc) => dc.position)
               const avgY = usedPositions.length > 0
                 ? usedPositions.reduce((sum, p) => sum + p.y, 0) / usedPositions.length
-                : cta.position.y
+                : node.position.y
               slot = {
-                ctaNodeId: cta.id,
+                ctaNodeId: node.id,
                 sourceHandle: handle,
-                position: { x: cta.position.x + 550, y: avgY + ai * 180 },
+                position: { x: node.position.x + 550, y: avgY + hi * 180 },
               }
               break
             }
@@ -1586,15 +1603,15 @@ export default function FlowCanvas({ onContentChange, previewOpen, onPreviewClos
         }
       }
 
-      const ctaNode = ctaNodes[0]
+      const discoveryNode = questionNodes[0] ?? legacyCtaNodes[0]
 
       const newNode: Node = {
         id: cardNodeId,
         type: 'demoCardNode',
         position: slot
           ? slot.position
-          : ctaNode
-            ? { x: ctaNode.position.x + 400, y: ctaNode.position.y + demoCards.length * 180 }
+          : discoveryNode
+            ? { x: discoveryNode.position.x + 400, y: discoveryNode.position.y + demoCards.length * 180 }
             : { x: (demoCards[demoCards.length - 1]?.position.x ?? 400), y: (demoCards[demoCards.length - 1]?.position.y ?? 0) + 180 },
         data: { demoId: match.demo.id, title: match.demo.title, creator: match.demo.creator, preview: match.demo.preview },
         selected: true,
@@ -1617,8 +1634,41 @@ export default function FlowCanvas({ onContentChange, previewOpen, onPreviewClos
           ])
           setTimeout(() => document.dispatchEvent(new CustomEvent('sway-edge', { detail: { edgeId: slotEdgeId } })), 60)
         }, 50)
-      } else if (ctaNode) {
-        const currentAnswers: string[] = (ctaNode.data as { answers?: string[] }).answers ?? []
+      } else if (discoveryNode?.type === 'questionNode') {
+        const currentOptions = (discoveryNode.data as QuestionNodeData).options ?? []
+        const answerLabel = match.demo.title.length > 45
+          ? match.demo.title.slice(0, 42) + '...'
+          : match.demo.title
+        const newOption = { id: Date.now(), value: answerLabel }
+
+        setNodes((nds) => [
+          ...nds.map((n) =>
+            n.id === discoveryNode.id
+              ? { ...n, selected: false, data: { ...n.data, options: [...currentOptions, newOption] } }
+              : { ...n, selected: false }
+          ),
+          newNode,
+        ])
+
+        const edgeId = `e-${discoveryNode.id}-${cardNodeId}`
+        setTimeout(() => {
+          updateNodeInternals(discoveryNode.id)
+          setTimeout(() => {
+            setEdges((eds) => [
+              ...eds,
+              {
+                id: edgeId,
+                source: discoveryNode.id,
+                sourceHandle: `option-${newOption.id}`,
+                target: cardNodeId,
+                type: 'deletableEdge',
+              },
+            ])
+            setTimeout(() => document.dispatchEvent(new CustomEvent('sway-edge', { detail: { edgeId } })), 60)
+          }, 300)
+        }, 400)
+      } else if (discoveryNode?.type === 'ctaNode') {
+        const currentAnswers: string[] = (discoveryNode.data as { answers?: string[] }).answers ?? []
         const answerLabel = match.demo.title.length > 45
           ? match.demo.title.slice(0, 42) + '...'
           : match.demo.title
@@ -1626,22 +1676,22 @@ export default function FlowCanvas({ onContentChange, previewOpen, onPreviewClos
 
         setNodes((nds) => [
           ...nds.map((n) =>
-            n.id === ctaNode.id
+            n.id === discoveryNode.id
               ? { ...n, selected: false, data: { ...n.data, answers: [...currentAnswers, answerLabel] } }
               : { ...n, selected: false }
           ),
           newNode,
         ])
 
-        const ctaEdgeId = `e-${ctaNode.id}-${cardNodeId}`
+        const ctaEdgeId = `e-${discoveryNode.id}-${cardNodeId}`
         setTimeout(() => {
-          updateNodeInternals(ctaNode.id)
+          updateNodeInternals(discoveryNode.id)
           setTimeout(() => {
             setEdges((eds) => [
               ...eds,
               {
                 id: ctaEdgeId,
-                source: ctaNode.id,
+                source: discoveryNode.id,
                 sourceHandle: `answer-${newAnswerIndex}`,
                 target: cardNodeId,
                 type: 'deletableEdge',
@@ -1684,7 +1734,7 @@ export default function FlowCanvas({ onContentChange, previewOpen, onPreviewClos
 
       const currentNodes = getNodes()
       const thisNode = currentNodes.find(n => n.id === nodeId)
-      const nodeWidth = typeof thisNode?.width === 'number' ? thisNode.width : 540
+      const nodeWidth = typeof thisNode?.width === 'number' ? thisNode.width : NODE_DEFAULT_WIDTH
       const baseX = (thisNode?.position.x ?? 0) + nodeWidth + 80
       const baseY = thisNode?.position.y ?? 0
 
@@ -1853,8 +1903,6 @@ export default function FlowCanvas({ onContentChange, previewOpen, onPreviewClos
   }, [setNodes])
 
   return (
-    <>
-    {previewOpen && <PrototypePreviewModal nodes={nodes} edges={edges} onClose={() => onPreviewClose?.()} />}
     <div ref={reactFlowWrapper} className="flex-1 h-full relative">
       <ReactFlow
         nodes={nodes}
@@ -2037,6 +2085,5 @@ export default function FlowCanvas({ onContentChange, previewOpen, onPreviewClos
         )}
       </div>
     </div>
-    </>
   )
 }

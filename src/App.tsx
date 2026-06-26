@@ -6,18 +6,13 @@ import Sidebar from '@/components/Sidebar'
 
 export default function App() {
   const [hasContent, setHasContent] = useState(false)
-  const [previewOpen, setPreviewOpen] = useState(false)
 
   return (
     <ReactFlowProvider>
       <div className="h-screen flex flex-col overflow-hidden">
-        <Header hasContent={hasContent} onPreview={() => setPreviewOpen(true)} />
+        <Header hasContent={hasContent} />
         <div className="flex flex-1 overflow-hidden">
-          <FlowCanvas
-            onContentChange={setHasContent}
-            previewOpen={previewOpen}
-            onPreviewClose={() => setPreviewOpen(false)}
-          />
+          <FlowCanvas onContentChange={setHasContent} />
           <Sidebar />
         </div>
       </div>

@@ -2,7 +2,6 @@
 
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { CircleHelp } from 'lucide-react'
 
 interface PreviewImage {
   src: string
@@ -93,23 +92,21 @@ function DiscoveryPreview({ question, answers, tooltips, answerImages }: { quest
           return (
             <button
               key={i}
-              className="w-full text-left px-5 py-4 rounded-xl border border-gray-200 text-sm text-gray-800 hover:border-[#FC6839] hover:bg-orange-50 transition-colors cursor-pointer"
+              className={`w-full text-left px-5 py-4 rounded-xl border border-gray-200 text-sm text-gray-800 hover:border-[#FC6839] hover:bg-orange-50 transition-colors cursor-pointer relative ${tip ? 'group/answer' : ''}`}
             >
               {img && (
                 <img src={img.src} alt="" className="rounded mb-3 max-h-40 object-contain" />
               )}
-              <span className="inline-flex items-center">
-                <span>{answer}</span>
-                {tip && (
-                  <span className="relative group/tip inline-flex items-center" style={{ marginLeft: 8 }}>
-                    <CircleHelp size={14} className="text-gray-800 cursor-help" />
-                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1.5 rounded-lg bg-gray-800 text-white text-xs opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity shadow-lg whitespace-nowrap" style={{ maxWidth: 320 }}>
-                      {tip}
-                      <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
-                    </span>
-                  </span>
-                )}
-              </span>
+              <span>{answer}</span>
+              {tip && (
+                <span
+                  className="absolute bottom-full left-5 mb-2 px-2.5 py-1.5 rounded-lg bg-gray-800 text-white text-xs opacity-0 pointer-events-none group-hover/answer:opacity-100 transition-opacity shadow-lg z-10"
+                  style={{ maxWidth: 320 }}
+                >
+                  {tip}
+                  <span className="absolute top-full left-4 border-4 border-transparent border-t-gray-800" />
+                </span>
+              )}
             </button>
           )
         })}
@@ -166,3 +163,4 @@ function FullScreenPreview({ header, message, buttons, buttonUrls, messageImage 
     </div>
   )
 }
+

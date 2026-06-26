@@ -3,9 +3,31 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Handle, Position, type NodeProps, useReactFlow, useUpdateNodeInternals } from '@xyflow/react'
-import { X, Eye } from 'lucide-react'
+import { X } from 'lucide-react'
+import {
+  HeaderIconButton,
+  DuplicateIcon,
+  PreviewEyeIcon,
+  EditIcon,
+  DeleteIcon,
+  NodeHeaderBar,
+} from './NodeHeaderActions'
 import HotspotBuilderModal, { type HotspotPage } from '../HotspotBuilderModal'
 import { demos as allDemosData } from '../../data/demos'
+import FormattingToolbar, { type FormatOption } from './FormattingToolbar'
+import NodeInputShell from './NodeInputShell'
+import {
+  HEADER_INPUT_CLASS,
+  PLACEHOLDERS,
+  RICH_TEXT_PLACEHOLDER_CLASS,
+  NODE_HANDLE_CLASS,
+  NODE_HANDLE_SIDE_STYLE,
+  NODE_HANDLE_INLINE_CLASS,
+  NODE_HANDLE_INLINE_STYLE,
+  NODE_HANDLE_INLINE_OFFSET,
+  NODE_DEFAULT_WIDTH,
+} from './nodeFieldStyles'
+import { useFormattingToolbar } from './useFormattingToolbar'
 
 const HotspotSvgIcon = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -43,8 +65,30 @@ export default function HotspotNode({ id, data }: NodeProps) {
   const [showOverlay, setShowOverlay] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
   const [focusedHotspotId, setFocusedHotspotId] = useState<string | null>(null)
+  const [focusedField, setFocusedField] = useState<'name' | 'hotspot' | null>(null)
   const [saveVersion, setSaveVersion] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const {
+    showToolbar,
+    activeFormats,
+    handleFieldFocus,
+    handleFieldBlur,
+    toggleRichFormat,
+    toggleToggleFormat,
+  } = useFormattingToolbar({
+    nodeId: id,
+    onBlurClear: () => setFocusedField(null),
+  })
+
+  const toggleFormat = useCallback((fmt: FormatOption) => {
+    if (fmt === 'image') return
+    if (fmt === 'bold' || fmt === 'italic' || fmt === 'underline') {
+      toggleRichFormat(fmt)
+      return
+    }
+    toggleToggleFormat(fmt)
+  }, [toggleRichFormat, toggleToggleFormat])
 
   // Auto-open builder when first dropped (no pages yet)
   useEffect(() => {
@@ -89,8 +133,13 @@ export default function HotspotNode({ id, data }: NodeProps) {
     setNodes(nds => nds.map(n => ({ ...n, selected: false })).concat(newNode))
   }, [id, getNodes, setNodes, screenshotName, pages])
 
-  const MIN_WIDTH = 400
-  const [width, setWidth] = useState(540)
+  const handleDelete = useCallback(() => {
+    setNodes((nds) => nds.filter((n) => n.id !== id))
+    setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id))
+  }, [id, setNodes, setEdges])
+
+  const MIN_WIDTH = NODE_DEFAULT_WIDTH
+  const [width, setWidth] = useState(NODE_DEFAULT_WIDTH)
   const resizing = useRef<{ startX: number; startW: number } | null>(null)
 
   useEffect(() => {
@@ -165,66 +214,68 @@ export default function HotspotNode({ id, data }: NodeProps) {
     <>
       <div
         className="bg-white border border-[#d0cbc6] rounded-2xl relative shadow-[0px_20px_20px_-20px_rgba(48,41,33,0.25)]"
-        style={{ width, paddingTop: 32, paddingBottom: 32 }}
+        style={{ width, paddingBottom: 32 }}
       >
-        <Handle type="target" position={Position.Left} className="!bg-brand-500 !border-brand-500" style={{ width: 12, height: 12, left: 0 }} />
+        <Handle type="target" position={Position.Left} className={NODE_HANDLE_CLASS} style={NODE_HANDLE_SIDE_STYLE} />
 
-        {/* Close button */}
-        <button
-          className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-white hover:bg-gray-200 border-2 border-white flex items-center justify-center transition-colors shadow-sm z-20 nodrag nopan"
-          onClick={() => {
-            setNodes(nds => nds.filter(n => n.id !== id))
-            setEdges(eds => eds.filter(e => e.source !== id && e.target !== id))
-          }}
-        >
-          <X size={14} className="text-gray-600" />
-        </button>
+        {showToolbar && (
+          <FormattingToolbar
+            activeFormats={activeFormats}
+            onToggle={toggleFormat}
+            disabledKeys={new Set<FormatOption>(['image'])}
+            sparkleId={`hotspot_${id}`}
+          />
+        )}
 
-        {/* Header row */}
-        <div className="flex items-center justify-between px-4 pb-3">
-          <div className="flex items-center gap-2">
-            <span className="text-[#D4A017]"><HotspotSvgIcon /></span>
-            <span className="text-xs font-medium text-gray-500">Screengrab & Hotspots</span>
-          </div>
-          <div className="flex items-center gap-1">
-            {/* Edit — opens builder */}
-            <button
-              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors nodrag nopan"
-              onClick={() => setBuilderOpen(true)}
-            >
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                <mask id={`mask_edit_hs_${id}`} style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="0" y="0" width="18" height="18"><rect width="18" height="18" fill="#D9D9D9"/></mask>
-                <g mask={`url(#mask_edit_hs_${id})`}><path d="M3.75 14.25H4.8L11.3625 7.6875L10.3125 6.6375L3.75 13.2V14.25ZM14.475 6.6375L11.3625 3.5625L12.3375 2.5875C12.5875 2.3375 12.8969 2.2125 13.2656 2.2125C13.6344 2.2125 13.9438 2.3375 14.1938 2.5875L15.45 3.8438C15.7 4.0938 15.825 4.4 15.825 4.7625C15.825 5.125 15.7 5.4313 15.45 5.6813L14.475 6.6375ZM13.5 7.6125L5.25 15.75H2.25V12.75L10.5 4.5L13.5 7.6125Z" fill="#293748"/></g>
-              </svg>
-            </button>
-            {/* View */}
-            <button
-              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors nodrag nopan"
-              style={{ opacity: hasImage ? 1 : 0.3, cursor: hasImage ? 'pointer' : 'default' }}
-              onClick={() => { if (hasImage) { setPreviewHotspotId(null); setPreviewOpen(true) } }}
-            >
-              <Eye size={18} className="text-[#293748]" />
-            </button>
-            {/* Duplicate */}
-            <button className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors nodrag nopan" onClick={handleDuplicate}>
-              <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-                <mask id={`mask_dup_hs_${id}`} style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="0" y="0" width="20" height="20"><rect width="20" height="20" fill="#D9D9D9"/></mask>
-                <g mask={`url(#mask_dup_hs_${id})`}><path d="M7.5 15C7.04167 15 6.64944 14.8369 6.32333 14.5108C5.99667 14.1842 5.83333 13.7917 5.83333 13.3333V3.33332C5.83333 2.87499 5.99667 2.48249 6.32333 2.15582C6.64944 1.82971 7.04167 1.66666 7.5 1.66666H15C15.4583 1.66666 15.8508 1.82971 16.1775 2.15582C16.5036 2.48249 16.6667 2.87499 16.6667 3.33332V13.3333C16.6667 13.7917 16.5036 14.1842 16.1775 14.5108C15.8508 14.8369 15.4583 15 15 15H7.5ZM7.5 13.3333H15V3.33332H7.5V13.3333ZM4.16667 18.3333C3.70833 18.3333 3.31583 18.1703 2.98917 17.8442C2.66306 17.5175 2.5 17.125 2.5 16.6667V5.83332C2.5 5.59721 2.58 5.39916 2.74 5.23916C2.89944 5.07971 3.09722 4.99999 3.33333 4.99999C3.56944 4.99999 3.7675 5.07971 3.9275 5.23916C4.08694 5.39916 4.16667 5.59721 4.16667 5.83332V16.6667H12.5C12.7361 16.6667 12.9342 16.7467 13.0942 16.9067C13.2536 17.0661 13.3333 17.2639 13.3333 17.5C13.3333 17.7361 13.2536 17.9339 13.0942 18.0933C12.9342 18.2533 12.7361 18.3333 12.5 18.3333H4.16667Z" fill="#293748"/></g>
-              </svg>
-            </button>
-          </div>
-        </div>
+        <NodeHeaderBar
+          className="px-5 pt-5"
+          icon={<span className="text-[#D4A017]"><HotspotSvgIcon /></span>}
+          title="Screengrab & Hotspots"
+          actions={
+            <>
+              <HeaderIconButton label="Edit" onClick={() => setBuilderOpen(true)}>
+                <EditIcon />
+              </HeaderIconButton>
+              <HeaderIconButton
+                label="Preview"
+                onClick={() => {
+                  if (hasImage) {
+                    setPreviewHotspotId(null)
+                    setPreviewOpen(true)
+                  }
+                }}
+                disabled={!hasImage}
+              >
+                <PreviewEyeIcon />
+              </HeaderIconButton>
+              <HeaderIconButton label="Duplicate" onClick={handleDuplicate}>
+                <DuplicateIcon />
+              </HeaderIconButton>
+              <HeaderIconButton label="Delete" onClick={handleDelete} circular>
+                <DeleteIcon />
+              </HeaderIconButton>
+            </>
+          }
+        />
 
         {/* Screenshot name */}
         <div className="px-5 pb-4">
-          <input
-            type="text"
-            value={screenshotName}
-            onChange={(e) => setScreenshotName(e.target.value)}
-            placeholder="Enter your screenshot name here"
-            className="nodrag w-full text-base font-semibold italic text-gray-800 placeholder:text-gray-800 placeholder:font-semibold placeholder:italic placeholder:opacity-100 focus:placeholder:opacity-60 outline-none bg-transparent resize-none"
-            style={{ lineHeight: 1.5 }}
-          />
+          <NodeInputShell focused={focusedField === 'name'} onBlur={handleFieldBlur}>
+            <input
+              type="text"
+              value={screenshotName}
+              onChange={(e) => setScreenshotName(e.target.value)}
+              placeholder={PLACEHOLDERS.screenshotName}
+              className={HEADER_INPUT_CLASS}
+              style={{ lineHeight: 1.5 }}
+              data-cta-field
+              onFocus={() => {
+                handleFieldFocus()
+                setFocusedField('name')
+              }}
+              onBlur={handleFieldBlur}
+            />
+          </NodeInputShell>
         </div>
 
         {/* Drop zone / image */}
@@ -307,19 +358,21 @@ export default function HotspotNode({ id, data }: NodeProps) {
               {allHotspots.map((hs) => (
                 <div
                   key={`${hs.id}-${saveVersion}`}
-                  className="nodrag group flex items-center gap-3 relative transition-opacity pb-2 border-b border-gray-200 focus-within:border-brand-400"
+                  className="nodrag group flex items-center gap-3 relative"
                 >
-                  {/* Editable hotspot name — matches CtaNode answer field */}
-                  <div className="flex-1 min-w-0 overflow-hidden">
+                  <NodeInputShell
+                    focused={focusedField === 'hotspot' && focusedHotspotId === hs.id}
+                    className="flex-1 min-w-0"
+                    padding={0}
+                    onBlur={handleFieldBlur}
+                  >
+                  <div className="px-4 py-2.5 overflow-hidden">
                     <div
                       contentEditable
                       suppressContentEditableWarning
-                      data-placeholder="Type your hotspot name here"
-                      className={`text-sm text-gray-800 outline-none min-h-[1.5em] [&_*]:leading-[inherit] ${
-                        !hs.title
-                          ? `before:content-[attr(data-placeholder)] before:pointer-events-none before:text-[#FC6839] ${focusedHotspotId === hs.id ? 'before:opacity-60' : ''}`
-                          : ''
-                      }`}
+                      data-placeholder={PLACEHOLDERS.hotspotName}
+                      data-cta-field
+                      className={`text-sm text-gray-800 outline-none min-h-[1.5em] [&_*]:leading-[inherit] ${!hs.title ? RICH_TEXT_PLACEHOLDER_CLASS : ''}`}
                       style={{ wordBreak: 'break-word', lineHeight: 1.5 }}
                       ref={(el) => {
                         if (el && !el.dataset.initialized) {
@@ -331,10 +384,15 @@ export default function HotspotNode({ id, data }: NodeProps) {
                         const el = e.target as HTMLDivElement
                         updateHotspotTitle(hs.id, hs.pageId, el.textContent || '')
                       }}
-                      onFocus={() => setFocusedHotspotId(hs.id)}
+                      onFocus={() => {
+                        handleFieldFocus()
+                        setFocusedField('hotspot')
+                        setFocusedHotspotId(hs.id)
+                      }}
                       onBlur={() => setFocusedHotspotId(null)}
                     />
                   </div>
+                  </NodeInputShell>
 
                   {/* Delete hotspot */}
                   <button
@@ -345,13 +403,13 @@ export default function HotspotNode({ id, data }: NodeProps) {
                   </button>
 
                   {/* Per-hotspot source handle */}
-                  <div className="absolute top-1/2 -translate-y-1/2" style={{ right: -21 }}>
+                  <div className="absolute top-1/2 -translate-y-1/2" style={{ right: NODE_HANDLE_INLINE_OFFSET }}>
                     <Handle
                       type="source"
                       position={Position.Right}
                       id={`hotspot-${hs.id}`}
-                      className="!bg-brand-500 !border-brand-500 !relative !top-0 !right-0"
-                      style={{ width: 12, height: 12 }}
+                      className={NODE_HANDLE_INLINE_CLASS}
+                      style={NODE_HANDLE_INLINE_STYLE}
                     />
                   </div>
                 </div>
