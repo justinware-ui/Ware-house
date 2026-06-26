@@ -15,13 +15,19 @@ export function HeaderIconButton({
   disabled?: boolean
   circular?: boolean
 }) {
+  const stopFlow = (e: React.SyntheticEvent) => {
+    e.stopPropagation()
+  }
+
   return (
     <button
       type="button"
       onClick={onClick}
+      onMouseDown={stopFlow}
+      onPointerDown={stopFlow}
       disabled={disabled}
       title={label}
-      className={`flex items-center justify-center shrink-0 transition-opacity hover:opacity-70 disabled:opacity-30 nodrag nopan ${circular ? 'rounded-full bg-white' : ''}`}
+      className={`flex items-center justify-center shrink-0 transition-opacity hover:opacity-70 disabled:opacity-30 nodrag nopan nowheel ${circular ? 'rounded-full bg-white' : ''}`}
       style={{ width: 32, height: 31 }}
     >
       {children}

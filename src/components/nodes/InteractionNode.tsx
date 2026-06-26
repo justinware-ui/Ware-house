@@ -2,17 +2,25 @@
 
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { NODE_HANDLE_CLASS, NODE_HANDLE_SIDE_STYLE } from './nodeFieldStyles'
+import { useNodeWidthResize } from './useNodeWidthResize'
+import NodeResizeHandle from './NodeResizeHandle'
 
 interface Block {
   type: string
   color: string
 }
 
+const INTERACTION_NODE_MIN_WIDTH = 140
+
 export default function InteractionNode({ data }: NodeProps) {
   const blocks = (data as { blocks: Block[] }).blocks ?? []
+  const { width, startResize } = useNodeWidthResize(INTERACTION_NODE_MIN_WIDTH, INTERACTION_NODE_MIN_WIDTH)
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm min-w-[140px]">
+    <div
+      className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm relative overflow-visible"
+      style={{ width }}
+    >
       <Handle
         type="target"
         position={Position.Left}
@@ -34,6 +42,7 @@ export default function InteractionNode({ data }: NodeProps) {
         className={NODE_HANDLE_CLASS}
         style={NODE_HANDLE_SIDE_STYLE}
       />
+      <NodeResizeHandle onMouseDown={startResize} />
     </div>
   )
 }

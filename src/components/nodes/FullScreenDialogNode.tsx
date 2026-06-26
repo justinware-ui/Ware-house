@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo, useRef, useLayoutEffect, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Handle, Position, type NodeProps, useReactFlow, useUpdateNodeInternals } from '@xyflow/react'
+import { type NodeProps, useReactFlow, useUpdateNodeInternals } from '@xyflow/react'
 import { Copy, X, CircleHelp, Monitor, MousePointerClick } from 'lucide-react'
 import {
   HeaderIconButton,
@@ -14,6 +14,7 @@ import {
 import InteractionPreviewModal from '../InteractionPreviewModal'
 import FormattingToolbar, { type FormatOption } from './FormattingToolbar'
 import NodeInputShell from './NodeInputShell'
+import { clearOrRemoveField } from './NodeInputFieldRow'
 import {
   INPUT_MIN_HEIGHT,
   PLACEHOLDERS,
@@ -24,11 +25,24 @@ import {
   URL_INPUT_CLASS,
   TOOLTIP_INPUT_CLASS,
   RICH_TEXT_PLACEHOLDER_CLASS,
-  NODE_HANDLE_CLASS,
-  NODE_HANDLE_SIDE_STYLE,
   NODE_DEFAULT_WIDTH,
+  NODE_INPUT_INNER_CLASS,
+  ANSWER_ROW_GRIP_HEIGHT,
 } from './nodeFieldStyles'
+import { NodeSideTargetHandle } from './NodeConnectorHandles'
 import { useFormattingToolbar } from './useFormattingToolbar'
+import NodeResizeHandle from './NodeResizeHandle'
+import NodeRequiredBanner from './NodeRequiredBanner'
+import RequiredFieldGroup from './RequiredFieldGroup'
+import NodeInputSection from './NodeInputSection'
+import { useNodeValidation } from './useNodeValidation'
+import { useRegisterNodeFields } from './useRegisterNodeFields'
+import { isFieldEmpty, NODE_ERROR_COLOR } from './nodeValidation'
+import {
+  registerFieldMount,
+  shouldShowFieldValidation,
+  unregisterFieldMount,
+} from './nodeValidationStore'
 
 interface AnswerImage {
   src: string
@@ -67,11 +81,46 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
   const [draftTooltips, setDraftTooltips] = useState<Record<string | number, string>>({})
   const [focusedButtonId, setFocusedButtonId] = useState<number | null>(null)
   const [focusedField, setFocusedField] = useState<'header' | 'message' | 'button' | 'url' | null>(null)
+  const [focusedTooltip, setFocusedTooltip] = useState(false)
   const [messageImage, setMessageImage] = useState<AnswerImage | null>(null)
   const [resizingImage, setResizingImage] = useState<{ startX: number; startY: number; startW: number; startH: number } | null>(null)
   const [draggingImage, setDraggingImage] = useState<{ startX: number; startY: number; startOffX: number; startOffY: number } | null>(null)
   const [showOverlay, setShowOverlay] = useState(false)
   const hasContent = !!(header.trim() || message.trim() || buttons.some(b => b.text.trim()))
+
+  const getHasErrors = useCallback(() => {
+    if (isFieldEmpty(header)) return true
+    if (isFieldEmpty(message)) return true
+    if (buttons.some((b) => isFieldEmpty(b.text) && shouldShowFieldValidation(id, `button-${b.id}`))) {
+      return true
+    }
+    if (isCta && buttons.some((b) => isFieldEmpty(b.url) && shouldShowFieldValidation(id, `button-url-${b.id}`))) {
+      return true
+    }
+    return false
+  }, [header, message, buttons, isCta, id])
+
+  const { showValidation } = useNodeValidation(id, getHasErrors)
+  const nodeHasErrors = showValidation && getHasErrors()
+  const headerInvalid = showValidation && isFieldEmpty(header)
+  const messageInvalid = showValidation && isFieldEmpty(message)
+
+  const buttonOrderKey = buttons.map((b) => b.id).join(',')
+
+  const buttonFieldIds = useMemo(() => {
+    const ids: string[] = []
+    buttons.forEach((b) => {
+      ids.push(`button-${b.id}`)
+      if (isCta) ids.push(`button-url-${b.id}`)
+    })
+    return ids
+  }, [buttonOrderKey, isCta, buttons])
+  useRegisterNodeFields(id, buttonFieldIds)
+
+  const handlePreview = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setShowPreview(true)
+  }
   const [draggingBtnIndex, setDraggingBtnIndex] = useState<number | null>(null)
   const dragBtnIndexRef = useRef<number | null>(null)
   const buttonRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -96,7 +145,6 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
     onBlurClear: () => setFocusedField(null),
   })
 
-  const buttonOrderKey = buttons.map((b) => b.id).join(',')
   useEffect(() => {
     updateNodeInternals(id)
   }, [tooltipMode, buttonOrderKey, id, updateNodeInternals])
@@ -126,11 +174,18 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
     return lines.join('\n')
   }
 
-  const addButton = () =>
-    setButtons((prev) => [...prev, { id: Date.now(), text: '', url: '' }])
+  const addButton = () => {
+    const newId = Date.now()
+    registerFieldMount(id, `button-${newId}`)
+    if (isCta) registerFieldMount(id, `button-url-${newId}`)
+    setButtons((prev) => [...prev, { id: newId, text: '', url: '' }])
+  }
 
-  const removeButton = (btnId: number) =>
+  const removeButton = (btnId: number) => {
+    unregisterFieldMount(id, `button-${btnId}`)
+    unregisterFieldMount(id, `button-url-${btnId}`)
     setButtons((prev) => prev.filter((b) => b.id !== btnId))
+  }
 
   const updateButtonText = (btnId: number, text: string) =>
     setButtons((prev) => prev.map((b) => (b.id === btnId ? { ...b, text } : b)))
@@ -369,27 +424,17 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
 
   return (
     <div
-      className="bg-white border border-gray-200 rounded-2xl px-6 py-5 shadow-sm relative transition-[width,box-shadow,border-color] duration-150"
-      style={{ width: tooltipMode ? Math.max(manualWidth ?? cardWidth, 320) : (manualWidth ?? cardWidth) }}
+      className={`bg-white border rounded-2xl py-5 shadow-sm relative transition-[width,box-shadow,border-color] duration-150 overflow-visible ${nodeHasErrors ? '' : 'border-gray-200'}`}
+      style={{
+        width: tooltipMode ? Math.max(manualWidth ?? cardWidth, 320) : (manualWidth ?? cardWidth),
+        ...(nodeHasErrors ? { borderColor: NODE_ERROR_COLOR } : {}),
+      }}
     >
-      <span
-        ref={measureRef}
-        className="invisible absolute whitespace-nowrap text-base font-semibold pointer-events-none"
-        aria-hidden
-      />
-      <Handle
-        type="target"
-        position={Position.Left}
-        className={NODE_HANDLE_CLASS}
-        style={NODE_HANDLE_SIDE_STYLE}
-      />
-      <Handle
-        type="source"
-        position={Position.Right}
-        className={NODE_HANDLE_CLASS}
-        style={NODE_HANDLE_SIDE_STYLE}
-      />
-
+      {nodeHasErrors && (
+        <div className="-mt-5 mb-2 overflow-hidden rounded-t-2xl relative z-0">
+          <NodeRequiredBanner className="rounded-t-2xl" />
+        </div>
+      )}
       {showToolbar && !tooltipMode && (
         <FormattingToolbar
           activeFormats={activeFormats}
@@ -398,9 +443,16 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
           sparkleId={`fsd_${id}`}
         />
       )}
+      <span
+        ref={measureRef}
+        className="invisible absolute whitespace-nowrap text-base font-semibold pointer-events-none"
+        aria-hidden
+      />
+      <div className="relative flex flex-col flex-1 overflow-visible">
+        <NodeSideTargetHandle />
 
       <NodeHeaderBar
-        className="px-6 pt-5 -mx-6 -mt-5 mb-2"
+        className="px-5 pt-5 -mt-5 mb-2"
         icon={
           isCta ? (
             <MousePointerClick size={16} className="text-[#FC6839] shrink-0" />
@@ -413,8 +465,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
           <>
             <HeaderIconButton
               label="Preview"
-              onClick={() => hasContent && setShowPreview(true)}
-              disabled={!hasContent}
+              onClick={handlePreview}
             >
               <PreviewEyeIcon />
             </HeaderIconButton>
@@ -450,7 +501,15 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                 <div>
                   <p className="text-xs text-gray-600 mb-1">Message: {message}</p>
                   <div className="flex items-start gap-3">
-                    <NodeInputShell focused className="flex-1 min-w-0" padding={0}>
+                    <NodeInputShell
+                      focused={focusedTooltip}
+                      className="flex-1 min-w-0"
+                      padding={0}
+                      hasContent={!!(draftTooltips['message'] ?? '').trim()}
+                      onClear={() =>
+                        setDraftTooltips((prev) => ({ ...prev, message: '' }))
+                      }
+                    >
                       <input
                         type="text"
                         value={draftTooltips['message'] ?? ''}
@@ -460,20 +519,10 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                         placeholder={PLACEHOLDERS.tooltip}
                         className={`${TOOLTIP_INPUT_CLASS} px-4 py-2.5`}
                         data-cta-field
+                        onFocus={() => setFocusedTooltip(true)}
+                        onBlur={() => setFocusedTooltip(false)}
                       />
                     </NodeInputShell>
-                    <button
-                      className="text-gray-400 hover:text-gray-600 shrink-0 mt-0.5"
-                      onClick={() =>
-                        setDraftTooltips((prev) => {
-                          const next = { ...prev }
-                          delete next['message']
-                          return next
-                        })
-                      }
-                    >
-                      <X size={14} />
-                    </button>
                   </div>
                 </div>
               )}
@@ -508,35 +557,51 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
 
         <div style={tooltipMode ? { height: 0, overflow: 'hidden' as const, visibility: 'hidden' as const } : undefined}>
         <>
+          <NodeInputSection>
           {/* Header field */}
           <div className="mb-7" style={{ marginTop: 6 }}>
-            <NodeInputShell focused={focusedField === 'header'} onBlur={handleFieldBlur}>
-              <textarea
-                value={header}
-                onChange={(e) => setHeader(wrapText(e.target.value))}
-                placeholder={PLACEHOLDERS.header}
-                rows={Math.max(1, header.split('\n').length)}
-                className={`${HEADER_INPUT_CLASS} resize-none overflow-hidden`}
-                style={{ lineHeight: 1.5, minHeight: INPUT_MIN_HEIGHT - 22 }}
-                data-cta-field
-                onFocus={() => {
-                  handleFieldFocus()
-                  setFocusedField('header')
-                }}
+            <RequiredFieldGroup showMessage={headerInvalid}>
+              <NodeInputShell
+                focused={focusedField === 'header'}
                 onBlur={handleFieldBlur}
-              />
-            </NodeInputShell>
+                padding={0}
+                invalid={headerInvalid}
+                hasContent={!!header.trim()}
+                onClear={() => setHeader('')}
+              >
+                <textarea
+                  value={header}
+                  onChange={(e) => setHeader(wrapText(e.target.value))}
+                  placeholder={PLACEHOLDERS.header}
+                  rows={Math.max(1, header.split('\n').length)}
+                  className={`${HEADER_INPUT_CLASS} ${NODE_INPUT_INNER_CLASS} resize-none overflow-hidden`}
+                  style={{ lineHeight: 1.5, minHeight: INPUT_MIN_HEIGHT - 22 }}
+                  data-cta-field
+                  onFocus={() => {
+                    handleFieldFocus()
+                    setFocusedField('header')
+                  }}
+                  onBlur={handleFieldBlur}
+                />
+              </NodeInputShell>
+            </RequiredFieldGroup>
           </div>
 
           {/* Message body */}
+          <RequiredFieldGroup showMessage={messageInvalid} className="mb-6">
           <NodeInputShell
             focused={focusedField === 'message'}
-            className="mb-6"
             padding={0}
             onBlur={handleFieldBlur}
+            invalid={messageInvalid}
+            hasContent={!!message.trim()}
+            onClear={() => {
+              setMessage('')
+              if (messageRef.current) messageRef.current.textContent = ''
+            }}
           >
-          <div ref={messageContainerRef} className="px-4 py-2.5 flex items-start gap-2" data-answer-content>
-            <div className="flex-1 min-w-0 overflow-hidden">
+          <div ref={messageContainerRef} className={`${NODE_INPUT_INNER_CLASS} flex items-start gap-2`} data-answer-content>
+            <div className="flex-1 min-w-0">
               {messageImage && (
                 <div
                   className="relative inline-block nodrag group/img"
@@ -648,42 +713,69 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
             )}
           </div>
           </NodeInputShell>
+          </RequiredFieldGroup>
 
           {/* Button fields */}
           <div className="flex flex-col gap-5" style={{ paddingBottom: buttons.length >= 2 ? 16 : 0 }}>
-            {buttons.map((btn, index) => (
+            {buttons.map((btn, index) => {
+              const buttonInvalid =
+                showValidation &&
+                isFieldEmpty(btn.text) &&
+                shouldShowFieldValidation(id, `button-${btn.id}`)
+              const urlInvalid =
+                isCta &&
+                showValidation &&
+                isFieldEmpty(btn.url) &&
+                shouldShowFieldValidation(id, `button-url-${btn.id}`)
+              const isOutputButton = index === buttons.length - 1
+              return (
               <div
                 key={btn.id}
                 ref={(el) => {
                   buttonRefs.current[index] = el
                   buttonRefs.current.length = buttons.length
                 }}
-                className={`flex flex-col transition-opacity ${
+                className={`relative overflow-visible transition-opacity ${
                   draggingBtnIndex !== null && draggingBtnIndex !== index ? 'opacity-50' : ''
                 }`}
+                style={{
+                  paddingTop: buttons.length >= 2 ? ANSWER_ROW_GRIP_HEIGHT : 0,
+                  marginBottom: !isCta ? 12 : 0,
+                }}
               >
-                <div
-                  className="nodrag flex items-center gap-3 relative"
-                  style={!isCta ? { marginBottom: 12 } : undefined}
-                >
-                  {buttons.length >= 2 && (
+                {buttons.length >= 2 && (
+                  <div
+                    className="absolute left-0 right-0 flex items-center justify-center nodrag nopan"
+                    style={{ top: 0, height: ANSWER_ROW_GRIP_HEIGHT }}
+                  >
                     <div
-                      className="nodrag nopan shrink-0 cursor-grab select-none p-1"
+                      className="cursor-grab select-none rotate-90 opacity-50 hover:opacity-100 transition-opacity p-1"
                       onMouseDown={(e) => handleBtnGrabStart(index, e)}
                     >
                       <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M7.5 16.666c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.459.163-.851.49-1.178.326-.326.718-.489 1.177-.489s.851.163 1.177.49c.326.326.49.718.49 1.177s-.164.851-.49 1.177c-.326.327-.718.49-1.177.49Zm5 0c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.459.164-.851.49-1.178.326-.326.718-.489 1.177-.489s.851.163 1.177.49c.327.326.49.718.49 1.177s-.163.851-.49 1.177c-.326.327-.718.49-1.177.49ZM7.5 11.666c-.459 0-.851-.163-1.177-.49a1.604 1.604 0 0 1-.49-1.177c0-.458.163-.851.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.326.326.49.718.49 1.177 0 .459-.164.851-.49 1.178-.326.326-.718.489-1.177.489Zm5 0c-.459 0-.851-.163-1.177-.49a1.604 1.604 0 0 1-.49-1.177c0-.458.164-.851.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.327.326.49.718.49 1.177 0 .459-.163.851-.49 1.178-.326.326-.718.489-1.177.489ZM7.5 6.666c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.458.163-.85.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.326.327.49.718.49 1.177 0 .459-.164.851-.49 1.178-.326.326-.718.489-1.177.489Zm5 0c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.458.164-.85.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.327.327.49.718.49 1.177 0 .459-.163.851-.49 1.178-.326.326-.718.489-1.177.489Z" fill="#8D8A87"/>
                       </svg>
                     </div>
-                  )}
+                  </div>
+                )}
 
+                  <RequiredFieldGroup showMessage={buttonInvalid} className="w-full" sourceHandle={isOutputButton}>
                   <NodeInputShell
                     focused={focusedField === 'button' && focusedButtonId === btn.id}
-                    className="flex-1 min-w-0"
+                    className="w-full"
                     padding={0}
                     onBlur={handleFieldBlur}
+                    invalid={buttonInvalid}
+                    hasContent={!!btn.text.trim()}
+                    onClear={() =>
+                      clearOrRemoveField(
+                        btn.text,
+                        () => updateButtonText(btn.id, ''),
+                        buttons.length >= 2 ? () => removeButton(btn.id) : undefined,
+                      )
+                    }
                   >
-                    <div className="px-4 py-2.5" data-answer-content>
+                    <div className={NODE_INPUT_INNER_CLASS} data-answer-content>
                       <input
                         type="text"
                         value={btn.text}
@@ -703,46 +795,57 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                       />
                     </div>
                   </NodeInputShell>
+                  </RequiredFieldGroup>
 
-                  <div className="flex items-center shrink-0" style={{ gap: 10, marginTop: 2 }}>
-                    {buttons.length >= 2 && (
-                      <button
-                        className="text-gray-400 hover:text-gray-600"
-                        onClick={() => removeButton(btn.id)}
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-                  </div>
-                </div>
+                  {buttons.length >= 2 && (
+                    <button
+                      className="absolute nodrag nopan text-gray-400 hover:text-gray-600"
+                      style={{ top: buttons.length >= 2 ? ANSWER_ROW_GRIP_HEIGHT + 10 : 10, right: 0 }}
+                      onClick={() => removeButton(btn.id)}
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
 
                 {isCta && (
-                  <NodeInputShell
-                    focused={focusedField === 'url'}
-                    className="nodrag mt-6 mb-2.5"
-                    padding={0}
-                    onBlur={handleFieldBlur}
-                  >
-                    <input
-                      type="text"
-                      value={btn.url}
-                      onChange={(e) => updateButtonUrl(btn.id, e.target.value)}
-                      placeholder={PLACEHOLDERS.url}
-                      className={`${URL_INPUT_CLASS} px-4 py-2.5`}
-                      data-cta-field
-                      onFocus={() => {
-                        handleFieldFocus()
-                        setFocusedField('url')
-                      }}
+                  <RequiredFieldGroup showMessage={urlInvalid} className="w-full">
+                    <NodeInputShell
+                      focused={focusedField === 'url' && focusedButtonId === btn.id}
+                      className="nodrag w-full mt-6 mb-2.5"
+                      padding={0}
                       onBlur={handleFieldBlur}
-                    />
-                  </NodeInputShell>
+                      invalid={urlInvalid}
+                      hasContent={!!btn.url.trim()}
+                      onClear={() => updateButtonUrl(btn.id, '')}
+                    >
+                      <input
+                        type="text"
+                        value={btn.url}
+                        onChange={(e) => updateButtonUrl(btn.id, e.target.value)}
+                        placeholder={PLACEHOLDERS.url}
+                        className={`${URL_INPUT_CLASS} ${NODE_INPUT_INNER_CLASS}`}
+                        data-cta-field
+                        onFocus={() => {
+                          handleFieldFocus()
+                          setFocusedField('url')
+                          setFocusedButtonId(btn.id)
+                        }}
+                        onBlur={(e) => {
+                          handleFieldBlur(e as unknown as React.FocusEvent)
+                          setFocusedButtonId(null)
+                        }}
+                      />
+                    </NodeInputShell>
+                  </RequiredFieldGroup>
                 )}
               </div>
-            ))}
+              )
+            })}
           </div>
+          </NodeInputSection>
 
         </>
+      </div>
       </div>
       </div>
 
@@ -755,9 +858,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
         onChange={handleFileSelect}
       />
 
-      {/* Resize handle */}
-      <div
-        className="absolute top-0 right-0 w-2 h-full cursor-ew-resize nodrag nopan"
+      <NodeResizeHandle
         onMouseDown={(e) => {
           e.preventDefault()
           e.stopPropagation()

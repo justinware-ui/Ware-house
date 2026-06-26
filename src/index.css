@@ -20,6 +20,14 @@
   }
 }
 
+.react-flow__node {
+  overflow: visible !important;
+}
+
+.react-flow__handle {
+  overflow: visible !important;
+}
+
 .react-flow__node:hover > div,
 .react-flow__node.selected > div {
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12) !important;

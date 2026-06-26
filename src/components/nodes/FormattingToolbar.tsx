@@ -32,14 +32,14 @@ export default function FormattingToolbar({
     { key: 'italic', icon: Italic, label: 'Italic' },
     { key: 'underline', icon: Underline, label: 'Underline' },
     { key: 'align', icon: AlignJustify, label: 'Alignment' },
-    { key: 'image', custom: 'addPhoto', label: 'Add Image' },
     { key: 'paragraph', icon: Pilcrow, label: 'Paragraph Format', hasDropdown: true },
+    { key: 'image', custom: 'addPhoto', label: 'Add Image' },
   ]
 
   return (
     <div
       data-toolbar
-      className="absolute -top-14 left-1/2 -translate-x-1/2 z-10 flex items-center rounded-full shadow-lg border border-gray-200 px-2 py-1.5 gap-0.5"
+      className="absolute -top-14 left-1/2 -translate-x-1/2 z-30 flex items-center rounded-full shadow-lg border border-gray-200 px-2 py-1.5 gap-0.5"
       style={{ backgroundColor: '#F7F4F2' }}
     >
       {tools.map(({ key, icon: Icon, custom, label, hasDropdown }) => {

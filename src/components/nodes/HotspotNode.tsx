@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Handle, Position, type NodeProps, useReactFlow, useUpdateNodeInternals } from '@xyflow/react'
+import { type NodeProps, useReactFlow, useUpdateNodeInternals } from '@xyflow/react'
 import { X } from 'lucide-react'
 import {
   HeaderIconButton,
@@ -16,18 +16,20 @@ import HotspotBuilderModal, { type HotspotPage } from '../HotspotBuilderModal'
 import { demos as allDemosData } from '../../data/demos'
 import FormattingToolbar, { type FormatOption } from './FormattingToolbar'
 import NodeInputShell from './NodeInputShell'
+import { clearOrRemoveField } from './NodeInputFieldRow'
 import {
   HEADER_INPUT_CLASS,
   PLACEHOLDERS,
   RICH_TEXT_PLACEHOLDER_CLASS,
-  NODE_HANDLE_CLASS,
-  NODE_HANDLE_SIDE_STYLE,
-  NODE_HANDLE_INLINE_CLASS,
-  NODE_HANDLE_INLINE_STYLE,
-  NODE_HANDLE_INLINE_OFFSET,
   NODE_DEFAULT_WIDTH,
+  NODE_INPUT_INNER_CLASS,
 } from './nodeFieldStyles'
+import { NodeSideTargetHandle } from './NodeConnectorHandles'
+import RequiredFieldGroup from './RequiredFieldGroup'
+import NodeInputSection from './NodeInputSection'
 import { useFormattingToolbar } from './useFormattingToolbar'
+import { useNodeWidthResize } from './useNodeWidthResize'
+import NodeResizeHandle from './NodeResizeHandle'
 
 const HotspotSvgIcon = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -138,24 +140,7 @@ export default function HotspotNode({ id, data }: NodeProps) {
     setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id))
   }, [id, setNodes, setEdges])
 
-  const MIN_WIDTH = NODE_DEFAULT_WIDTH
-  const [width, setWidth] = useState(NODE_DEFAULT_WIDTH)
-  const resizing = useRef<{ startX: number; startW: number } | null>(null)
-
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (!resizing.current) return
-      const newW = Math.max(MIN_WIDTH, resizing.current.startW + (e.clientX - resizing.current.startX))
-      setWidth(newW)
-    }
-    const onUp = () => { resizing.current = null }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-    return () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-    }
-  }, [])
+  const { width, startResize } = useNodeWidthResize()
 
   const loadFile = (file: File) => {
     if (!file.type.startsWith('image/')) return
@@ -213,10 +198,11 @@ export default function HotspotNode({ id, data }: NodeProps) {
   return (
     <>
       <div
-        className="bg-white border border-[#d0cbc6] rounded-2xl relative shadow-[0px_20px_20px_-20px_rgba(48,41,33,0.25)]"
+        className="bg-white border border-[#d0cbc6] rounded-2xl relative shadow-[0px_20px_20px_-20px_rgba(48,41,33,0.25)] overflow-visible"
         style={{ width, paddingBottom: 32 }}
       >
-        <Handle type="target" position={Position.Left} className={NODE_HANDLE_CLASS} style={NODE_HANDLE_SIDE_STYLE} />
+        <div className="relative flex flex-col flex-1 overflow-visible">
+        <NodeSideTargetHandle />
 
         {showToolbar && (
           <FormattingToolbar
@@ -259,14 +245,20 @@ export default function HotspotNode({ id, data }: NodeProps) {
         />
 
         {/* Screenshot name */}
-        <div className="px-5 pb-4">
-          <NodeInputShell focused={focusedField === 'name'} onBlur={handleFieldBlur}>
+        <NodeInputSection className="pb-4">
+          <NodeInputShell
+            focused={focusedField === 'name'}
+            onBlur={handleFieldBlur}
+            padding={0}
+            hasContent={!!screenshotName.trim()}
+            onClear={() => setScreenshotName('')}
+          >
             <input
               type="text"
               value={screenshotName}
               onChange={(e) => setScreenshotName(e.target.value)}
               placeholder={PLACEHOLDERS.screenshotName}
-              className={HEADER_INPUT_CLASS}
+              className={`${HEADER_INPUT_CLASS} ${NODE_INPUT_INNER_CLASS}`}
               style={{ lineHeight: 1.5 }}
               data-cta-field
               onFocus={() => {
@@ -276,10 +268,10 @@ export default function HotspotNode({ id, data }: NodeProps) {
               onBlur={handleFieldBlur}
             />
           </NodeInputShell>
-        </div>
+        </NodeInputSection>
 
         {/* Drop zone / image */}
-        <div className={`px-5 pt-2 ${allHotspots.length > 0 ? 'pb-2' : 'pb-2'}`}>
+        <NodeInputSection className="pt-2 pb-2">
           {hasImage ? (
             <div className="relative group/img rounded-[4px] overflow-hidden border border-[#d0cbc6]" style={{ height: 124 }}>
               <img src={firstPageImage!} alt="" className="w-full h-full object-cover" />
@@ -349,24 +341,39 @@ export default function HotspotNode({ id, data }: NodeProps) {
               </button>
             </div>
           )}
-        </div>
+        </NodeInputSection>
 
         {/* Hotspot names list */}
         {allHotspots.length > 0 && (
-          <div className="px-5" style={{ marginTop: 24 }}>
-            <div className="flex flex-col gap-5">
+          <NodeInputSection style={{ marginTop: 24 }}>
+            <div className="flex flex-col gap-5 overflow-visible">
               {allHotspots.map((hs) => (
                 <div
                   key={`${hs.id}-${saveVersion}`}
-                  className="nodrag group flex items-center gap-3 relative"
+                  className="nodrag group relative overflow-visible"
+                  data-hotspot-row={hs.id}
                 >
+                  <RequiredFieldGroup showMessage={false} handleId={`hotspot-${hs.id}`} className="w-full">
                   <NodeInputShell
                     focused={focusedField === 'hotspot' && focusedHotspotId === hs.id}
-                    className="flex-1 min-w-0"
+                    className="w-full"
                     padding={0}
                     onBlur={handleFieldBlur}
+                    hasContent={!!hs.title.trim()}
+                    onClear={() => {
+                      clearOrRemoveField(
+                        hs.title,
+                        () => updateHotspotTitle(hs.id, hs.pageId, ''),
+                        allHotspots.length >= 2
+                          ? () => deleteHotspotFromNode(hs.id, hs.pageId)
+                          : undefined,
+                      )
+                      document
+                        .querySelector(`[data-hotspot-row="${hs.id}"] [contenteditable]`)
+                        ?.replaceChildren()
+                    }}
                   >
-                  <div className="px-4 py-2.5 overflow-hidden">
+                  <div className={NODE_INPUT_INNER_CLASS}>
                     <div
                       contentEditable
                       suppressContentEditableWarning
@@ -393,29 +400,19 @@ export default function HotspotNode({ id, data }: NodeProps) {
                     />
                   </div>
                   </NodeInputShell>
+                  </RequiredFieldGroup>
 
-                  {/* Delete hotspot */}
                   <button
-                    className="nopan nodrag shrink-0 text-gray-400 hover:text-gray-600 transition-colors"
+                    className="nopan nodrag absolute text-gray-400 hover:text-gray-600 transition-colors"
+                    style={{ top: 10, right: 0 }}
                     onClick={() => deleteHotspotFromNode(hs.id, hs.pageId)}
                   >
                     <X size={14} />
                   </button>
-
-                  {/* Per-hotspot source handle */}
-                  <div className="absolute top-1/2 -translate-y-1/2" style={{ right: NODE_HANDLE_INLINE_OFFSET }}>
-                    <Handle
-                      type="source"
-                      position={Position.Right}
-                      id={`hotspot-${hs.id}`}
-                      className={NODE_HANDLE_INLINE_CLASS}
-                      style={NODE_HANDLE_INLINE_STYLE}
-                    />
-                  </div>
                 </div>
               ))}
             </div>
-          </div>
+          </NodeInputSection>
         )}
 
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
@@ -425,15 +422,8 @@ export default function HotspotNode({ id, data }: NodeProps) {
           document.body,
         )}
 
-        {/* Resize handle */}
-        <div
-          className="absolute top-0 right-0 w-2 h-full cursor-ew-resize nodrag nopan"
-          onMouseDown={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            resizing.current = { startX: e.clientX, startW: width }
-          }}
-        />
+        <NodeResizeHandle onMouseDown={startResize} />
+        </div>
       </div>
 
       {builderOpen && (

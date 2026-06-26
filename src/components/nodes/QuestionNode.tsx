@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Handle, Position, type NodeProps, useReactFlow, useUpdateNodeInternals } from '@xyflow/react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type NodeProps, useReactFlow, useUpdateNodeInternals } from '@xyflow/react'
 import {
   HeaderIconButton,
   DuplicateIcon,
@@ -9,10 +9,10 @@ import {
   DeleteIcon,
   NodeHeaderBar,
 } from './NodeHeaderActions'
-import { X } from 'lucide-react'
 import InteractionPreviewModal from '../InteractionPreviewModal'
 import FormattingToolbar, { type FormatOption } from './FormattingToolbar'
 import NodeInputShell from './NodeInputShell'
+import { clearOrRemoveField } from './NodeInputFieldRow'
 import {
   INPUT_MIN_HEIGHT,
   PLACEHOLDERS,
@@ -21,18 +21,27 @@ import {
   ANSWER_INPUT_CLASS,
   DESCRIPTION_FIELD_CLASS,
   DESCRIPTION_PLACEHOLDER_CLASS,
-  DESCRIPTION_INPUT_CLASS,
-  NODE_HANDLE_CLASS,
-  NODE_HANDLE_SIDE_STYLE,
-  NODE_HANDLE_INLINE_CLASS,
-  NODE_HANDLE_INLINE_STYLE,
-  NODE_HANDLE_INLINE_OFFSET,
+  DESCRIPTION_RICH_TEXT_PLACEHOLDER_CLASS,
   NODE_HANDLE_SIZE,
-  NODE_DEFAULT_WIDTH,
+  NODE_INPUT_INNER_CLASS,
   ANSWER_ROW_GRIP_HEIGHT,
   ANSWER_ROW_DRAG_BORDER,
 } from './nodeFieldStyles'
+import NodeInputSection from './NodeInputSection'
+import { NodeSideTargetHandle } from './NodeConnectorHandles'
 import { useFormattingToolbar } from './useFormattingToolbar'
+import { useNodeWidthResize } from './useNodeWidthResize'
+import NodeResizeHandle from './NodeResizeHandle'
+import NodeRequiredBanner from './NodeRequiredBanner'
+import RequiredFieldGroup from './RequiredFieldGroup'
+import { useNodeValidation } from './useNodeValidation'
+import { useRegisterNodeFields } from './useRegisterNodeFields'
+import { isFieldEmpty, NODE_ERROR_COLOR } from './nodeValidation'
+import {
+  registerFieldMount,
+  shouldShowFieldValidation,
+  unregisterFieldMount,
+} from './nodeValidationStore'
 import type { QuestionNodeData, QuestionOption } from '@/types/questionNode'
 import { DEFAULT_QUESTION_DATA } from '@/types/questionNode'
 
@@ -70,12 +79,14 @@ function QuestionField({
   focused,
   onFocus,
   onBlur,
+  invalid,
 }: {
   value: string
   onChange: (value: string) => void
   focused: boolean
   onFocus: () => void
   onBlur: (e: React.FocusEvent) => void
+  invalid?: boolean
 }) {
   const ref = useRef<HTMLTextAreaElement>(null)
 
@@ -87,8 +98,17 @@ function QuestionField({
   }, [value])
 
   return (
-    <NodeInputShell focused={focused} onBlur={onBlur} minHeight={INPUT_MIN_HEIGHT} padding={0}>
-      <textarea
+    <RequiredFieldGroup showMessage={!!invalid}>
+      <NodeInputShell
+        focused={focused}
+        onBlur={onBlur}
+        minHeight={INPUT_MIN_HEIGHT}
+        padding={0}
+        invalid={invalid}
+        onClear={() => onChange('')}
+        hasContent={!!value.trim()}
+      >
+        <textarea
         ref={ref}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -96,15 +116,15 @@ function QuestionField({
         onBlur={onBlur}
         placeholder={QUESTION_PLACEHOLDER}
         rows={1}
-        className={`${QUESTION_INPUT_CLASS} resize-none overflow-hidden`}
+        className={`${QUESTION_INPUT_CLASS} ${NODE_INPUT_INNER_CLASS} resize-none overflow-hidden`}
         data-cta-field
         style={{
           lineHeight: 1.5,
-          padding: '10px 16px',
           minHeight: INPUT_MIN_HEIGHT - 2,
         }}
       />
-    </NodeInputShell>
+      </NodeInputShell>
+    </RequiredFieldGroup>
   )
 }
 
@@ -113,15 +133,23 @@ function AnswerInputShell({
   onClick,
   onBlur,
   onHoverChange,
+  onClear,
+  hasContent = false,
+  showClearWhenEmpty = false,
   children,
   className = '',
+  invalid = false,
 }: {
   focused: boolean
   onClick?: () => void
   onBlur?: (e: React.FocusEvent) => void
   onHoverChange?: (hovered: boolean) => void
+  onClear?: () => void
+  hasContent?: boolean
+  showClearWhenEmpty?: boolean
   children: React.ReactNode
   className?: string
+  invalid?: boolean
 }) {
   return (
     <NodeInputShell
@@ -129,8 +157,12 @@ function AnswerInputShell({
       onClick={onClick}
       onBlur={onBlur}
       onHoverChange={onHoverChange}
+      onClear={onClear}
+      hasContent={hasContent}
+      showClearWhenEmpty={showClearWhenEmpty}
       className={className}
       padding={0}
+      invalid={invalid}
     >
       {children}
     </NodeInputShell>
@@ -170,14 +202,35 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
     onBlurClear: () => setFocusedField(null),
   })
 
+  const { width, startResize } = useNodeWidthResize()
+
   const optionOrderKey = options.map((o) => o.id).join(',')
   const showGhostAnswers = options.length === 0
-  const hasContent = question.trim().length > 0 || options.some((o) => o.value.trim())
   const validOptions = options.filter((o) => o.value.trim())
+
+  const optionFieldIds = useMemo(
+    () => options.map((o) => `option-${o.id}`),
+    [optionOrderKey],
+  )
+  useRegisterNodeFields(id, optionFieldIds)
+
+  const getHasErrors = useCallback(() => {
+    if (isFieldEmpty(question)) return true
+    if (options.length === 0) return true
+    if (options.some((o) => isFieldEmpty(o.value) && shouldShowFieldValidation(id, `option-${o.id}`))) {
+      return true
+    }
+    return false
+  }, [question, options, id])
+
+  const { showValidation } = useNodeValidation(id, getHasErrors)
+  const nodeHasErrors = showValidation && getHasErrors()
+  const questionInvalid = showValidation && isFieldEmpty(question)
+  const ghostAnswerInvalid = showValidation && options.length === 0
 
   useEffect(() => {
     updateNodeInternals(id)
-  }, [id, optionOrderKey, updateNodeInternals])
+  }, [id, optionOrderKey, width, updateNodeInternals])
 
   const toggleFormat = useCallback((fmt: FormatOption) => {
     if (fmt === 'image') {
@@ -293,6 +346,7 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
 
   const handleAddAnswer = () => {
     const newOption = { id: Date.now(), value: '' }
+    registerFieldMount(id, `option-${newOption.id}`)
     const next = [...options, newOption]
     setOptions(next)
     syncData({ options: next })
@@ -312,6 +366,7 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
   }
 
   const handleDeleteOption = (optionId: number) => {
+    unregisterFieldMount(id, `option-${optionId}`)
     const next = options.filter((opt) => opt.id !== optionId)
     setOptions(next)
     syncData({ options: next })
@@ -342,17 +397,27 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
     setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id))
   }
 
+  const handlePreview = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setShowPreview(true)
+  }
+
   return (
     <div
-      className="bg-white rounded-lg relative flex flex-col"
+      className="bg-white rounded-lg relative flex flex-col overflow-visible"
       style={{
-        width: NODE_DEFAULT_WIDTH,
+        width,
         minHeight: CARD_MIN_HEIGHT,
         boxShadow: '0 20px 20px rgba(48, 41, 33, 0.12)',
-        border: selected ? '1px solid #FC6839' : '1px solid #E5E7EB',
+        border: nodeHasErrors
+          ? `1px solid ${NODE_ERROR_COLOR}`
+          : selected
+            ? '1px solid #FC6839'
+            : '1px solid #E5E7EB',
         borderRadius: 8,
       }}
     >
+      {nodeHasErrors && <NodeRequiredBanner />}
       {showToolbar && (
         <FormattingToolbar
           activeFormats={activeFormats}
@@ -362,12 +427,8 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
         />
       )}
 
-      <Handle
-        type="target"
-        position={Position.Left}
-        className={NODE_HANDLE_CLASS}
-        style={NODE_HANDLE_SIDE_STYLE}
-      />
+      <div className="relative flex flex-col flex-1 z-0 overflow-visible">
+        <NodeSideTargetHandle />
 
       <NodeHeaderBar
         className="px-5 pt-5"
@@ -377,8 +438,7 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
           <>
             <HeaderIconButton
               label="Preview"
-              onClick={() => hasContent && setShowPreview(true)}
-              disabled={!hasContent}
+              onClick={handlePreview}
             >
               <PreviewEyeIcon />
             </HeaderIconButton>
@@ -393,11 +453,12 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
       />
 
       {/* Body */}
-      <div className="px-5 pt-3 pb-[33px] flex-1 flex flex-col nodrag nopan">
+      <NodeInputSection className="pt-3 pb-[33px] flex-1 flex flex-col nodrag nopan">
         <QuestionField
           value={question}
           onChange={handleQuestionChange}
           focused={editingQuestion}
+          invalid={questionInvalid}
           onFocus={() => {
             handleFieldFocus()
             setFocusedField('question')
@@ -412,19 +473,17 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
 
         {/* Ghost placeholders — hover shows dashed indicator on all inputs */}
         {showGhostAnswers && (
-          <div className="mt-4 relative">
-            <AnswerInputShell focused={false} onClick={handleAddAnswer}>
-              <div className="px-4 py-2.5">
-                <p className={`leading-relaxed ${ANSWER_FIELD_CLASS}`}>{ANSWER_PLACEHOLDER}</p>
-                <p className={`mt-1 leading-relaxed ${DESCRIPTION_PLACEHOLDER_CLASS}`}>
-                  {DESCRIPTION_PLACEHOLDER}
-                </p>
-              </div>
-            </AnswerInputShell>
-            <div
-              className="absolute rounded-full bg-[#FC6839] border-2 border-white pointer-events-none"
-              style={{ width: NODE_HANDLE_SIZE, height: NODE_HANDLE_SIZE, top: '50%', right: NODE_HANDLE_INLINE_OFFSET, transform: 'translateY(-50%)' }}
-            />
+          <div className="mt-4">
+            <RequiredFieldGroup showMessage={ghostAnswerInvalid} ghostConnector>
+              <AnswerInputShell focused={false} onClick={handleAddAnswer} invalid={ghostAnswerInvalid}>
+                <div className="px-4 py-2.5">
+                  <p className={`leading-relaxed ${ANSWER_FIELD_CLASS}`}>{ANSWER_PLACEHOLDER}</p>
+                  <p className={`mt-1 leading-relaxed ${DESCRIPTION_PLACEHOLDER_CLASS}`}>
+                    {DESCRIPTION_PLACEHOLDER}
+                  </p>
+                </div>
+              </AnswerInputShell>
+            </RequiredFieldGroup>
           </div>
         )}
 
@@ -438,6 +497,10 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
                 !isEditing &&
                 (gripHoveredId === option.id || draggingIndex === index)
               const answerContentPadding = canReorder ? 'px-4 pt-1 pb-4' : 'px-4 py-2.5 pb-3.5'
+              const answerInvalid =
+                showValidation &&
+                isFieldEmpty(option.value) &&
+                shouldShowFieldValidation(id, `option-${option.id}`)
 
               return (
                 <div
@@ -446,7 +509,7 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
                     optionRefs.current[index] = el
                     optionRefs.current.length = options.length
                   }}
-                  className={`relative rounded-lg transition-all ${
+                  className={`relative rounded-lg transition-all overflow-visible ${
                     draggingIndex !== null && draggingIndex !== index ? 'opacity-50' : ''
                   }`}
                   style={{
@@ -474,17 +537,37 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
                   )}
 
                   {isEditing ? (
-                    <AnswerInputShell focused className="my-0">
-                      <div
-                        className={answerContentPadding}
-                        onBlur={(e) => {
-                          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                            setEditingOptionId(null)
+                    <RequiredFieldGroup showMessage={answerInvalid} handleId={`option-${option.id}`} className="flex-1 min-w-0">
+                      <AnswerInputShell
+                        focused
+                        className="my-0"
+                        invalid={answerInvalid}
+                        onClear={() => {
+                          if (focusedField === 'answer') {
+                            clearOrRemoveField(
+                              option.value,
+                              () => handleOptionChange(option.id, ''),
+                              options.length >= 2 ? () => handleDeleteOption(option.id) : undefined,
+                            )
+                          } else if (focusedField === 'description') {
+                            handleDescriptionChange(option.id, '')
+                            optionRefs.current[index]
+                              ?.querySelector('[contenteditable]')
+                              ?.replaceChildren()
                           }
-                          handleFieldBlur(e)
                         }}
+                        showClearWhenEmpty={focusedField === 'answer'}
+                        hasContent={focusedField === 'description' ? !!option.description?.trim() : false}
                       >
-                        <div className="flex items-start gap-2">
+                        <div
+                          className={answerContentPadding}
+                          onBlur={(e) => {
+                            if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                              setEditingOptionId(null)
+                            }
+                            handleFieldBlur(e)
+                          }}
+                        >
                           <input
                             autoFocus
                             type="text"
@@ -504,91 +587,84 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
                             data-cta-field
                             style={{ minHeight: INPUT_MIN_HEIGHT - 22 }}
                           />
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => handleDeleteOption(option.id)}
-                            className="p-0.5 rounded text-gray-400 hover:text-red-500 shrink-0"
-                            aria-label="Delete answer"
-                          >
-                            <X size={14} />
-                          </button>
+                          <div className="mt-1 flex-1 min-w-0" data-answer-content>
+                            {option.descriptionImage && (
+                              <img
+                                src={option.descriptionImage.src}
+                                alt=""
+                                className="mt-2 rounded object-contain"
+                                style={{
+                                  width: option.descriptionImage.width,
+                                  height: option.descriptionImage.height,
+                                }}
+                              />
+                            )}
+                            <div
+                              key={`desc-edit-${option.id}`}
+                              contentEditable
+                              suppressContentEditableWarning
+                              data-cta-field
+                              data-placeholder={DESCRIPTION_PLACEHOLDER}
+                              className={`nodrag ${DESCRIPTION_FIELD_CLASS} outline-none min-h-[1.5em] [&_*]:leading-[inherit] ${!option.description?.trim() ? DESCRIPTION_RICH_TEXT_PLACEHOLDER_CLASS : ''}`}
+                              style={{ wordBreak: 'break-word', lineHeight: 1.5 }}
+                              ref={(el) => {
+                                if (el && !el.dataset.initialized) {
+                                  el.textContent = option.description ?? ''
+                                  el.dataset.initialized = 'true'
+                                }
+                              }}
+                              onInput={(e) => {
+                                handleDescriptionChange(option.id, (e.target as HTMLDivElement).textContent || '')
+                              }}
+                              onFocus={() => {
+                                handleFieldFocus()
+                                setFocusedField('description')
+                                imageTargetOptionIdRef.current = option.id
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') setEditingOptionId(null)
+                              }}
+                            />
+                          </div>
                         </div>
-                        <input
-                          type="text"
-                          value={option.description ?? ''}
-                          onChange={(e) => handleDescriptionChange(option.id, e.target.value)}
-                          onFocus={() => {
-                            handleFieldFocus()
-                            setFocusedField('description')
-                            imageTargetOptionIdRef.current = option.id
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') setEditingOptionId(null)
-                            if (e.key === 'Escape') setEditingOptionId(null)
-                          }}
-                          placeholder={DESCRIPTION_PLACEHOLDER}
-                          className={`${DESCRIPTION_INPUT_CLASS} mt-1`}
-                          data-cta-field
-                        />
-                        {option.descriptionImage && (
-                          <img
-                            src={option.descriptionImage.src}
-                            alt=""
-                            className="mt-2 rounded object-contain"
-                            style={{
-                              width: option.descriptionImage.width,
-                              height: option.descriptionImage.height,
-                            }}
-                          />
-                        )}
-                      </div>
-                    </AnswerInputShell>
+                      </AnswerInputShell>
+                    </RequiredFieldGroup>
                   ) : (
-                    <AnswerInputShell
-                      focused={false}
-                      onClick={() => {
-                        setEditingOptionId(option.id)
-                        setEditingQuestion(false)
-                        handleFieldFocus()
-                      }}
-                    >
-                      <div className={answerContentPadding}>
-                        <span className={`block ${ANSWER_FIELD_CLASS}`}>
-                          {option.value.trim() || ANSWER_PLACEHOLDER}
-                        </span>
-                        <p
-                          className={`mt-1 ${option.description?.trim() ? DESCRIPTION_FIELD_CLASS : DESCRIPTION_PLACEHOLDER_CLASS}`}
-                        >
-                          {option.description?.trim() || DESCRIPTION_PLACEHOLDER}
-                        </p>
-                        {option.descriptionImage && (
-                          <img
-                            src={option.descriptionImage.src}
-                            alt=""
-                            className="mt-2 rounded object-contain"
-                            style={{
-                              width: option.descriptionImage.width,
-                              height: option.descriptionImage.height,
-                            }}
-                          />
-                        )}
-                      </div>
-                    </AnswerInputShell>
+                    <RequiredFieldGroup showMessage={answerInvalid} handleId={`option-${option.id}`} className="flex-1 min-w-0">
+                      <AnswerInputShell
+                        focused={false}
+                        invalid={answerInvalid}
+                        onClick={() => {
+                          setEditingOptionId(option.id)
+                          setEditingQuestion(false)
+                          handleFieldFocus()
+                        }}
+                      >
+                        <div className={answerContentPadding}>
+                          <span className={`block ${ANSWER_FIELD_CLASS}`}>
+                            {option.value.trim() || ANSWER_PLACEHOLDER}
+                          </span>
+                          <p
+                            className={`mt-1 ${option.description?.trim() ? DESCRIPTION_FIELD_CLASS : DESCRIPTION_PLACEHOLDER_CLASS}`}
+                            style={{ wordBreak: 'break-word', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}
+                          >
+                            {option.description?.trim() || DESCRIPTION_PLACEHOLDER}
+                          </p>
+                          {option.descriptionImage && (
+                            <img
+                              src={option.descriptionImage.src}
+                              alt=""
+                              className="mt-2 rounded object-contain"
+                              style={{
+                                width: option.descriptionImage.width,
+                                height: option.descriptionImage.height,
+                              }}
+                            />
+                          )}
+                        </div>
+                      </AnswerInputShell>
+                    </RequiredFieldGroup>
                   )}
-
-                  <div
-                    className="absolute top-1/2 -translate-y-1/2"
-                    style={{ right: NODE_HANDLE_INLINE_OFFSET }}
-                  >
-                    <Handle
-                      type="source"
-                      position={Position.Right}
-                      id={`option-${option.id}`}
-                      className={NODE_HANDLE_INLINE_CLASS}
-                      style={NODE_HANDLE_INLINE_STYLE}
-                    />
-                  </div>
                 </div>
               )
             })}
@@ -612,6 +688,7 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
           </svg>
           Add answer
         </button>
+      </NodeInputSection>
       </div>
 
       <input
@@ -637,6 +714,8 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
           onClose={() => setShowPreview(false)}
         />
       )}
+
+      <NodeResizeHandle onMouseDown={startResize} />
     </div>
   )
 }

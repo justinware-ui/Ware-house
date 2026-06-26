@@ -6,10 +6,10 @@ export const NODE_HANDLE_SIZE = 14
 export const NODE_HANDLE_CLASS = '!bg-[#FC6839] !border-white !border-2'
 export const NODE_HANDLE_STYLE = { width: NODE_HANDLE_SIZE, height: NODE_HANDLE_SIZE } as const
 export const NODE_HANDLE_SIDE_STYLE = { ...NODE_HANDLE_STYLE, top: '50%' } as const
-export const NODE_HANDLE_INLINE_CLASS =
-  `${NODE_HANDLE_CLASS} !relative !transform-none !top-0 !right-0`
-export const NODE_HANDLE_INLINE_STYLE = NODE_HANDLE_STYLE
-export const NODE_HANDLE_INLINE_OFFSET = -27
+export const NODE_BODY_PADDING_RIGHT = 28
+export const NODE_INPUT_INNER_CLASS = 'px-4 py-2.5'
+/** With translate(50%, -50%), positions handle center on the node border. */
+export const NODE_HANDLE_INLINE_OFFSET = -NODE_BODY_PADDING_RIGHT
 
 export const ANSWER_ROW_GRIP_HEIGHT = 24
 export const ANSWER_ROW_DRAG_BORDER = '#D0CBC6'
@@ -43,6 +43,9 @@ export const BUTTON_INPUT_CLASS = `nodrag w-full text-base text-[#FC6839] placeh
 export const URL_INPUT_CLASS = BUTTON_INPUT_CLASS
 export const TOOLTIP_INPUT_CLASS = `nodrag w-full text-sm text-gray-800 placeholder:text-[#FC6839] placeholder:opacity-60 focus:placeholder:opacity-60 outline-none bg-transparent`
 
+export const DESCRIPTION_RICH_TEXT_PLACEHOLDER_CLASS =
+  'before:content-[attr(data-placeholder)] before:pointer-events-none before:text-gray-800 before:opacity-60 focus:before:opacity-60'
+
 export const RICH_TEXT_PLACEHOLDER_CLASS =
   'before:content-[attr(data-placeholder)] before:pointer-events-none before:text-[#FC6839] focus:before:opacity-60'
 
@@ -52,7 +55,22 @@ export const ANSWER_RICH_TEXT_PLACEHOLDER_CLASS =
 export const BLUR_RETAIN_SELECTORS =
   '[data-toolbar], [data-cta-field], [data-answer-content]'
 
-export function inputShellStyles(hovered: boolean, focused: boolean) {
+import { NODE_ERROR_COLOR } from './nodeValidation'
+
+export { NODE_ERROR_COLOR } from './nodeValidation'
+
+export function inputShellStyles(hovered: boolean, focused: boolean, invalid = false) {
+  if (invalid) {
+    return {
+      borderRadius: 8.5,
+      borderWidth: 1,
+      borderStyle: 'solid' as const,
+      borderColor: NODE_ERROR_COLOR,
+      backgroundColor: 'white',
+      boxShadow: `0 0 0 1px ${NODE_ERROR_COLOR}`,
+      transition: 'border-color 0.15s, background-color 0.15s, box-shadow 0.15s',
+    }
+  }
   const showBorder = hovered || focused
   return {
     borderRadius: 8.5,

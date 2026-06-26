@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo, useRef, useLayoutEffect, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Handle, Position, type NodeProps, useReactFlow, useUpdateNodeInternals } from '@xyflow/react'
+import { type NodeProps, useReactFlow, useUpdateNodeInternals } from '@xyflow/react'
 import { Copy, X, CircleHelp, Plus } from 'lucide-react'
 import {
   HeaderIconButton,
@@ -14,6 +14,7 @@ import {
 import InteractionPreviewModal from '../InteractionPreviewModal'
 import FormattingToolbar, { type FormatOption } from './FormattingToolbar'
 import NodeInputShell from './NodeInputShell'
+import { clearOrRemoveField } from './NodeInputFieldRow'
 import {
   INPUT_MIN_HEIGHT,
   PLACEHOLDERS,
@@ -21,14 +22,24 @@ import {
   TOOLTIP_INPUT_CLASS,
   ANSWER_FIELD_CLASS,
   ANSWER_RICH_TEXT_PLACEHOLDER_CLASS,
-  NODE_HANDLE_CLASS,
-  NODE_HANDLE_SIDE_STYLE,
-  NODE_HANDLE_INLINE_CLASS,
-  NODE_HANDLE_INLINE_STYLE,
-  NODE_HANDLE_INLINE_OFFSET,
   NODE_DEFAULT_WIDTH,
+  NODE_INPUT_INNER_CLASS,
+  ANSWER_ROW_GRIP_HEIGHT,
 } from './nodeFieldStyles'
+import { NodeSideTargetHandle } from './NodeConnectorHandles'
 import { useFormattingToolbar } from './useFormattingToolbar'
+import NodeResizeHandle from './NodeResizeHandle'
+import NodeRequiredBanner from './NodeRequiredBanner'
+import RequiredFieldGroup from './RequiredFieldGroup'
+import NodeInputSection from './NodeInputSection'
+import { useNodeValidation } from './useNodeValidation'
+import { useRegisterNodeFields } from './useRegisterNodeFields'
+import { isFieldEmpty, NODE_ERROR_COLOR } from './nodeValidation'
+import {
+  registerFieldMount,
+  shouldShowFieldValidation,
+  unregisterFieldMount,
+} from './nodeValidationStore'
 
 function DiscoveryIcon() {
   return (
@@ -85,7 +96,31 @@ export default function CtaNode({ id, data }: NodeProps) {
   }, [dataAnswersLen])
 
   const [showPreview, setShowPreview] = useState(false)
-  const hasContent = !!(question.trim() || answers.some(a => a.value.trim()))
+
+  const answerOrderKey = answers.map((a) => a.id).join(',')
+  const answerFieldIds = useMemo(
+    () => answers.map((a) => `answer-${a.id}`),
+    [answerOrderKey],
+  )
+  useRegisterNodeFields(id, answerFieldIds)
+
+  const getHasErrors = useCallback(() => {
+    if (isFieldEmpty(question)) return true
+    if (answers.some((a) => isFieldEmpty(a.value) && shouldShowFieldValidation(id, `answer-${a.id}`))) {
+      return true
+    }
+    return false
+  }, [question, answers, id])
+
+  const { showValidation } = useNodeValidation(id, getHasErrors)
+  const nodeHasErrors = showValidation && getHasErrors()
+  const questionInvalid = showValidation && isFieldEmpty(question)
+
+  const handlePreview = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setShowPreview(true)
+  }
+
   const [focusedField, setFocusedField] = useState<'question' | 'answer' | null>(null)
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
   const [tooltipMode, setTooltipMode] = useState(false)
@@ -93,6 +128,7 @@ export default function CtaNode({ id, data }: NodeProps) {
   const [draftTooltips, setDraftTooltips] = useState<Record<number, string>>({})
   const [showOverlay, setShowOverlay] = useState(false)
   const [focusedAnswerId, setFocusedAnswerId] = useState<number | null>(null)
+  const [focusedTooltipId, setFocusedTooltipId] = useState<number | null>(null)
   const [resizingImage, setResizingImage] = useState<{ answerId: number; startX: number; startY: number; startW: number; startH: number; corner: string } | null>(null)
   const [draggingImage, setDraggingImage] = useState<{ answerId: number; startX: number; startY: number; startOffX: number; startOffY: number } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -112,7 +148,6 @@ export default function CtaNode({ id, data }: NodeProps) {
     nodeId: id,
     onBlurClear: () => setFocusedField(null),
   })
-  const answerOrderKey = answers.map((a) => a.id).join(',')
 
   useEffect(() => {
     updateNodeInternals(id)
@@ -133,11 +168,16 @@ export default function CtaNode({ id, data }: NodeProps) {
     return lines.join('\n')
   }
 
-  const addAnswer = () =>
-    setAnswers((prev) => [...prev, { id: Date.now(), value: '' }])
+  const addAnswer = () => {
+    const newId = Date.now()
+    registerFieldMount(id, `answer-${newId}`)
+    setAnswers((prev) => [...prev, { id: newId, value: '' }])
+  }
 
-  const removeAnswer = (answerId: number) =>
+  const removeAnswer = (answerId: number) => {
+    unregisterFieldMount(id, `answer-${answerId}`)
     setAnswers((prev) => prev.filter((a) => a.id !== answerId))
+  }
 
   const updateQuestion = (raw: string) => setQuestion(wrapText(raw))
 
@@ -399,14 +439,17 @@ export default function CtaNode({ id, data }: NodeProps) {
 
   return (
     <div
-      className="bg-white border border-gray-200 rounded-2xl px-6 py-5 shadow-sm relative transition-[width,box-shadow,border-color] duration-150"
-      style={{ width: tooltipMode ? Math.max(manualWidth ?? cardWidth, 320) : (manualWidth ?? cardWidth) }}
+      className={`bg-white border rounded-2xl py-5 shadow-sm relative transition-[width,box-shadow,border-color] duration-150 overflow-visible ${nodeHasErrors ? '' : 'border-gray-200'}`}
+      style={{
+        width: tooltipMode ? Math.max(manualWidth ?? cardWidth, 320) : (manualWidth ?? cardWidth),
+        ...(nodeHasErrors ? { borderColor: NODE_ERROR_COLOR } : {}),
+      }}
     >
-      <span
-        ref={measureRef}
-        className="invisible absolute whitespace-nowrap text-base font-semibold pointer-events-none"
-        aria-hidden
-      />
+      {nodeHasErrors && (
+        <div className="-mt-5 mb-2 overflow-hidden rounded-t-2xl relative z-0">
+          <NodeRequiredBanner className="rounded-t-2xl" />
+        </div>
+      )}
       {showToolbar && !tooltipMode && (
         <FormattingToolbar
           activeFormats={activeFormats}
@@ -415,24 +458,24 @@ export default function CtaNode({ id, data }: NodeProps) {
           sparkleId={`cta_${id}`}
         />
       )}
-
-      <Handle
-        type="target"
-        position={Position.Left}
-        className={NODE_HANDLE_CLASS}
-        style={NODE_HANDLE_SIDE_STYLE}
+      <span
+        ref={measureRef}
+        className="invisible absolute whitespace-nowrap text-base font-semibold pointer-events-none"
+        aria-hidden
       />
 
+      <div className="relative flex flex-col flex-1 overflow-visible">
+        <NodeSideTargetHandle />
+
       <NodeHeaderBar
-        className="px-6 pt-5 -mx-6 -mt-5 mb-2"
+        className="px-5 pt-5 -mt-5 mb-2"
         icon={<DiscoveryIcon />}
         title="Discovery Question"
         actions={
           <>
             <HeaderIconButton
               label="Preview"
-              onClick={() => hasContent && setShowPreview(true)}
-              disabled={!hasContent}
+              onClick={handlePreview}
             >
               <PreviewEyeIcon />
             </HeaderIconButton>
@@ -472,7 +515,15 @@ export default function CtaNode({ id, data }: NodeProps) {
                   </p>
                 )}
                 <div className="flex items-start gap-3">
-                  <NodeInputShell focused className="flex-1 min-w-0" padding={0}>
+                  <NodeInputShell
+                    focused={focusedTooltipId === answer.id}
+                    className="flex-1 min-w-0"
+                    padding={0}
+                    hasContent={!!(draftTooltips[answer.id] ?? '').trim()}
+                    onClear={() =>
+                      setDraftTooltips((prev) => ({ ...prev, [answer.id]: '' }))
+                    }
+                  >
                     <input
                       type="text"
                       value={draftTooltips[answer.id] ?? ''}
@@ -482,20 +533,10 @@ export default function CtaNode({ id, data }: NodeProps) {
                       placeholder={PLACEHOLDERS.tooltip}
                       className={`${TOOLTIP_INPUT_CLASS} px-4 py-2.5`}
                       data-cta-field
+                      onFocus={() => setFocusedTooltipId(answer.id)}
+                      onBlur={() => setFocusedTooltipId(null)}
                     />
                   </NodeInputShell>
-                  <button
-                    className="text-gray-400 hover:text-gray-600 shrink-0 mt-0.5"
-                    onClick={() =>
-                      setDraftTooltips((prev) => {
-                        const next = { ...prev }
-                        delete next[answer.id]
-                        return next
-                      })
-                    }
-                  >
-                    <X size={14} />
-                  </button>
                 </div>
               </div>
             ))}
@@ -528,57 +569,91 @@ export default function CtaNode({ id, data }: NodeProps) {
       ) : (
         <>
           {/* Question */}
-          <div className="mb-6" style={{ marginTop: 6 }}>
-            <NodeInputShell focused={focusedField === 'question'} onBlur={handleFieldBlur}>
-              <textarea
-                value={question}
-                onChange={(e) => updateQuestion(e.target.value)}
-                placeholder={PLACEHOLDERS.question}
-                rows={Math.max(1, question.split('\n').length)}
-                className={`${QUESTION_INPUT_CLASS} resize-none overflow-hidden`}
-                style={{ lineHeight: 1.5, minHeight: INPUT_MIN_HEIGHT - 22 }}
-                data-cta-field
-                onFocus={() => {
-                  handleFieldFocus()
-                  setFocusedField('question')
-                }}
+          <NodeInputSection className="mb-6" style={{ marginTop: 6 }}>
+            <RequiredFieldGroup showMessage={questionInvalid}>
+              <NodeInputShell
+                focused={focusedField === 'question'}
                 onBlur={handleFieldBlur}
-              />
-            </NodeInputShell>
-          </div>
+                padding={0}
+                invalid={questionInvalid}
+                hasContent={!!question.trim()}
+                onClear={() => updateQuestion('')}
+              >
+                <textarea
+                  value={question}
+                  onChange={(e) => updateQuestion(e.target.value)}
+                  placeholder={PLACEHOLDERS.question}
+                  rows={Math.max(1, question.split('\n').length)}
+                  className={`${QUESTION_INPUT_CLASS} ${NODE_INPUT_INNER_CLASS} resize-none overflow-hidden`}
+                  style={{ lineHeight: 1.5, minHeight: INPUT_MIN_HEIGHT - 22 }}
+                  data-cta-field
+                  onFocus={() => {
+                    handleFieldFocus()
+                    setFocusedField('question')
+                  }}
+                  onBlur={handleFieldBlur}
+                />
+              </NodeInputShell>
+            </RequiredFieldGroup>
+          </NodeInputSection>
 
           {/* Answer fields */}
-          <div className="flex flex-col gap-5">
-            {answers.map((answer, index) => (
+          <NodeInputSection className="flex flex-col gap-5">
+            {answers.map((answer, index) => {
+              const answerInvalid =
+                showValidation &&
+                isFieldEmpty(answer.value) &&
+                shouldShowFieldValidation(id, `answer-${answer.id}`)
+              return (
               <div
                 key={answer.id}
                 ref={(el) => {
                   answerRefs.current[index] = el
                   answerRefs.current.length = answers.length
                 }}
-                className={`nodrag flex items-center gap-3 relative transition-opacity ${
+                className={`nodrag relative overflow-visible transition-opacity ${
                   draggingIndex !== null && draggingIndex !== index ? 'opacity-50' : ''
                 }`}
+                style={{ paddingTop: answers.length >= 2 ? ANSWER_ROW_GRIP_HEIGHT : 0 }}
               >
-                {/* Drag handle */}
                 {answers.length >= 2 && (
                   <div
-                    className="nodrag nopan shrink-0 cursor-grab select-none p-1"
-                    onMouseDown={(e) => handleGrabStart(index, e)}
+                    className="absolute left-0 right-0 flex items-center justify-center nodrag nopan"
+                    style={{ top: 0, height: ANSWER_ROW_GRIP_HEIGHT }}
                   >
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M7.5 16.666c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.459.163-.851.49-1.178.326-.326.718-.489 1.177-.489s.851.163 1.177.49c.326.326.49.718.49 1.177s-.164.851-.49 1.177c-.326.327-.718.49-1.177.49Zm5 0c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.459.164-.851.49-1.178.326-.326.718-.489 1.177-.489s.851.163 1.177.49c.327.326.49.718.49 1.177s-.163.851-.49 1.177c-.326.327-.718.49-1.177.49ZM7.5 11.666c-.459 0-.851-.163-1.177-.49a1.604 1.604 0 0 1-.49-1.177c0-.458.163-.851.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.326.326.49.718.49 1.177 0 .459-.164.851-.49 1.178-.326.326-.718.489-1.177.489Zm5 0c-.459 0-.851-.163-1.177-.49a1.604 1.604 0 0 1-.49-1.177c0-.458.164-.851.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.327.326.49.718.49 1.177 0 .459-.163.851-.49 1.178-.326.326-.718.489-1.177.489ZM7.5 6.666c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.458.163-.85.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.326.327.49.718.49 1.177 0 .459-.164.851-.49 1.178-.326.326-.718.489-1.177.489Zm5 0c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.458.164-.85.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.327.327.49.718.49 1.177 0 .459-.163.851-.49 1.178-.326.326-.718.489-1.177.489Z" fill="#8D8A87"/>
-                    </svg>
+                    <div
+                      className="cursor-grab select-none rotate-90 opacity-50 hover:opacity-100 transition-opacity p-1"
+                      onMouseDown={(e) => handleGrabStart(index, e)}
+                    >
+                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M7.5 16.666c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.459.163-.851.49-1.178.326-.326.718-.489 1.177-.489s.851.163 1.177.49c.326.326.49.718.49 1.177s-.164.851-.49 1.177c-.326.327-.718.49-1.177.49Zm5 0c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.459.164-.851.49-1.178.326-.326.718-.489 1.177-.489s.851.163 1.177.49c.327.326.49.718.49 1.177s-.163.851-.49 1.177c-.326.327-.718.49-1.177.49ZM7.5 11.666c-.459 0-.851-.163-1.177-.49a1.604 1.604 0 0 1-.49-1.177c0-.458.163-.851.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.326.326.49.718.49 1.177 0 .459-.164.851-.49 1.178-.326.326-.718.489-1.177.489Zm5 0c-.459 0-.851-.163-1.177-.49a1.604 1.604 0 0 1-.49-1.177c0-.458.164-.851.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.327.326.49.718.49 1.177 0 .459-.163.851-.49 1.178-.326.326-.718.489-1.177.489ZM7.5 6.666c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.458.163-.85.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.326.327.49.718.49 1.177 0 .459-.164.851-.49 1.178-.326.326-.718.489-1.177.489Zm5 0c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.458.164-.85.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.327.327.49.718.49 1.177 0 .459-.163.851-.49 1.178-.326.326-.718.489-1.177.489Z" fill="#8D8A87"/>
+                      </svg>
+                    </div>
                   </div>
                 )}
 
+                <RequiredFieldGroup showMessage={answerInvalid} handleId={`answer-${answer.id}`} className="w-full">
                 <NodeInputShell
                   focused={focusedAnswerId === answer.id}
-                  className="flex-1 min-w-0"
+                  className="w-full"
                   padding={0}
                   onBlur={handleFieldBlur}
+                  invalid={answerInvalid}
+                  showClearWhenEmpty
+                  onClear={() => {
+                    clearOrRemoveField(
+                      answer.value,
+                      () => {
+                        updateAnswer(answer.id, '')
+                        const row = answerRefs.current[index]
+                        const el = row?.querySelector('[contenteditable]') as HTMLDivElement | null
+                        if (el) el.textContent = ''
+                      },
+                      answers.length >= 2 ? () => removeAnswer(answer.id) : undefined,
+                    )
+                  }}
                 >
-                <div className="px-4 py-2.5 overflow-hidden" data-answer-content>
+                <div className={NODE_INPUT_INNER_CLASS} data-answer-content>
                   {answer.image && (
                     <div
                       className="relative inline-block nodrag group/img"
@@ -710,9 +785,9 @@ export default function CtaNode({ id, data }: NodeProps) {
                   {answer.image && <div style={{ clear: 'both' }} />}
                 </div>
                 </NodeInputShell>
+                </RequiredFieldGroup>
 
-                {/* Tooltip + Remove answer */}
-                <div className="flex items-center shrink-0" style={{ gap: 10 }}>
+                <div className="absolute flex items-center nodrag nopan" style={{ top: 10, right: 0, gap: 10 }}>
                   {tooltips[answer.id]?.trim() && (
                     <div className="relative group/tip">
                       <CircleHelp size={14} className="text-gray-800 cursor-help" />
@@ -731,23 +806,14 @@ export default function CtaNode({ id, data }: NodeProps) {
                     </button>
                   )}
                 </div>
-
-                {/* Per-answer source handle */}
-                <div className="absolute top-1/2 -translate-y-1/2" style={{ right: NODE_HANDLE_INLINE_OFFSET }}>
-                  <Handle
-                    type="source"
-                    position={Position.Right}
-                    id={`answer-${answer.id}`}
-                    className={NODE_HANDLE_INLINE_CLASS}
-                    style={NODE_HANDLE_INLINE_STYLE}
-                  />
-                </div>
               </div>
-            ))}
-          </div>
+              )
+            })}
+          </NodeInputSection>
 
           {/* Add answer */}
-          <div className="flex justify-end mt-4">
+          <NodeInputSection>
+          <div className="flex justify-end">
             <button
               type="button"
               onClick={addAnswer}
@@ -759,10 +825,13 @@ export default function CtaNode({ id, data }: NodeProps) {
               <Plus size={16} strokeWidth={2} className="shrink-0 text-[#FC6839] group-hover/add:text-[#F44C10]" aria-hidden />
             </button>
           </div>
+          </NodeInputSection>
 
 
         </>
       )}
+
+      </div>
 
       {/* Hidden file input */}
       <input
@@ -773,9 +842,7 @@ export default function CtaNode({ id, data }: NodeProps) {
         onChange={handleFileSelect}
       />
 
-      {/* Resize handle */}
-      <div
-        className="absolute top-0 right-0 w-2 h-full cursor-ew-resize nodrag nopan"
+      <NodeResizeHandle
         onMouseDown={(e) => {
           e.preventDefault()
           e.stopPropagation()

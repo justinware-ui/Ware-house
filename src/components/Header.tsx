@@ -1,23 +1,47 @@
 'use client'
 
 import { useState } from 'react'
+import { copyToClipboard } from '@/lib/demoShare'
 
-export default function Header({ hasContent = false }: { hasContent?: boolean }) {
-  const [title, setTitle] = useState('Demo Title')
+export default function Header({
+  hasContent = false,
+  title,
+  reviewLink,
+  saveNotice,
+  onTitleChange,
+  onSaveAndContinue,
+}: {
+  hasContent?: boolean
+  title: string
+  reviewLink?: string | null
+  saveNotice?: string | null
+  onTitleChange: (title: string) => void
+  onSaveAndContinue: () => void
+}) {
   const [editing, setEditing] = useState(false)
   const [editHover, setEditHover] = useState(false)
   const [saveHover, setSaveHover] = useState(false)
   const [closeHover, setCloseHover] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
+
+  const handleCopyReviewLink = async () => {
+    if (!reviewLink) return
+    const copied = await copyToClipboard(reviewLink)
+    if (copied) {
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 2000)
+    }
+  }
 
   return (
-    <header className="h-16 border-b border-gray-200 flex items-center justify-between px-4 shrink-0" style={{ backgroundColor: '#F7F4F2' }}>
+    <header className="relative h-16 border-b border-gray-200 flex items-center justify-between px-4 shrink-0" style={{ backgroundColor: '#F7F4F2' }}>
       {/* Left: editable title */}
       <div className="flex items-center gap-2">
         {editing ? (
           <input
             autoFocus
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => onTitleChange(e.target.value)}
             onBlur={() => setEditing(false)}
             onKeyDown={(e) => e.key === 'Enter' && setEditing(false)}
             className="text-sm font-medium rounded px-2 py-1 outline-none"
@@ -59,8 +83,23 @@ export default function Header({ hasContent = false }: { hasContent?: boolean })
         )}
       </div>
 
+      {saveNotice && (
+        <p className="absolute left-1/2 -translate-x-1/2 text-xs font-medium text-[#2F6B4F] bg-[#E8F5EE] border border-[#B8DEC8] rounded-full px-3 py-1.5 pointer-events-none whitespace-nowrap">
+          {saveNotice}
+        </p>
+      )}
+
       {/* Right: actions */}
       <div className="flex items-center gap-2" style={{ marginRight: 20 }}>
+        {reviewLink && (
+          <button
+            type="button"
+            onClick={handleCopyReviewLink}
+            className="text-xs font-semibold text-gray-700 hover:text-[#FC6839] transition-colors px-2 py-1"
+          >
+            {linkCopied ? 'Link copied' : 'Copy review link'}
+          </button>
+        )}
         {/* Save and Continue — primary button (SVG) */}
         <button
           className="shrink-0"
@@ -68,6 +107,7 @@ export default function Header({ hasContent = false }: { hasContent?: boolean })
           disabled={!hasContent}
           onMouseEnter={() => setSaveHover(true)}
           onMouseLeave={() => setSaveHover(false)}
+          onClick={onSaveAndContinue}
         >
           <svg width="141" height="32" viewBox="0 0 141 32" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ opacity: !hasContent ? 0.3 : 1 }}>
             <rect width="141" height="32" rx="16" fill={hasContent && saveHover ? '#F44C10' : '#FC6839'}/>

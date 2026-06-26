@@ -1,12 +1,14 @@
 'use client'
 
 import { HeaderIconButton, PreviewEyeIcon, DeleteIcon } from './NodeHeaderActions'
-import { Handle, Position, useReactFlow, type NodeProps } from '@xyflow/react'
+import { useReactFlow, type NodeProps } from '@xyflow/react'
 import thumbTableHero from '../../assets/thumb-table-hero.svg'
 import thumbContent from '../../assets/thumb-content.svg'
-import { useMemo, useState, useEffect, useRef } from 'react'
+import { useMemo, useState } from 'react'
 import PreviewModal from '../PreviewModal'
-import { NODE_HANDLE_CLASS, NODE_HANDLE_SIDE_STYLE, NODE_DEFAULT_WIDTH } from './nodeFieldStyles'
+import { NodeSideSourceHandle, NodeSideTargetHandle } from './NodeConnectorHandles'
+import { useNodeWidthResize } from './useNodeWidthResize'
+import NodeResizeHandle from './NodeResizeHandle'
 
 const thumbnails = [thumbTableHero, thumbContent]
 
@@ -15,8 +17,6 @@ function getDemoThumb(title: string) {
   for (let i = 0; i < title.length; i++) hash = ((hash << 5) - hash + title.charCodeAt(i)) | 0
   return thumbnails[Math.abs(hash) % thumbnails.length]
 }
-
-const MIN_WIDTH = NODE_DEFAULT_WIDTH
 
 export default function DemoCardNode({ id, data }: NodeProps) {
   const { title = 'Demo title', creator = 'Demo creator', thumb, preview, demoId } = data as {
@@ -27,9 +27,8 @@ export default function DemoCardNode({ id, data }: NodeProps) {
     preview?: string
   }
   const { setNodes, setEdges } = useReactFlow()
-  const [width, setWidth] = useState(NODE_DEFAULT_WIDTH)
+  const { width, startResize } = useNodeWidthResize()
   const [showPreview, setShowPreview] = useState(false)
-  const resizing = useRef<{ startX: number; startW: number } | null>(null)
 
   const resolvedThumb = useMemo(
     () => thumb || getDemoThumb(title),
@@ -41,36 +40,16 @@ export default function DemoCardNode({ id, data }: NodeProps) {
     setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id))
   }
 
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (!resizing.current) return
-      const newW = Math.max(MIN_WIDTH, resizing.current.startW + (e.clientX - resizing.current.startX))
-      setWidth(newW)
-    }
-    const onUp = () => { resizing.current = null }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-    return () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-    }
-  }, [])
-
   return (
     <>
     {showPreview && preview && (
       <PreviewModal url={preview} title={title} onClose={() => setShowPreview(false)} />
     )}
     <div
-      className="group/card relative flex items-center bg-white shadow-sm transition-[box-shadow,border-color] duration-200"
+      className="group/card relative flex items-center bg-white shadow-sm transition-[box-shadow,border-color] duration-200 overflow-visible"
       style={{ width, paddingLeft: 16, paddingRight: 16, paddingTop: 32, paddingBottom: 32, borderRadius: 8, border: '1px solid #D0CBC6', gap: 12 }}
     >
-      <Handle
-        type="target"
-        position={Position.Left}
-        className={NODE_HANDLE_CLASS}
-        style={NODE_HANDLE_SIDE_STYLE}
-      />
+      <NodeSideTargetHandle />
 
       {/* Drag handle */}
       <svg width="16" height="16" viewBox="16 27 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
@@ -128,22 +107,9 @@ export default function DemoCardNode({ id, data }: NodeProps) {
         </div>
       </div>
 
-      <Handle
-        type="source"
-        position={Position.Right}
-        className={NODE_HANDLE_CLASS}
-        style={NODE_HANDLE_SIDE_STYLE}
-      />
+      <NodeSideSourceHandle />
 
-      {/* Resize handle */}
-      <div
-        className="absolute top-0 right-0 w-2 h-full cursor-ew-resize nodrag nopan group/resize"
-        onMouseDown={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          resizing.current = { startX: e.clientX, startW: width }
-        }}
-      />
+      <NodeResizeHandle onMouseDown={startResize} />
     </div>
     </>
   )

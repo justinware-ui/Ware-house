@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState, useEffect, useMemo } from 'react'
+import { useCallback, useRef, useState, useEffect, useMemo, forwardRef, useImperativeHandle } from 'react'
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
 import { dingHigh, dingLow } from '../lib/audioDing'
 import { getRandomEncouragement } from '../lib/encouragements'
@@ -39,6 +39,12 @@ import DeletableEdge from './edges/DeletableEdge'
 import { DEFAULT_QUESTION_DATA, optionsFromValues } from '@/types/questionNode'
 import type { QuestionNodeData } from '@/types/questionNode'
 import { NODE_DEFAULT_WIDTH } from './nodes/nodeFieldStyles'
+import { loadDemoFromLocation } from '@/lib/demoShare'
+
+export type FlowCanvasHandle = {
+  getSnapshot: () => { nodes: Node[]; edges: Edge[] }
+  loadSnapshot: (snapshot: { nodes: Node[]; edges: Edge[] }) => void
+}
 
 const edgeTypes = {
   deletable: DeletableEdge,
@@ -929,12 +935,39 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
   )
 }
 
-export default function FlowCanvas({ onContentChange }: { onContentChange?: (hasContent: boolean) => void }) {
+const FlowCanvas = forwardRef<
+  FlowCanvasHandle,
+  { onContentChange?: (hasContent: boolean) => void; onTitleLoad?: (title: string) => void }
+>(function FlowCanvas({ onContentChange, onTitleLoad }, ref) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
   const { screenToFlowPosition, getNodes, getEdges } = useReactFlow()
   const updateNodeInternals = useUpdateNodeInternals()
+  const sharedLoadedRef = useRef(false)
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      getSnapshot: () => ({ nodes: getNodes(), edges: getEdges() }),
+      loadSnapshot: (snapshot) => {
+        setNodes(snapshot.nodes)
+        setEdges(snapshot.edges)
+      },
+    }),
+    [getNodes, getEdges, setNodes, setEdges],
+  )
+
+  useEffect(() => {
+    if (sharedLoadedRef.current) return
+    sharedLoadedRef.current = true
+    const shared = loadDemoFromLocation()
+    if (shared?.nodes?.length) {
+      setNodes(shared.nodes)
+      setEdges(shared.edges)
+      onTitleLoad?.(shared.title)
+    }
+  }, [setNodes, setEdges, onTitleLoad])
   const [chatOpen, setChatOpen] = useState(false)
   const [panelHeight, setPanelHeight] = useState(600)
   const encouragement = useMemo(() => getRandomEncouragement(), [])
@@ -2086,4 +2119,6 @@ export default function FlowCanvas({ onContentChange }: { onContentChange?: (has
       </div>
     </div>
   )
-}
+})
+
+export default FlowCanvas
