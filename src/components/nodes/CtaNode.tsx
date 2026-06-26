@@ -25,6 +25,8 @@ import {
   NODE_DEFAULT_WIDTH,
   NODE_INPUT_INNER_CLASS,
   ANSWER_ROW_GRIP_HEIGHT,
+  ANSWER_INLINE_HANDLE_TOP,
+  ANSWER_INLINE_HANDLE_TOP_WITH_GRIP,
 } from './nodeFieldStyles'
 import { NodeSideTargetHandle } from './NodeConnectorHandles'
 import { useFormattingToolbar } from './useFormattingToolbar'
@@ -632,7 +634,12 @@ export default function CtaNode({ id, data }: NodeProps) {
                   </div>
                 )}
 
-                <RequiredFieldGroup showMessage={answerInvalid} handleId={`answer-${answer.id}`} className="w-full">
+                <RequiredFieldGroup
+                  showMessage={answerInvalid}
+                  handleId={`answer-${answer.id}`}
+                  handleTop={answers.length >= 2 ? ANSWER_INLINE_HANDLE_TOP_WITH_GRIP : ANSWER_INLINE_HANDLE_TOP}
+                  className="w-full"
+                >
                 <NodeInputShell
                   focused={focusedAnswerId === answer.id}
                   className="w-full"

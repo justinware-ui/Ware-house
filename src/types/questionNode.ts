@@ -1,12 +1,10 @@
+import type { AnswerImage } from '@/components/nodes/answerImage'
+
 export type QuestionOption = {
   id: number
   value: string
   description?: string
-  descriptionImage?: {
-    src: string
-    width: number
-    height: number
-  }
+  descriptionImage?: AnswerImage
 }
 
 export type QuestionNodeData = {

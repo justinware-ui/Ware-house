@@ -18,9 +18,13 @@ export function NodeInputFieldRow({
   return (
     <div className={`flex items-start gap-2 ${className}`}>
       <div className="flex-1 min-w-0">{children}</div>
-      {showClear && (
-        <NodeInputClearButton onClear={onClear} ariaLabel={clearLabel} className="mt-0.5" />
-      )}
+      <NodeInputClearButton
+        onClear={onClear}
+        ariaLabel={clearLabel}
+        className={`mt-0.5 shrink-0 ${showClear ? '' : 'invisible pointer-events-none'}`}
+        tabIndex={showClear ? 0 : -1}
+        aria-hidden={!showClear}
+      />
     </div>
   )
 }

@@ -23,6 +23,7 @@ import {
   RICH_TEXT_PLACEHOLDER_CLASS,
   NODE_DEFAULT_WIDTH,
   NODE_INPUT_INNER_CLASS,
+  ANSWER_INLINE_HANDLE_TOP,
 } from './nodeFieldStyles'
 import { NodeSideTargetHandle } from './NodeConnectorHandles'
 import RequiredFieldGroup from './RequiredFieldGroup'
@@ -353,7 +354,12 @@ export default function HotspotNode({ id, data }: NodeProps) {
                   className="nodrag group relative overflow-visible"
                   data-hotspot-row={hs.id}
                 >
-                  <RequiredFieldGroup showMessage={false} handleId={`hotspot-${hs.id}`} className="w-full">
+                  <RequiredFieldGroup
+                    showMessage={false}
+                    handleId={`hotspot-${hs.id}`}
+                    handleTop={ANSWER_INLINE_HANDLE_TOP}
+                    className="w-full"
+                  >
                   <NodeInputShell
                     focused={focusedField === 'hotspot' && focusedHotspotId === hs.id}
                     className="w-full"

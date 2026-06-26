@@ -13,6 +13,9 @@ export const NODE_HANDLE_INLINE_OFFSET = -NODE_BODY_PADDING_RIGHT
 
 export const ANSWER_ROW_GRIP_HEIGHT = 24
 export const ANSWER_ROW_DRAG_BORDER = '#D0CBC6'
+/** Vertical center of the answer line in a combined answer + description shell. */
+export const ANSWER_INLINE_HANDLE_TOP = 20
+export const ANSWER_INLINE_HANDLE_TOP_WITH_GRIP = 14
 
 export const PLACEHOLDERS = {
   question: 'Type your question here',
@@ -44,7 +47,7 @@ export const URL_INPUT_CLASS = BUTTON_INPUT_CLASS
 export const TOOLTIP_INPUT_CLASS = `nodrag w-full text-sm text-gray-800 placeholder:text-[#FC6839] placeholder:opacity-60 focus:placeholder:opacity-60 outline-none bg-transparent`
 
 export const DESCRIPTION_RICH_TEXT_PLACEHOLDER_CLASS =
-  'before:content-[attr(data-placeholder)] before:pointer-events-none before:text-gray-800 before:opacity-60 focus:before:opacity-60'
+  '[&:empty]:before:content-[attr(data-placeholder)] before:block before:pointer-events-none before:text-gray-800 before:opacity-60'
 
 export const RICH_TEXT_PLACEHOLDER_CLASS =
   'before:content-[attr(data-placeholder)] before:pointer-events-none before:text-[#FC6839] focus:before:opacity-60'

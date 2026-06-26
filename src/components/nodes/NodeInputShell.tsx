@@ -44,14 +44,14 @@ export default function NodeInputShell({
 
   const showClearButton = focused && !!onClear && (showClearWhenEmpty || hasContent)
 
-  const content =
-    showClearButton && onClear ? (
-      <NodeInputFieldRow showClear onClear={onClear} clearLabel={clearLabel}>
-        {children}
-      </NodeInputFieldRow>
-    ) : (
-      children
-    )
+  // Keep a stable DOM tree when onClear is set — toggling the wrapper remounts inputs and drops focus.
+  const content = onClear ? (
+    <NodeInputFieldRow showClear={showClearButton} onClear={onClear} clearLabel={clearLabel}>
+      {children}
+    </NodeInputFieldRow>
+  ) : (
+    children
+  )
 
   return (
     <div

@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { type NodeProps, useReactFlow, useUpdateNodeInternals } from '@xyflow/react'
 import {
   HeaderIconButton,
@@ -26,6 +27,8 @@ import {
   NODE_INPUT_INNER_CLASS,
   ANSWER_ROW_GRIP_HEIGHT,
   ANSWER_ROW_DRAG_BORDER,
+  ANSWER_INLINE_HANDLE_TOP,
+  ANSWER_INLINE_HANDLE_TOP_WITH_GRIP,
 } from './nodeFieldStyles'
 import NodeInputSection from './NodeInputSection'
 import { NodeSideTargetHandle } from './NodeConnectorHandles'
@@ -34,6 +37,9 @@ import { useNodeWidthResize } from './useNodeWidthResize'
 import NodeResizeHandle from './NodeResizeHandle'
 import NodeRequiredBanner from './NodeRequiredBanner'
 import RequiredFieldGroup from './RequiredFieldGroup'
+import AnswerInlineImage, { AnswerInlineImagePreview } from './AnswerInlineImage'
+import { createAnswerImageFromFile, normalizeAnswerImage, type AnswerImage } from './answerImage'
+import { useAnswerImageInteractions } from './useAnswerImageInteractions'
 import { useNodeValidation } from './useNodeValidation'
 import { useRegisterNodeFields } from './useRegisterNodeFields'
 import { isFieldEmpty, NODE_ERROR_COLOR } from './nodeValidation'
@@ -175,10 +181,17 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
   const nodeData = data as QuestionNodeData
 
   const [question, setQuestion] = useState(nodeData.question ?? DEFAULT_QUESTION_DATA.question)
-  const [options, setOptions] = useState<QuestionOption[]>(() => nodeData.options ?? [])
+  const [options, setOptions] = useState<QuestionOption[]>(() =>
+    (nodeData.options ?? []).map((option) => ({
+      ...option,
+      descriptionImage: normalizeAnswerImage(option.descriptionImage),
+    })),
+  )
   const [editingQuestion, setEditingQuestion] = useState(false)
   const [editingOptionId, setEditingOptionId] = useState<number | null>(null)
+  const [editFocusTarget, setEditFocusTarget] = useState<'answer' | 'description'>('answer')
   const [showPreview, setShowPreview] = useState(false)
+  const [showOverlay, setShowOverlay] = useState(false)
   const [focusedField, setFocusedField] = useState<'question' | 'answer' | 'description' | null>(null)
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
   const [gripHoveredId, setGripHoveredId] = useState<number | null>(null)
@@ -186,6 +199,7 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const imageTargetOptionIdRef = useRef<number | null>(null)
   const optionRefs = useRef<(HTMLDivElement | null)[]>([])
+  const descriptionEditRefs = useRef<Map<number, HTMLDivElement>>(new Map())
   const optionsRef = useRef(options)
   optionsRef.current = options
   const dragIndexRef = useRef<number | null>(null)
@@ -235,6 +249,7 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
   const toggleFormat = useCallback((fmt: FormatOption) => {
     if (fmt === 'image') {
       if (focusedField !== 'description' || imageTargetOptionIdRef.current == null) return
+      setShowOverlay(true)
       setTimeout(() => fileInputRef.current?.click(), 100)
       return
     }
@@ -306,9 +321,29 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
 
   const canReorder = options.length >= 2
 
+  const updateOptionImage = useCallback(
+    (optionId: number, image: AnswerImage | undefined) => {
+      setOptions((prev) => {
+        const next = prev.map((opt) =>
+          opt.id === optionId ? { ...opt, descriptionImage: image } : opt,
+        )
+        syncData({ options: next })
+        return next
+      })
+    },
+    [syncData],
+  )
+
+  const { handleImageDragStart, handleResizeStart } = useAnswerImageInteractions({
+    items: options.map((option) => ({ id: option.id, image: option.descriptionImage })),
+    rowRefs: optionRefs,
+    onUpdateImage: updateOptionImage,
+  })
+
   const handleFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0]
+      setShowOverlay(false)
       if (!file || !file.type.startsWith('image/')) return
       const optionId = imageTargetOptionIdRef.current
       if (optionId == null) return
@@ -316,27 +351,17 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
       reader.onload = () => {
         const img = new window.Image()
         img.onload = () => {
-          const maxW = 120
-          const scale = img.width > maxW ? maxW / img.width : 1
-          const descriptionImage = {
-            src: reader.result as string,
-            width: Math.round(img.width * scale),
-            height: Math.round(img.height * scale),
-          }
-          setOptions((prev) => {
-            const next = prev.map((opt) =>
-              opt.id === optionId ? { ...opt, descriptionImage } : opt,
-            )
-            syncData({ options: next })
-            return next
-          })
+          updateOptionImage(
+            optionId,
+            createAnswerImageFromFile(reader.result as string, img.width, img.height),
+          )
         }
         img.src = reader.result as string
       }
       reader.readAsDataURL(file)
       e.target.value = ''
     },
-    [syncData],
+    [updateOptionImage],
   )
 
   const handleQuestionChange = (value: string) => {
@@ -350,8 +375,32 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
     const next = [...options, newOption]
     setOptions(next)
     syncData({ options: next })
-    setEditingOptionId(newOption.id)
+    beginEditingOption(newOption.id, 'answer')
   }
+
+  const beginEditingOption = (optionId: number, target: 'answer' | 'description') => {
+    setEditingOptionId(optionId)
+    setEditingQuestion(false)
+    setEditFocusTarget(target)
+    setFocusedField(target)
+    imageTargetOptionIdRef.current = optionId
+    handleFieldFocus()
+  }
+
+  useLayoutEffect(() => {
+    if (editingOptionId == null || editFocusTarget !== 'description') return
+    const el = descriptionEditRefs.current.get(editingOptionId)
+    if (!el) return
+    el.focus()
+    const selection = window.getSelection()
+    if (selection) {
+      const range = document.createRange()
+      range.selectNodeContents(el)
+      range.collapse(false)
+      selection.removeAllRanges()
+      selection.addRange(range)
+    }
+  }, [editingOptionId, editFocusTarget])
 
   const handleOptionChange = (optionId: number, value: string) => {
     const next = options.map((opt) => (opt.id === optionId ? { ...opt, value } : opt))
@@ -474,7 +523,11 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
         {/* Ghost placeholders — hover shows dashed indicator on all inputs */}
         {showGhostAnswers && (
           <div className="mt-4">
-            <RequiredFieldGroup showMessage={ghostAnswerInvalid} ghostConnector>
+            <RequiredFieldGroup
+              showMessage={ghostAnswerInvalid}
+              ghostConnector
+              ghostConnectorTop={ANSWER_INLINE_HANDLE_TOP}
+            >
               <AnswerInputShell focused={false} onClick={handleAddAnswer} invalid={ghostAnswerInvalid}>
                 <div className="px-4 py-2.5">
                   <p className={`leading-relaxed ${ANSWER_FIELD_CLASS}`}>{ANSWER_PLACEHOLDER}</p>
@@ -501,6 +554,10 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
                 showValidation &&
                 isFieldEmpty(option.value) &&
                 shouldShowFieldValidation(id, `option-${option.id}`)
+
+              const answerHandleTop = canReorder
+                ? ANSWER_INLINE_HANDLE_TOP_WITH_GRIP
+                : ANSWER_INLINE_HANDLE_TOP
 
               return (
                 <div
@@ -537,7 +594,12 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
                   )}
 
                   {isEditing ? (
-                    <RequiredFieldGroup showMessage={answerInvalid} handleId={`option-${option.id}`} className="flex-1 min-w-0">
+                    <RequiredFieldGroup
+                      showMessage={answerInvalid}
+                      handleId={`option-${option.id}`}
+                      handleTop={answerHandleTop}
+                      className="flex-1 min-w-0"
+                    >
                       <AnswerInputShell
                         focused
                         className="my-0"
@@ -551,9 +613,7 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
                             )
                           } else if (focusedField === 'description') {
                             handleDescriptionChange(option.id, '')
-                            optionRefs.current[index]
-                              ?.querySelector('[contenteditable]')
-                              ?.replaceChildren()
+                            descriptionEditRefs.current.get(option.id)?.replaceChildren()
                           }
                         }}
                         showClearWhenEmpty={focusedField === 'answer'}
@@ -569,13 +629,15 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
                           }}
                         >
                           <input
-                            autoFocus
+                            autoFocus={editFocusTarget === 'answer'}
                             type="text"
                             value={option.value}
                             onChange={(e) => handleOptionChange(option.id, e.target.value)}
+                            onMouseDown={(e) => e.stopPropagation()}
                             onFocus={() => {
                               handleFieldFocus()
                               setFocusedField('answer')
+                              setEditFocusTarget('answer')
                               imageTargetOptionIdRef.current = option.id
                             }}
                             onKeyDown={(e) => {
@@ -587,80 +649,93 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
                             data-cta-field
                             style={{ minHeight: INPUT_MIN_HEIGHT - 22 }}
                           />
-                          <div className="mt-1 flex-1 min-w-0" data-answer-content>
+                          <div className="mt-1 flex-1 min-w-0 relative z-10" data-answer-content>
                             {option.descriptionImage && (
-                              <img
-                                src={option.descriptionImage.src}
-                                alt=""
-                                className="mt-2 rounded object-contain"
-                                style={{
-                                  width: option.descriptionImage.width,
-                                  height: option.descriptionImage.height,
+                              <AnswerInlineImage
+                                id={option.id}
+                                image={option.descriptionImage}
+                                onDragStart={(e) => handleImageDragStart(option.id, e)}
+                                onResizeStart={(_corner, e) => handleResizeStart(option.id, e)}
+                                onReplace={() => {
+                                  imageTargetOptionIdRef.current = option.id
+                                  setShowOverlay(true)
+                                  setTimeout(() => fileInputRef.current?.click(), 100)
                                 }}
+                                onRemove={() => updateOptionImage(option.id, undefined)}
                               />
                             )}
                             <div
                               key={`desc-edit-${option.id}`}
+                              ref={(el) => {
+                                if (el) {
+                                  descriptionEditRefs.current.set(option.id, el)
+                                  if (!el.dataset.initialized) {
+                                    el.textContent = option.description ?? ''
+                                    el.dataset.initialized = 'true'
+                                  }
+                                } else {
+                                  descriptionEditRefs.current.delete(option.id)
+                                }
+                              }}
                               contentEditable
                               suppressContentEditableWarning
                               data-cta-field
+                              data-description-field
                               data-placeholder={DESCRIPTION_PLACEHOLDER}
-                              className={`nodrag ${DESCRIPTION_FIELD_CLASS} outline-none min-h-[1.5em] [&_*]:leading-[inherit] ${!option.description?.trim() ? DESCRIPTION_RICH_TEXT_PLACEHOLDER_CLASS : ''}`}
+                              className={`nodrag nopan ${DESCRIPTION_FIELD_CLASS} outline-none min-h-[1.5em] cursor-text [&_*]:leading-[inherit] ${!option.description?.trim() ? DESCRIPTION_RICH_TEXT_PLACEHOLDER_CLASS : ''}`}
                               style={{ wordBreak: 'break-word', lineHeight: 1.5 }}
-                              ref={(el) => {
-                                if (el && !el.dataset.initialized) {
-                                  el.textContent = option.description ?? ''
-                                  el.dataset.initialized = 'true'
-                                }
-                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
                               onInput={(e) => {
                                 handleDescriptionChange(option.id, (e.target as HTMLDivElement).textContent || '')
                               }}
                               onFocus={() => {
                                 handleFieldFocus()
                                 setFocusedField('description')
+                                setEditFocusTarget('description')
                                 imageTargetOptionIdRef.current = option.id
                               }}
                               onKeyDown={(e) => {
                                 if (e.key === 'Escape') setEditingOptionId(null)
                               }}
                             />
+                            {option.descriptionImage && <div style={{ clear: 'both' }} />}
                           </div>
                         </div>
                       </AnswerInputShell>
                     </RequiredFieldGroup>
                   ) : (
-                    <RequiredFieldGroup showMessage={answerInvalid} handleId={`option-${option.id}`} className="flex-1 min-w-0">
+                    <RequiredFieldGroup
+                      showMessage={answerInvalid}
+                      handleId={`option-${option.id}`}
+                      handleTop={answerHandleTop}
+                      className="flex-1 min-w-0"
+                    >
                       <AnswerInputShell
                         focused={false}
                         invalid={answerInvalid}
-                        onClick={() => {
-                          setEditingOptionId(option.id)
-                          setEditingQuestion(false)
-                          handleFieldFocus()
-                        }}
+                        onClick={() => beginEditingOption(option.id, 'answer')}
                       >
                         <div className={answerContentPadding}>
                           <span className={`block ${ANSWER_FIELD_CLASS}`}>
                             {option.value.trim() || ANSWER_PLACEHOLDER}
                           </span>
-                          <p
-                            className={`mt-1 ${option.description?.trim() ? DESCRIPTION_FIELD_CLASS : DESCRIPTION_PLACEHOLDER_CLASS}`}
-                            style={{ wordBreak: 'break-word', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}
-                          >
-                            {option.description?.trim() || DESCRIPTION_PLACEHOLDER}
-                          </p>
-                          {option.descriptionImage && (
-                            <img
-                              src={option.descriptionImage.src}
-                              alt=""
-                              className="mt-2 rounded object-contain"
-                              style={{
-                                width: option.descriptionImage.width,
-                                height: option.descriptionImage.height,
+                          <div className="mt-1" data-answer-content>
+                            {option.descriptionImage && (
+                              <AnswerInlineImagePreview image={option.descriptionImage} />
+                            )}
+                            <p
+                              className={`cursor-text ${option.description?.trim() ? DESCRIPTION_FIELD_CLASS : DESCRIPTION_PLACEHOLDER_CLASS}`}
+                              style={{ wordBreak: 'break-word', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}
+                              onMouseDown={(e) => {
+                                e.stopPropagation()
+                                beginEditingOption(option.id, 'description')
                               }}
-                            />
-                          )}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {option.description?.trim() || DESCRIPTION_PLACEHOLDER}
+                            </p>
+                            {option.descriptionImage && <div style={{ clear: 'both' }} />}
+                          </div>
                         </div>
                       </AnswerInputShell>
                     </RequiredFieldGroup>
@@ -714,6 +789,16 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
           onClose={() => setShowPreview(false)}
         />
       )}
+
+      {showOverlay &&
+        createPortal(
+          <div
+            className="fixed inset-0 bg-black/50"
+            style={{ zIndex: 9999 }}
+            onClick={() => setShowOverlay(false)}
+          />,
+          document.body,
+        )}
 
       <NodeResizeHandle onMouseDown={startResize} />
     </div>
