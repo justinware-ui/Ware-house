@@ -2,7 +2,8 @@
 
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { CircleHelp } from 'lucide-react'
+import type { AnswerImage } from './nodes/answerImage'
+import { DescriptionTooltipPopup } from './nodes/AnswerInlineImage'
 
 interface PreviewImage {
   src: string
@@ -15,6 +16,7 @@ interface DiscoveryQuestionData {
   answers: string[]
   tooltips?: Record<number, string>
   answerImages?: Record<number, PreviewImage>
+  tooltipImages?: Record<number, AnswerImage>
 }
 
 interface FullScreenDialogData {
@@ -70,7 +72,13 @@ export default function InteractionPreviewModal({ data, onClose }: InteractionPr
         </button>
 
         {data.type === 'discovery' ? (
-          <DiscoveryPreview question={data.question} answers={data.answers} tooltips={data.tooltips} answerImages={data.answerImages} />
+          <DiscoveryPreview
+            question={data.question}
+            answers={data.answers}
+            tooltips={data.tooltips}
+            answerImages={data.answerImages}
+            tooltipImages={data.tooltipImages}
+          />
         ) : (
           <FullScreenPreview header={data.header} message={data.message} buttons={data.buttons} buttonUrls={data.buttonUrls} messageImage={data.messageImage} />
         )}
@@ -80,40 +88,47 @@ export default function InteractionPreviewModal({ data, onClose }: InteractionPr
   )
 }
 
-function DiscoveryPreview({ question, answers, tooltips, answerImages }: { question: string; answers: string[]; tooltips?: Record<number, string>; answerImages?: Record<number, PreviewImage> }) {
+function DiscoveryPreview({
+  question,
+  answers,
+  tooltips,
+  answerImages,
+  tooltipImages,
+}: {
+  question: string
+  answers: string[]
+  tooltips?: Record<number, string>
+  answerImages?: Record<number, PreviewImage>
+  tooltipImages?: Record<number, AnswerImage>
+}) {
   return (
     <div className="px-10 py-10">
       <p className="text-lg font-semibold text-gray-900 mb-8">
         {question || 'What do you like better?'}
       </p>
       <div className="flex flex-col gap-3">
-        {answers.filter((a) => a.trim()).map((answer, i) => {
+        {answers.map((answer, i) => {
           const tip = tooltips?.[i]?.trim()
-          const img = answerImages?.[i]
+          const answerImg = answerImages?.[i]
+          const tooltipImg = tooltipImages?.[i]
+          const hasTooltip = !!(tip || tooltipImg)
+          if (!answer.trim() && !answerImg && !tooltipImg) return null
           return (
             <button
               key={i}
-              className="w-full text-left px-5 py-4 rounded-xl border border-gray-200 text-sm text-gray-800 hover:border-[#FC6839] hover:bg-orange-50 transition-colors cursor-pointer"
+              className={`w-full text-left px-5 py-4 rounded-xl border border-gray-200 text-sm text-gray-800 hover:border-[#FC6839] hover:bg-orange-50 transition-colors cursor-pointer relative ${hasTooltip ? 'group/answer' : ''}`}
             >
-              {img && (
-                <img src={img.src} alt="" className="rounded mb-3 max-h-40 object-contain" />
+              {answerImg && (
+                <img src={answerImg.src} alt="" className="rounded mb-3 max-h-40 object-contain" />
               )}
-              <span className="inline-flex items-center">
-                <span>{answer}</span>
-                {tip && (
-                  <span className="relative group/tip inline-flex items-center" style={{ marginLeft: 8 }}>
-                    <CircleHelp size={14} className="text-gray-800 cursor-help" />
-                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1.5 rounded-lg bg-gray-800 text-white text-xs opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity shadow-lg whitespace-nowrap" style={{ maxWidth: 320 }}>
-                      {tip}
-                      <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
-                    </span>
-                  </span>
-                )}
-              </span>
+              {answer.trim() ? <span>{answer}</span> : null}
+              {hasTooltip && (
+                <DescriptionTooltipPopup description={tip} image={tooltipImg} />
+              )}
             </button>
           )
         })}
-        {answers.filter((a) => a.trim()).length === 0 && (
+        {answers.every((a, i) => !a.trim() && !answerImages?.[i] && !tooltipImages?.[i]) && (
           <>
             <div className="w-full px-5 py-4 rounded-xl border border-gray-200 text-sm text-gray-400">1</div>
             <div className="w-full px-5 py-4 rounded-xl border border-gray-200 text-sm text-gray-400">2</div>
@@ -166,3 +181,4 @@ function FullScreenPreview({ header, message, buttons, buttonUrls, messageImage 
     </div>
   )
 }
+

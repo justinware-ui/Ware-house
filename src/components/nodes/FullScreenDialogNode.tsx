@@ -2,26 +2,51 @@
 
 import { useState, useCallback, useMemo, useRef, useLayoutEffect, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Handle, Position, type NodeProps, useReactFlow, useUpdateNodeInternals } from '@xyflow/react'
+import { type NodeProps, useReactFlow, useUpdateNodeInternals } from '@xyflow/react'
+import { Copy, X, CircleHelp, Monitor, MousePointerClick } from 'lucide-react'
 import {
-  Copy, X, Bold, Italic, Underline, AlignJustify,
-  Image, Pilcrow, ChevronDown, CircleHelp, Monitor, MousePointerClick,
-} from 'lucide-react'
+  HeaderIconButton,
+  DuplicateIcon,
+  PreviewEyeIcon,
+  DeleteIcon,
+  NodeHeaderBar,
+} from './NodeHeaderActions'
 import InteractionPreviewModal from '../InteractionPreviewModal'
-
-const AddPhotoIcon = ({ className }: { className?: string }) => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-    <path d="M3.538 13.666c-.337 0-.622-.117-.855-.35a1.163 1.163 0 0 1-.35-.855V3.538c0-.337.117-.622.35-.855.234-.234.518-.35.855-.35H8.538v1H3.538a.2.2 0 0 0-.147.058.2.2 0 0 0-.058.147v8.923a.2.2 0 0 0 .058.148.2.2 0 0 0 .147.057h8.923a.2.2 0 0 0 .148-.057.2.2 0 0 0 .057-.148V7.461h1v4.999c0 .337-.117.622-.35.856-.234.233-.518.35-.856.35H3.538ZM4.256 11.128h7.487l-2.327-3.103-2 2.597-1.417-1.802-1.743 2.308ZM11.333 6V4.666H10V3.666h1.333V2.333h1v1.333h1.334v1h-1.334V6h-1Z" fill="currentColor"/>
-  </svg>
-)
-
-const AddTooltipIcon = ({ className }: { className?: string }) => (
-  <svg width="17" height="16" viewBox="0 0 17 16" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-    <path d="M7.966 12c.234 0 .431-.081.592-.242.161-.161.242-.358.242-.591 0-.234-.08-.431-.242-.592a.806.806 0 0 0-.592-.242.806.806 0 0 0-.592.242.806.806 0 0 0-.242.592c0 .233.08.43.241.591.162.161.359.242.593.242Zm.1-6.867c.31 0 .56.086.75.258.188.173.283.398.283.675 0 .19-.064.381-.191.575a3.64 3.64 0 0 1-.542.609c-.334.289-.578.567-.734.833-.155.267-.233.534-.233.8 0 .156.058.287.175.392a.498.498 0 0 0 .408.159.498.498 0 0 0 .417-.167.76.76 0 0 0 .233-.417c.034-.189.109-.364.226-.525.116-.161.308-.37.575-.625.344-.323.586-.617.725-.884.139-.266.208-.561.208-.883 0-.567-.213-1.031-.641-1.392-.428-.361-.981-.541-1.659-.541-.466 0-.88.089-1.241.266-.362.178-.642.45-.842.817a.583.583 0 0 0-.084.425c.023.138.1.253.234.341a.523.523 0 0 0 .475.084.556.556 0 0 0 .425-.284 1.04 1.04 0 0 1 .442-.383c.172-.089.369-.134.591-.134ZM8 14.666a6.65 6.65 0 0 1-2.584-.525 6.698 6.698 0 0 1-2.125-1.425 6.677 6.677 0 0 1-1.433-2.116A6.521 6.521 0 0 1 1.333 8c0-.922.175-1.789.525-2.6a6.682 6.682 0 0 1 1.434-2.117A6.692 6.692 0 0 1 5.416 1.858 6.649 6.649 0 0 1 8 1.333c.933 0 1.805.175 2.616.525a6.71 6.71 0 0 1 2.117 1.425A6.711 6.711 0 0 1 14.15 5.4c.344.811.516 1.678.516 2.6 0 .922-.172 1.789-.517 2.6a6.711 6.711 0 0 1-1.416 2.116 6.692 6.692 0 0 1-2.117 1.425 6.598 6.598 0 0 1-2.617.525ZM8 13.333c1.489 0 2.75-.52 3.783-1.558C12.816 10.736 13.333 9.478 13.333 8c0-1.478-.517-2.736-1.55-3.776C10.75 3.186 9.489 2.666 8 2.666c-1.456 0-2.709.52-3.759 1.558C3.191 5.264 2.666 6.522 2.666 8c0 1.478.525 2.736 1.575 3.775 1.05 1.039 2.303 1.558 3.759 1.558Z" fill="currentColor"/>
-    <circle cx="14" cy="4" r="2.75" fill="#F7F4F1"/>
-    <path d="M13.5 4.5v1.334h1V4.5h1.334v-1H14.5V2.167h-1V3.5h-1.333v1H13.5Z" fill="currentColor"/>
-  </svg>
-)
+import FormattingToolbar, { type FormatOption } from './FormattingToolbar'
+import NodeInputShell from './NodeInputShell'
+import { clearOrRemoveField } from './NodeInputFieldRow'
+import {
+  INPUT_MIN_HEIGHT,
+  PLACEHOLDERS,
+  HEADER_INPUT_CLASS,
+  ANSWER_FIELD_CLASS,
+  ANSWER_RICH_TEXT_PLACEHOLDER_CLASS,
+  BUTTON_INPUT_CLASS,
+  URL_INPUT_CLASS,
+  TOOLTIP_INPUT_CLASS,
+  RICH_TEXT_PLACEHOLDER_CLASS,
+  NODE_DEFAULT_WIDTH,
+  NODE_INPUT_INNER_CLASS,
+  ANSWER_ROW_GRIP_HEIGHT,
+  ANSWER_INLINE_HANDLE_TOP,
+  ANSWER_INLINE_HANDLE_TOP_WITH_GRIP,
+  answerRowReorderStyles,
+} from './nodeFieldStyles'
+import { NodeSideTargetHandle } from './NodeConnectorHandles'
+import { useFormattingToolbar } from './useFormattingToolbar'
+import NodeResizeHandle from './NodeResizeHandle'
+import NodeRequiredBanner from './NodeRequiredBanner'
+import RequiredFieldGroup from './RequiredFieldGroup'
+import NodeInputSection from './NodeInputSection'
+import { useNodeValidation } from './useNodeValidation'
+import { useRegisterNodeFields } from './useRegisterNodeFields'
+import { isFieldEmpty, NODE_ERROR_COLOR } from './nodeValidation'
+import { hasDialogPreviewContent } from './nodePreview'
+import {
+  registerFieldMount,
+  shouldShowFieldValidation,
+  unregisterFieldMount,
+} from './nodeValidationStore'
 
 interface AnswerImage {
   src: string
@@ -41,111 +66,6 @@ interface ButtonEntry {
   image?: AnswerImage
 }
 
-type FormatOption = 'bold' | 'italic' | 'underline' | 'align' | 'image' | 'paragraph' | 'link'
-
-function FormattingToolbar({
-  activeFormats,
-  onToggle,
-  onDragStart,
-  onDragEnd,
-  disabledKeys,
-}: {
-  activeFormats: Set<FormatOption>
-  onToggle: (fmt: FormatOption) => void
-  onDragStart?: () => void
-  onDragEnd?: () => void
-  disabledKeys?: Set<FormatOption>
-}) {
-  const grabRef = useRef<SVGSVGElement>(null)
-
-  useEffect(() => {
-    const el = grabRef.current
-    if (!el) return
-    const handleDown = () => {
-      onDragStart?.()
-      const onUp = () => { onDragEnd?.(); window.removeEventListener('pointerup', onUp) }
-      window.addEventListener('pointerup', onUp)
-    }
-    el.addEventListener('pointerdown', handleDown, true)
-    return () => el.removeEventListener('pointerdown', handleDown, true)
-  }, [onDragStart, onDragEnd])
-
-  const tools: { key: FormatOption; icon?: typeof Bold; custom?: 'addPhoto' | 'addTooltip'; label: string; hasDropdown?: boolean }[] = [
-    { key: 'bold', icon: Bold, label: 'Bold' },
-    { key: 'italic', icon: Italic, label: 'Italic' },
-    { key: 'underline', icon: Underline, label: 'Underline' },
-    { key: 'align', icon: AlignJustify, label: 'Alignment' },
-    { key: 'image', custom: 'addPhoto', label: 'Add Image' },
-    { key: 'paragraph', icon: Pilcrow, label: 'Paragraph Format', hasDropdown: true },
-    { key: 'link', custom: 'addTooltip', label: 'Add Tooltip' },
-  ]
-
-  return (
-    <div
-      data-toolbar
-      className="absolute -top-14 left-1/2 -translate-x-1/2 z-10 flex items-center rounded-full shadow-lg border border-gray-200 px-2 py-1.5 gap-0.5"
-      style={{ backgroundColor: '#F7F4F2' }}
-    >
-      <svg
-        ref={grabRef}
-        width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"
-        className="shrink-0 mx-1 cursor-grab active:cursor-grabbing"
-      >
-        <path d="M7.5 16.666c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.459.163-.851.49-1.178.326-.326.718-.489 1.177-.489s.851.163 1.177.49c.326.326.49.718.49 1.177s-.164.851-.49 1.177c-.326.327-.718.49-1.177.49Zm5 0c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.459.164-.851.49-1.178.326-.326.718-.489 1.177-.489s.851.163 1.177.49c.327.326.49.718.49 1.177s-.163.851-.49 1.177c-.326.327-.718.49-1.177.49ZM7.5 11.666c-.459 0-.851-.163-1.177-.49a1.604 1.604 0 0 1-.49-1.177c0-.458.163-.851.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.326.326.49.718.49 1.177 0 .459-.164.851-.49 1.178-.326.326-.718.489-1.177.489Zm5 0c-.459 0-.851-.163-1.177-.49a1.604 1.604 0 0 1-.49-1.177c0-.458.164-.851.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.327.326.49.718.49 1.177 0 .459-.163.851-.49 1.178-.326.326-.718.489-1.177.489ZM7.5 6.666c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.458.163-.85.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.326.327.49.718.49 1.177 0 .459-.164.851-.49 1.178-.326.326-.718.489-1.177.489Zm5 0c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.458.164-.85.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.327.327.49.718.49 1.177 0 .459-.163.851-.49 1.178-.326.326-.718.489-1.177.489Z" fill="#8D8A87"/>
-      </svg>
-
-      {tools.map(({ key, icon: Icon, custom, label, hasDropdown }) => {
-        const isDisabled = disabledKeys?.has(key)
-        return (
-          <div key={key} className="relative group/tool nodrag nopan">
-            <button
-              onClick={() => !isDisabled && onToggle(key)}
-              onMouseDown={(e) => e.preventDefault()}
-              disabled={isDisabled}
-              className={`p-1.5 rounded transition-colors flex items-center gap-0.5 ${
-                isDisabled
-                  ? 'text-gray-300 cursor-not-allowed'
-                  : activeFormats.has(key)
-                    ? 'text-brand-500'
-                    : 'text-gray-600 hover:text-brand-500'
-              }`}
-            >
-              {custom === 'addPhoto' ? (
-                <AddPhotoIcon />
-              ) : custom === 'addTooltip' ? (
-                <AddTooltipIcon />
-              ) : Icon ? (
-                <Icon size={16} strokeWidth={2} />
-              ) : null}
-              {hasDropdown && <ChevronDown size={10} />}
-            </button>
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded bg-gray-800 text-white text-[10px] whitespace-nowrap opacity-0 pointer-events-none group-hover/tool:opacity-100 transition-opacity">
-              {label}
-              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
-            </div>
-          </div>
-        )
-      })}
-
-      <div className="w-px h-6 bg-gray-200 mx-1 nodrag nopan" />
-      <button className="p-1.5 rounded text-brand-500 hover:bg-brand-50 transition-colors nodrag nopan" onMouseDown={(e) => e.preventDefault()}>
-        <svg width="18" height="18" viewBox="2 10 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M11.4273 11.1084C11.465 10.9066 11.7551 10.9066 11.7928 11.1084L12.2104 13.3465C12.7446 16.2092 14.9911 18.4488 17.8625 18.9814L20.1073 19.3978C20.3098 19.4354 20.3098 19.7246 20.1073 19.7622L17.8625 20.1785C14.9911 20.7111 12.7446 22.9508 12.2104 25.8135L11.7928 28.0515C11.7551 28.2534 11.465 28.2534 11.4273 28.0515L11.0097 25.8135C10.4754 22.9508 8.22901 20.7111 5.35761 20.1785L3.11281 19.7622C2.91031 19.7246 2.91031 19.4354 3.11281 19.3978L5.35761 18.9814C8.22901 18.4488 10.4754 16.2092 11.0097 13.3465L11.4273 11.1084Z" fill="url(#paint0_fsd_sparkle)"/>
-          <path d="M19.1688 23.5301C19.1834 23.452 19.2956 23.452 19.3102 23.5301L19.4717 24.3958C19.6784 25.5032 20.5473 26.3695 21.6581 26.5755L22.5264 26.7366C22.6047 26.7511 22.6047 26.863 22.5264 26.8775L21.6581 27.0386C20.5473 27.2446 19.6784 28.111 19.4717 29.2184L19.3102 30.0841C19.2956 30.1622 19.1834 30.1622 19.1688 30.0841L19.0072 29.2184C18.8006 28.111 17.9316 27.2446 16.8209 27.0386L15.9525 26.8775C15.8742 26.863 15.8742 26.7511 15.9525 26.7366L16.8209 26.5755C17.9316 26.3695 18.8006 25.5032 19.0072 24.3958L19.1688 23.5301Z" fill="url(#paint1_fsd_sparkle)"/>
-          <defs>
-            <linearGradient id="paint0_fsd_sparkle" x1="2.96094" y1="21.4548" x2="22.5851" y2="21.4548" gradientUnits="userSpaceOnUse">
-              <stop stopColor="#FFB352"/><stop offset="0.5" stopColor="#FC6839"/><stop offset="1" stopColor="#EB2E24"/>
-            </linearGradient>
-            <linearGradient id="paint1_fsd_sparkle" x1="2.96094" y1="21.4548" x2="22.5851" y2="21.4548" gradientUnits="userSpaceOnUse">
-              <stop stopColor="#FFB352"/><stop offset="0.5" stopColor="#FC6839"/><stop offset="1" stopColor="#EB2E24"/>
-            </linearGradient>
-          </defs>
-        </svg>
-      </button>
-    </div>
-  )
-}
-
 export default function FullScreenDialogNode({ id, data }: NodeProps) {
   const { setNodes, setEdges, getNodes } = useReactFlow()
   const updateNodeInternals = useUpdateNodeInternals()
@@ -160,31 +80,81 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
     return [{ id: 0, text: '', url: '' }]
   })
   const [showPreview, setShowPreview] = useState(false)
-  const [showToolbar, setShowToolbar] = useState(false)
-  const [activeFormats, setActiveFormats] = useState<Set<FormatOption>>(new Set())
   const [tooltipMode, setTooltipMode] = useState(false)
   const [tooltips, setTooltips] = useState<Record<string | number, string>>({})
   const [draftTooltips, setDraftTooltips] = useState<Record<string | number, string>>({})
   const [focusedButtonId, setFocusedButtonId] = useState<number | null>(null)
-  const [focusedField, setFocusedField] = useState<'message' | 'button' | null>(null)
+  const [focusedField, setFocusedField] = useState<'header' | 'message' | 'button' | 'url' | null>(null)
+  const [focusedTooltip, setFocusedTooltip] = useState(false)
   const [messageImage, setMessageImage] = useState<AnswerImage | null>(null)
   const [resizingImage, setResizingImage] = useState<{ startX: number; startY: number; startW: number; startH: number } | null>(null)
   const [draggingImage, setDraggingImage] = useState<{ startX: number; startY: number; startOffX: number; startOffY: number } | null>(null)
   const [showOverlay, setShowOverlay] = useState(false)
   const hasContent = !!(header.trim() || message.trim() || buttons.some(b => b.text.trim()))
+
+  const getHasErrors = useCallback(() => {
+    if (isFieldEmpty(header)) return true
+    if (isFieldEmpty(message)) return true
+    if (buttons.some((b) => isFieldEmpty(b.text) && shouldShowFieldValidation(id, `button-${b.id}`))) {
+      return true
+    }
+    if (isCta && buttons.some((b) => isFieldEmpty(b.url) && shouldShowFieldValidation(id, `button-url-${b.id}`))) {
+      return true
+    }
+    return false
+  }, [header, message, buttons, isCta, id])
+
+  const { showValidation } = useNodeValidation(id, getHasErrors)
+  const nodeHasErrors = showValidation && getHasErrors()
+  const headerInvalid = showValidation && isFieldEmpty(header)
+  const messageInvalid = showValidation && isFieldEmpty(message)
+  const canPreview = useMemo(
+    () => hasDialogPreviewContent(header, message, messageImage, buttons),
+    [header, message, messageImage, buttons],
+  )
+
+  const buttonOrderKey = buttons.map((b) => b.id).join(',')
+
+  const buttonFieldIds = useMemo(() => {
+    const ids: string[] = []
+    buttons.forEach((b) => {
+      ids.push(`button-${b.id}`)
+      if (isCta) ids.push(`button-url-${b.id}`)
+    })
+    return ids
+  }, [buttonOrderKey, isCta, buttons])
+  useRegisterNodeFields(id, buttonFieldIds)
+
+  const handlePreview = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!canPreview) return
+    setShowPreview(true)
+  }
   const [draggingBtnIndex, setDraggingBtnIndex] = useState<number | null>(null)
+  const [gripHoveredBtnId, setGripHoveredBtnId] = useState<number | null>(null)
   const dragBtnIndexRef = useRef<number | null>(null)
   const buttonRefs = useRef<(HTMLDivElement | null)[]>([])
   const buttonsRef = useRef(buttons)
   buttonsRef.current = buttons
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const isDraggingNode = useRef(false)
   const tooltipModeRef = useRef(false)
-  const suppressSelectionRef = useRef(false)
   const messageRef = useRef<HTMLDivElement>(null)
   const messageContainerRef = useRef<HTMLDivElement>(null)
 
-  const buttonOrderKey = buttons.map((b) => b.id).join(',')
+  const {
+    showToolbar,
+    setShowToolbar,
+    activeFormats,
+    handleFieldFocus,
+    handleFieldBlur,
+    toggleRichFormat,
+    toggleToggleFormat,
+  } = useFormattingToolbar({
+    nodeId: id,
+    shouldRetainFocus: () => tooltipModeRef.current,
+    onBlurClear: () => setFocusedField(null),
+  })
+
   useEffect(() => {
     updateNodeInternals(id)
   }, [tooltipMode, buttonOrderKey, id, updateNodeInternals])
@@ -214,11 +184,18 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
     return lines.join('\n')
   }
 
-  const addButton = () =>
-    setButtons((prev) => [...prev, { id: Date.now(), text: '', url: '' }])
+  const addButton = () => {
+    const newId = Date.now()
+    registerFieldMount(id, `button-${newId}`)
+    if (isCta) registerFieldMount(id, `button-url-${newId}`)
+    setButtons((prev) => [...prev, { id: newId, text: '', url: '' }])
+  }
 
-  const removeButton = (btnId: number) =>
+  const removeButton = (btnId: number) => {
+    unregisterFieldMount(id, `button-${btnId}`)
+    unregisterFieldMount(id, `button-url-${btnId}`)
     setButtons((prev) => prev.filter((b) => b.id !== btnId))
+  }
 
   const updateButtonText = (btnId: number, text: string) =>
     setButtons((prev) => prev.map((b) => (b.id === btnId ? { ...b, text } : b)))
@@ -280,94 +257,30 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
       handleImageClick()
       return
     }
-    if (fmt === 'link') {
-      setDraftTooltips({ ...tooltips })
-      tooltipModeRef.current = true
-      setTooltipMode(true)
-      return
-    }
     if (fmt === 'bold' || fmt === 'italic' || fmt === 'underline') {
-      document.execCommand(fmt)
-      setActiveFormats((prev) => {
-        const next = new Set(prev)
-        if (document.queryCommandState(fmt)) next.add(fmt)
-        else next.delete(fmt)
-        return next
-      })
+      toggleRichFormat(fmt)
       return
     }
-    setActiveFormats((prev) => {
-      const next = new Set(prev)
-      if (next.has(fmt)) next.delete(fmt)
-      else next.add(fmt)
-      return next
-    })
-  }, [tooltips])
+    toggleToggleFormat(fmt)
+  }, [toggleRichFormat, toggleToggleFormat])
 
-  useEffect(() => {
-    if (!showToolbar) return
-    const handleSelectionChange = () => {
-      if (suppressSelectionRef.current) return
-      const sel = window.getSelection()
-      const anchor = sel?.anchorNode
-      if (!anchor || !(anchor instanceof Node)) return
-      const el = anchor.nodeType === 3 ? anchor.parentElement : anchor as Element
-      if (!el?.closest?.('[contenteditable]')) {
-        setActiveFormats(new Set())
-        return
-      }
-      setActiveFormats((prev) => {
-        const next = new Set<FormatOption>()
-        for (const f of ['bold', 'italic', 'underline'] as FormatOption[]) {
-          if (document.queryCommandState(f)) next.add(f)
-        }
-        if (next.size !== prev.size || [...next].some((v) => !prev.has(v))) return next
-        return prev
-      })
-    }
-    document.addEventListener('selectionchange', handleSelectionChange)
-    return () => document.removeEventListener('selectionchange', handleSelectionChange)
-  }, [showToolbar])
-
-  useEffect(() => {
-    const handler = (e: Event) => {
-      if ((e as CustomEvent).detail !== id) setShowToolbar(false)
-    }
-    document.addEventListener('toolbar-open', handler)
-    return () => document.removeEventListener('toolbar-open', handler)
-  }, [id])
-
-  const handleFieldFocus = () => {
-    suppressSelectionRef.current = true
-    setActiveFormats(new Set())
-    setShowToolbar(true)
-    document.dispatchEvent(new CustomEvent('toolbar-open', { detail: id }))
-    requestAnimationFrame(() => { suppressSelectionRef.current = false })
-  }
-
-  const handleFieldBlur = (e: React.FocusEvent) => {
-    if (isDraggingNode.current) return
-    requestAnimationFrame(() => {
-      if (isDraggingNode.current) return
-      if (tooltipModeRef.current) return
-      const related = e.relatedTarget as HTMLElement | null
-      if (related?.closest('[data-toolbar]') || related?.closest('[data-cta-field]') || related?.closest('[data-answer-content]')) return
-      setShowToolbar(false)
-    })
-  }
+  const toolbarDisabledKeys = useMemo(() => {
+    const disabled = new Set<FormatOption>()
+    if (focusedField !== 'message' && focusedField !== 'button') disabled.add('image')
+    return disabled.size > 0 ? disabled : undefined
+  }, [focusedField])
 
   const MAX_CHARS = 65
-  const MIN_WIDTH = 220
   const CARD_CHROME = 100
   const measureRef = useRef<HTMLSpanElement>(null)
-  const [cardWidth, setCardWidth] = useState(MIN_WIDTH)
+  const [cardWidth, setCardWidth] = useState(NODE_DEFAULT_WIDTH)
   const [manualWidth, setManualWidth] = useState<number | null>(null)
   const resizing = useRef<{ startX: number; startW: number } | null>(null)
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       if (!resizing.current) return
-      const newW = Math.max(MIN_WIDTH, resizing.current.startW + (e.clientX - resizing.current.startX))
+      const newW = Math.max(NODE_DEFAULT_WIDTH, resizing.current.startW + (e.clientX - resizing.current.startX))
       setManualWidth(newW)
     }
     const onUp = () => { resizing.current = null }
@@ -401,12 +314,17 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
     setNodes((nds) => nds.map((n) => ({ ...n, selected: false })).concat(newNode))
   }, [id, getNodes, setNodes, header, message, buttons, isCta])
 
+  const handleDelete = useCallback(() => {
+    setNodes((nds) => nds.filter((n) => n.id !== id))
+    setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id))
+  }, [id, setNodes, setEdges])
+
   const longestLine = useMemo(() => {
     const allTexts = [
-      header || 'Type your header here',
-      message || 'Type your message here',
-      ...buttons.map((b) => b.text || 'Type your button text here'),
-      ...(isCta ? buttons.map((b) => b.url || 'Type button URL here') : []),
+      header || PLACEHOLDERS.header,
+      message || PLACEHOLDERS.message,
+      ...buttons.map((b) => b.text || PLACEHOLDERS.button),
+      ...(isCta ? buttons.map((b) => b.url || PLACEHOLDERS.url) : []),
     ]
     const allLines = allTexts.flatMap((t) => t.split('\n'))
     const longest = allLines.reduce((a, b) => (a.length > b.length ? a : b), '')
@@ -416,7 +334,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
   useLayoutEffect(() => {
     if (!measureRef.current) return
     measureRef.current.textContent = longestLine
-    setCardWidth(Math.max(measureRef.current.offsetWidth + CARD_CHROME, MIN_WIDTH))
+    setCardWidth(Math.max(measureRef.current.offsetWidth + CARD_CHROME, NODE_DEFAULT_WIDTH))
   }, [longestLine])
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -516,69 +434,61 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
 
   return (
     <div
-      className="bg-white border border-gray-200 rounded-2xl px-6 py-5 shadow-sm relative transition-[width,box-shadow,border-color] duration-150"
-      style={{ width: tooltipMode ? Math.max(manualWidth ?? cardWidth, 320) : (manualWidth ?? cardWidth) }}
+      className={`bg-white border rounded-2xl py-5 shadow-sm relative transition-[width,box-shadow,border-color] duration-150 overflow-visible ${nodeHasErrors ? '' : 'border-gray-200'}`}
+      style={{
+        width: tooltipMode ? Math.max(manualWidth ?? cardWidth, 320) : (manualWidth ?? cardWidth),
+        ...(nodeHasErrors ? { borderColor: NODE_ERROR_COLOR } : {}),
+      }}
     >
+      {nodeHasErrors && (
+        <div className="-mt-5 mb-2 overflow-hidden rounded-t-2xl relative z-0">
+          <NodeRequiredBanner className="rounded-t-2xl" />
+        </div>
+      )}
+      {showToolbar && !tooltipMode && (
+        <FormattingToolbar
+          activeFormats={activeFormats}
+          onToggle={toggleFormat}
+          disabledKeys={toolbarDisabledKeys}
+          sparkleId={`fsd_${id}`}
+        />
+      )}
       <span
         ref={measureRef}
         className="invisible absolute whitespace-nowrap text-base font-semibold pointer-events-none"
         aria-hidden
       />
-      <Handle
-        type="target"
-        position={Position.Left}
-        className="!bg-brand-500 !border-brand-500"
-        style={{ width: 12, height: 12, left: 0 }}
+      <div className="relative flex flex-col flex-1 overflow-visible">
+        <NodeSideTargetHandle />
+
+      <NodeHeaderBar
+        className="px-5 pt-5 -mt-5 mb-2"
+        icon={
+          isCta ? (
+            <MousePointerClick size={16} className="text-[#FC6839] shrink-0" />
+          ) : (
+            <Monitor size={16} className="text-[#8b5cf6] shrink-0" />
+          )
+        }
+        title={isCta ? 'Call to Action' : 'Full Screen Dialog'}
+        actions={
+          <>
+            <HeaderIconButton
+              label="Preview"
+              onClick={handlePreview}
+              disabled={!canPreview}
+            >
+              <PreviewEyeIcon />
+            </HeaderIconButton>
+            <HeaderIconButton label="Duplicate" onClick={handleDuplicate}>
+              <DuplicateIcon />
+            </HeaderIconButton>
+            <HeaderIconButton label="Delete" onClick={handleDelete} circular>
+              <DeleteIcon />
+            </HeaderIconButton>
+          </>
+        }
       />
-      <Handle
-        type="source"
-        position={Position.Right}
-        className="!bg-brand-500 !border-brand-500"
-        style={{ width: 12, height: 12, right: 0 }}
-      />
-
-      {showToolbar && !tooltipMode && (
-        <FormattingToolbar
-          activeFormats={activeFormats}
-          onToggle={toggleFormat}
-          onDragStart={() => { isDraggingNode.current = true }}
-          onDragEnd={() => { isDraggingNode.current = false }}
-          disabledKeys={message.trim() || buttons.some((b) => b.text.trim() || b.image) ? undefined : new Set<FormatOption>(['link'])}
-        />
-      )}
-
-      {/* Close button */}
-      <button
-        className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-white hover:bg-gray-200 border-2 border-white flex items-center justify-center transition-colors shadow-sm z-20 nodrag nopan"
-        onClick={() => {
-          setNodes((nds) => nds.filter((n) => n.id !== id))
-          setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id))
-        }}
-      >
-        <X size={14} className="text-gray-600" />
-      </button>
-
-      {/* Preview & Duplicate — vertically aligned */}
-      <div className="absolute top-3 right-6 flex items-center" style={{ gap: 10 }}>
-        <button
-          className="transition-opacity"
-          style={{ opacity: hasContent ? 1 : 0.3, cursor: hasContent ? 'pointer' : 'default' }}
-          onClick={() => { if (hasContent) setShowPreview(true) }}
-          onMouseEnter={(e) => { if (hasContent) (e.currentTarget as HTMLButtonElement).style.opacity = '0.7' }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = hasContent ? '1' : '0.3' }}
-        >
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <mask id={`mask_eye_fsd_${id}`} style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="0" y="0" width="18" height="18"><rect width="18" height="18" fill="#D9D9D9"/></mask>
-            <g mask={`url(#mask_eye_fsd_${id})`}><path d="M8.99961 12C9.93711 12 10.7341 11.672 11.3906 11.016C12.0466 10.3595 12.3746 9.5625 12.3746 8.625C12.3746 7.6875 12.0466 6.8905 11.3906 6.234C10.7341 5.578 9.93711 5.25 8.99961 5.25C8.06211 5.25 7.26511 5.578 6.60861 6.234C5.95261 6.8905 5.62461 7.6875 5.62461 8.625C5.62461 9.5625 5.95261 10.3595 6.60861 11.016C7.26511 11.672 8.06211 12 8.99961 12ZM8.99961 10.65C8.43711 10.65 7.95911 10.453 7.56561 10.059C7.17161 9.6655 6.97461 9.1875 6.97461 8.625C6.97461 8.0625 7.17161 7.58425 7.56561 7.19025C7.95911 6.79675 8.43711 6.6 8.99961 6.6C9.56211 6.6 10.0404 6.79675 10.4344 7.19025C10.8279 7.58425 11.0246 8.0625 11.0246 8.625C11.0246 9.1875 10.8279 9.6655 10.4344 10.059C10.0404 10.453 9.56211 10.65 8.99961 10.65ZM8.99961 14.25C7.26211 14.25 5.67461 13.7908 4.23711 12.8723C2.79961 11.9533 1.71211 10.7125 0.974609 9.15C0.937109 9.0875 0.912109 9.00925 0.899609 8.91525C0.887109 8.82175 0.880859 8.725 0.880859 8.625C0.880859 8.525 0.887109 8.428 0.899609 8.334C0.912109 8.2405 0.937109 8.1625 0.974609 8.1C1.71211 6.5375 2.79961 5.297 4.23711 4.3785C5.67461 3.4595 7.26211 3 8.99961 3C10.7371 3 12.3246 3.4595 13.7621 4.3785C15.1996 5.297 16.2871 6.5375 17.0246 8.1C17.0621 8.1625 17.0871 8.2405 17.0996 8.334C17.1121 8.428 17.1184 8.525 17.1184 8.625C17.1184 8.725 17.1121 8.82175 17.0996 8.91525C17.0871 9.00925 17.0621 9.0875 17.0246 9.15C16.2871 10.7125 15.1996 11.9533 13.7621 12.8723C12.3246 13.7908 10.7371 14.25 8.99961 14.25ZM8.99961 12.75C10.4121 12.75 11.7091 12.378 12.8906 11.634C14.0716 10.8905 14.9746 9.8875 15.5996 8.625C14.9746 7.3625 14.0716 6.35925 12.8906 5.61525C11.7091 4.87175 10.4121 4.5 8.99961 4.5C7.58711 4.5 6.29011 4.87175 5.10861 5.61525C3.92761 6.35925 3.02461 7.3625 2.39961 8.625C3.02461 9.8875 3.92761 10.8905 5.10861 11.634C6.29011 12.378 7.58711 12.75 8.99961 12.75Z" fill="#293748"/></g>
-          </svg>
-        </button>
-        <button className="hover:opacity-70 transition-opacity" onClick={handleDuplicate}>
-          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <mask id={`mask_dup_fsd_${id}`} style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="0" y="0" width="20" height="20"><rect width="20" height="20" fill="#D9D9D9"/></mask>
-            <g mask={`url(#mask_dup_fsd_${id})`}><path d="M7.5 15C7.04167 15 6.64944 14.8369 6.32333 14.5108C5.99667 14.1842 5.83333 13.7917 5.83333 13.3333V3.33332C5.83333 2.87499 5.99667 2.48249 6.32333 2.15582C6.64944 1.82971 7.04167 1.66666 7.5 1.66666H15C15.4583 1.66666 15.8508 1.82971 16.1775 2.15582C16.5036 2.48249 16.6667 2.87499 16.6667 3.33332V13.3333C16.6667 13.7917 16.5036 14.1842 16.1775 14.5108C15.8508 14.8369 15.4583 15 15 15H7.5ZM7.5 13.3333H15V3.33332H7.5V13.3333ZM4.16667 18.3333C3.70833 18.3333 3.31583 18.1703 2.98917 17.8442C2.66306 17.5175 2.5 17.125 2.5 16.6667V5.83332C2.5 5.59721 2.58 5.39916 2.74 5.23916C2.89944 5.07971 3.09722 4.99999 3.33333 4.99999C3.56944 4.99999 3.7675 5.07971 3.9275 5.23916C4.08694 5.39916 4.16667 5.59721 4.16667 5.83332V16.6667H12.5C12.7361 16.6667 12.9342 16.7467 13.0942 16.9067C13.2536 17.0661 13.3333 17.2639 13.3333 17.5C13.3333 17.7361 13.2536 17.9339 13.0942 18.0933C12.9342 18.2533 12.7361 18.3333 12.5 18.3333H4.16667Z" fill="#293748"/></g>
-          </svg>
-        </button>
-      </div>
 
       {showPreview && (
         <InteractionPreviewModal
@@ -586,15 +496,6 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
           onClose={() => setShowPreview(false)}
         />
       )}
-
-      <div className="px-1 pt-4 pb-3 flex items-center gap-1.5">
-        {isCta ? (
-          <MousePointerClick size={14} className="text-[#FC6839] shrink-0" />
-        ) : (
-          <Monitor size={14} className="text-[#8b5cf6] shrink-0" />
-        )}
-        <span className="text-xs font-medium text-gray-500">{isCta ? 'Call to Action' : 'Full Screen Dialog'}</span>
-      </div>
 
       <div>
         {tooltipMode && (
@@ -610,30 +511,29 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
               {message.trim() && (
                 <div>
                   <p className="text-xs text-gray-600 mb-1">Message: {message}</p>
-                  <div className="flex items-start gap-3 pb-2 border-b border-gray-200 focus-within:border-brand-400 transition-colors">
-                    <div className="flex-1 min-w-0">
+                  <div className="flex items-start gap-3">
+                    <NodeInputShell
+                      focused={focusedTooltip}
+                      className="flex-1 min-w-0"
+                      padding={0}
+                      hasContent={!!(draftTooltips['message'] ?? '').trim()}
+                      onClear={() =>
+                        setDraftTooltips((prev) => ({ ...prev, message: '' }))
+                      }
+                    >
                       <input
                         type="text"
                         value={draftTooltips['message'] ?? ''}
                         onChange={(e) =>
                           setDraftTooltips((prev) => ({ ...prev, message: e.target.value }))
                         }
-                        placeholder="Type your tool-tip here"
-                        className="nodrag w-full text-sm text-gray-800 placeholder:text-[#FC6839] outline-none bg-transparent"
+                        placeholder={PLACEHOLDERS.tooltip}
+                        className={`${TOOLTIP_INPUT_CLASS} px-4 py-2.5`}
+                        data-cta-field
+                        onFocus={() => setFocusedTooltip(true)}
+                        onBlur={() => setFocusedTooltip(false)}
                       />
-                    </div>
-                    <button
-                      className="text-gray-400 hover:text-gray-600 shrink-0 mt-0.5"
-                      onClick={() =>
-                        setDraftTooltips((prev) => {
-                          const next = { ...prev }
-                          delete next['message']
-                          return next
-                        })
-                      }
-                    >
-                      <X size={14} />
-                    </button>
+                    </NodeInputShell>
                   </div>
                 </div>
               )}
@@ -668,24 +568,51 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
 
         <div style={tooltipMode ? { height: 0, overflow: 'hidden' as const, visibility: 'hidden' as const } : undefined}>
         <>
+          <NodeInputSection>
           {/* Header field */}
-          <div className="mb-7 px-1" style={{ marginTop: 6 }}>
-            <textarea
-              value={header}
-              onChange={(e) => setHeader(wrapText(e.target.value))}
-              placeholder="Type your header here"
-              rows={Math.max(1, header.split('\n').length)}
-              className="nodrag w-full text-base font-semibold italic text-gray-800 placeholder:text-gray-800 placeholder:font-semibold placeholder:italic placeholder:opacity-100 focus:placeholder:opacity-60 outline-none bg-transparent resize-none overflow-hidden"
-              style={{ lineHeight: 1.5 }}
-              data-cta-field
-              onFocus={handleFieldFocus}
-              onBlur={handleFieldBlur}
-            />
+          <div className="mb-7" style={{ marginTop: 6 }}>
+            <RequiredFieldGroup showMessage={headerInvalid}>
+              <NodeInputShell
+                focused={focusedField === 'header'}
+                onBlur={handleFieldBlur}
+                padding={0}
+                invalid={headerInvalid}
+                hasContent={!!header.trim()}
+                onClear={() => setHeader('')}
+              >
+                <textarea
+                  value={header}
+                  onChange={(e) => setHeader(wrapText(e.target.value))}
+                  placeholder={PLACEHOLDERS.header}
+                  rows={Math.max(1, header.split('\n').length)}
+                  className={`${HEADER_INPUT_CLASS} ${NODE_INPUT_INNER_CLASS} resize-none overflow-hidden`}
+                  style={{ lineHeight: 1.5, minHeight: INPUT_MIN_HEIGHT - 22 }}
+                  data-cta-field
+                  onFocus={() => {
+                    handleFieldFocus()
+                    setFocusedField('header')
+                  }}
+                  onBlur={handleFieldBlur}
+                />
+              </NodeInputShell>
+            </RequiredFieldGroup>
           </div>
 
           {/* Message body */}
-          <div ref={messageContainerRef} className="mb-6 pb-2 border-b border-gray-200 focus-within:border-brand-400 transition-colors flex items-start gap-2" data-answer-content>
-            <div className="flex-1 min-w-0 overflow-hidden">
+          <RequiredFieldGroup showMessage={messageInvalid} className="mb-6">
+          <NodeInputShell
+            focused={focusedField === 'message'}
+            padding={0}
+            onBlur={handleFieldBlur}
+            invalid={messageInvalid}
+            hasContent={!!message.trim()}
+            onClear={() => {
+              setMessage('')
+              if (messageRef.current) messageRef.current.textContent = ''
+            }}
+          >
+          <div ref={messageContainerRef} className={`${NODE_INPUT_INNER_CLASS} flex items-start gap-2`} data-answer-content>
+            <div className="flex-1 min-w-0">
               {messageImage && (
                 <div
                   className="relative inline-block nodrag group/img"
@@ -771,14 +698,17 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                 contentEditable
                 suppressContentEditableWarning
                 data-cta-field
-                data-placeholder="Type your message here"
-                className={`nodrag text-sm text-gray-800 outline-none min-h-[1.5em] [&_*]:leading-[inherit] ${!message ? 'before:content-[attr(data-placeholder)] before:pointer-events-none before:text-[#FC6839] before:opacity-100 focus:before:opacity-60' : ''}`}
+                data-placeholder={PLACEHOLDERS.message}
+                className={`nodrag ${ANSWER_FIELD_CLASS} outline-none min-h-[1.5em] [&_*]:leading-[inherit] ${!message ? ANSWER_RICH_TEXT_PLACEHOLDER_CLASS : ''}`}
                 style={{ wordBreak: 'break-word', lineHeight: 1.5 }}
                 onInput={(e) => {
                   const el = e.target as HTMLDivElement
                   setMessage(el.textContent || '')
                 }}
-                onFocus={() => { handleFieldFocus(); setFocusedField('message') }}
+                onFocus={() => {
+                  handleFieldFocus()
+                  setFocusedField('message')
+                }}
                 onBlur={handleFieldBlur}
               />
               {messageImage && <div style={{ clear: 'both' }} />}
@@ -793,86 +723,157 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
               </div>
             )}
           </div>
+          </NodeInputShell>
+          </RequiredFieldGroup>
 
           {/* Button fields */}
           <div className="flex flex-col gap-5" style={{ paddingBottom: buttons.length >= 2 ? 16 : 0 }}>
-            {buttons.map((btn, index) => (
+            {buttons.map((btn, index) => {
+              const buttonInvalid =
+                showValidation &&
+                isFieldEmpty(btn.text) &&
+                shouldShowFieldValidation(id, `button-${btn.id}`)
+              const urlInvalid =
+                isCta &&
+                showValidation &&
+                isFieldEmpty(btn.url) &&
+                shouldShowFieldValidation(id, `button-url-${btn.id}`)
+              const isOutputButton = index === buttons.length - 1
+              const isRowFocused = focusedButtonId === btn.id
+              const showReorderHighlight =
+                buttons.length >= 2 &&
+                (draggingBtnIndex === index ||
+                  (!isRowFocused && gripHoveredBtnId === btn.id))
+              return (
               <div
                 key={btn.id}
                 ref={(el) => {
                   buttonRefs.current[index] = el
                   buttonRefs.current.length = buttons.length
                 }}
-                className={`flex flex-col transition-opacity ${
+                className={`relative overflow-visible ${
                   draggingBtnIndex !== null && draggingBtnIndex !== index ? 'opacity-50' : ''
                 }`}
+                style={{
+                  paddingTop: buttons.length >= 2 ? ANSWER_ROW_GRIP_HEIGHT : 0,
+                  marginBottom: !isCta ? 12 : 0,
+                  ...answerRowReorderStyles(showReorderHighlight, draggingBtnIndex === index),
+                }}
               >
-                <div
-                  className="nodrag flex items-center gap-3 relative pb-2 border-b border-gray-200 focus-within:border-brand-400 transition-colors"
-                  style={!isCta ? { marginBottom: 12 } : undefined}
-                >
-                  {buttons.length >= 2 && (
+                {buttons.length >= 2 && (
+                  <div
+                    className="absolute left-0 right-0 flex items-center justify-center nodrag nopan"
+                    style={{ top: 0, height: ANSWER_ROW_GRIP_HEIGHT }}
+                    onMouseEnter={() => setGripHoveredBtnId(btn.id)}
+                    onMouseLeave={() => setGripHoveredBtnId(null)}
+                  >
                     <div
-                      className="nodrag nopan shrink-0 cursor-grab select-none p-1"
+                      className="cursor-grab select-none rotate-90 opacity-50 hover:opacity-100 transition-opacity p-1"
                       onMouseDown={(e) => handleBtnGrabStart(index, e)}
                     >
                       <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M7.5 16.666c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.459.163-.851.49-1.178.326-.326.718-.489 1.177-.489s.851.163 1.177.49c.326.326.49.718.49 1.177s-.164.851-.49 1.177c-.326.327-.718.49-1.177.49Zm5 0c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.459.164-.851.49-1.178.326-.326.718-.489 1.177-.489s.851.163 1.177.49c.327.326.49.718.49 1.177s-.163.851-.49 1.177c-.326.327-.718.49-1.177.49ZM7.5 11.666c-.459 0-.851-.163-1.177-.49a1.604 1.604 0 0 1-.49-1.177c0-.458.163-.851.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.326.326.49.718.49 1.177 0 .459-.164.851-.49 1.178-.326.326-.718.489-1.177.489Zm5 0c-.459 0-.851-.163-1.177-.49a1.604 1.604 0 0 1-.49-1.177c0-.458.164-.851.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.327.326.49.718.49 1.177 0 .459-.163.851-.49 1.178-.326.326-.718.489-1.177.489ZM7.5 6.666c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.458.163-.85.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.326.327.49.718.49 1.177 0 .459-.164.851-.49 1.178-.326.326-.718.489-1.177.489Zm5 0c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.458.164-.85.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.327.327.49.718.49 1.177 0 .459-.163.851-.49 1.178-.326.326-.718.489-1.177.489Z" fill="#8D8A87"/>
                       </svg>
                     </div>
-                  )}
-
-                  <div className="flex-1 min-w-0" data-answer-content>
-                    <input
-                      type="text"
-                      value={btn.text}
-                      onChange={(e) => updateButtonText(btn.id, e.target.value)}
-                      placeholder="Type your button text here"
-                      className={`nodrag w-full text-sm outline-none bg-transparent ${
-                        index === 0
-                          ? 'text-[#FC6839] placeholder:text-[#FC6839] placeholder:opacity-100 focus:placeholder:opacity-60'
-                          : 'text-gray-500 placeholder:text-gray-400 placeholder:opacity-100 focus:placeholder:opacity-60'
-                      }`}
-                      data-cta-field
-                      onFocus={() => { handleFieldFocus(); setFocusedButtonId(btn.id); setFocusedField('button') }}
-                      onBlur={(e) => {
-                        handleFieldBlur(e as unknown as React.FocusEvent)
-                        setFocusedButtonId(null); setFocusedField(null)
-                      }}
-                    />
-                  </div>
-
-                  <div className="flex items-center shrink-0" style={{ gap: 10, marginTop: 2 }}>
-                    {buttons.length >= 2 && (
-                      <button
-                        className="text-gray-400 hover:text-gray-600"
-                        onClick={() => removeButton(btn.id)}
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {isCta && (
-                  <div className="nodrag pb-2 border-b border-gray-200 focus-within:border-brand-400 transition-colors" style={{ marginTop: 24, marginBottom: 10 }}>
-                    <input
-                      type="text"
-                      value={btn.url}
-                      onChange={(e) => updateButtonUrl(btn.id, e.target.value)}
-                      placeholder="Type button URL here"
-                      className="nodrag w-full text-sm text-gray-800 placeholder:text-[#FC6839] placeholder:opacity-100 focus:placeholder:opacity-60 outline-none bg-transparent"
-                      data-cta-field
-                      onFocus={handleFieldFocus}
-                      onBlur={handleFieldBlur}
-                    />
                   </div>
                 )}
+
+                  <RequiredFieldGroup
+                    showMessage={buttonInvalid}
+                    className="w-full"
+                    sourceHandle={isOutputButton}
+                    handleTop={buttons.length >= 2 ? ANSWER_INLINE_HANDLE_TOP_WITH_GRIP : ANSWER_INLINE_HANDLE_TOP}
+                  >
+                  <NodeInputShell
+                    focused={focusedField === 'button' && focusedButtonId === btn.id}
+                    className="w-full"
+                    padding={0}
+                    onBlur={handleFieldBlur}
+                    invalid={buttonInvalid}
+                    suppressHover={draggingBtnIndex !== null && draggingBtnIndex !== index}
+                    hasContent={!!btn.text.trim()}
+                    onClear={() =>
+                      clearOrRemoveField(
+                        btn.text,
+                        () => updateButtonText(btn.id, ''),
+                        buttons.length >= 2 ? () => removeButton(btn.id) : undefined,
+                      )
+                    }
+                  >
+                    <div className={NODE_INPUT_INNER_CLASS} data-answer-content>
+                      <input
+                        type="text"
+                        value={btn.text}
+                        onChange={(e) => updateButtonText(btn.id, e.target.value)}
+                        placeholder={PLACEHOLDERS.button}
+                        className={BUTTON_INPUT_CLASS}
+                        data-cta-field
+                        onFocus={() => {
+                          setGripHoveredBtnId(null)
+                          handleFieldFocus()
+                          setFocusedButtonId(btn.id)
+                          setFocusedField('button')
+                        }}
+                        onBlur={(e) => {
+                          handleFieldBlur(e as unknown as React.FocusEvent)
+                          setFocusedButtonId(null)
+                        }}
+                      />
+                    </div>
+                  </NodeInputShell>
+                  </RequiredFieldGroup>
+
+                  {buttons.length >= 2 && (
+                    <button
+                      className="absolute nodrag nopan text-gray-400 hover:text-gray-600"
+                      style={{ top: buttons.length >= 2 ? ANSWER_ROW_GRIP_HEIGHT + 10 : 10, right: 0 }}
+                      onClick={() => removeButton(btn.id)}
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+
+                {isCta && (
+                  <RequiredFieldGroup showMessage={urlInvalid} className="w-full">
+                    <NodeInputShell
+                      focused={focusedField === 'url' && focusedButtonId === btn.id}
+                      className="nodrag w-full mt-6 mb-2.5"
+                      padding={0}
+                      onBlur={handleFieldBlur}
+                      invalid={urlInvalid}
+                      suppressHover={draggingBtnIndex !== null && draggingBtnIndex !== index}
+                      hasContent={!!btn.url.trim()}
+                      onClear={() => updateButtonUrl(btn.id, '')}
+                    >
+                      <input
+                        type="text"
+                        value={btn.url}
+                        onChange={(e) => updateButtonUrl(btn.id, e.target.value)}
+                        placeholder={PLACEHOLDERS.url}
+                        className={`${URL_INPUT_CLASS} ${NODE_INPUT_INNER_CLASS}`}
+                        data-cta-field
+                        onFocus={() => {
+                          setGripHoveredBtnId(null)
+                          handleFieldFocus()
+                          setFocusedField('url')
+                          setFocusedButtonId(btn.id)
+                        }}
+                        onBlur={(e) => {
+                          handleFieldBlur(e as unknown as React.FocusEvent)
+                          setFocusedButtonId(null)
+                        }}
+                      />
+                    </NodeInputShell>
+                  </RequiredFieldGroup>
+                )}
               </div>
-            ))}
+              )
+            })}
           </div>
+          </NodeInputSection>
 
         </>
+      </div>
       </div>
       </div>
 
@@ -885,9 +886,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
         onChange={handleFileSelect}
       />
 
-      {/* Resize handle */}
-      <div
-        className="absolute top-0 right-0 w-2 h-full cursor-ew-resize nodrag nopan"
+      <NodeResizeHandle
         onMouseDown={(e) => {
           e.preventDefault()
           e.stopPropagation()

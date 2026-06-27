@@ -1,24 +1,47 @@
 'use client'
 
 import { useState } from 'react'
+import { copyToClipboard } from '@/lib/demoShare'
 
-export default function Header({ hasContent = false, onPreview }: { hasContent?: boolean; onPreview?: () => void }) {
-  const [title, setTitle] = useState('Demo Title')
+export default function Header({
+  hasContent = false,
+  title,
+  reviewLink,
+  saveNotice,
+  onTitleChange,
+  onSaveAndContinue,
+}: {
+  hasContent?: boolean
+  title: string
+  reviewLink?: string | null
+  saveNotice?: string | null
+  onTitleChange: (title: string) => void
+  onSaveAndContinue: () => void
+}) {
   const [editing, setEditing] = useState(false)
   const [editHover, setEditHover] = useState(false)
-  const [previewHover, setPreviewHover] = useState(false)
   const [saveHover, setSaveHover] = useState(false)
   const [closeHover, setCloseHover] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
+
+  const handleCopyReviewLink = async () => {
+    if (!reviewLink) return
+    const copied = await copyToClipboard(reviewLink)
+    if (copied) {
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 2000)
+    }
+  }
 
   return (
-    <header className="h-16 border-b border-gray-200 flex items-center justify-between px-4 shrink-0" style={{ backgroundColor: '#F7F4F2' }}>
+    <header className="relative h-16 border-b border-gray-200 flex items-center justify-between px-4 shrink-0" style={{ backgroundColor: '#F7F4F2' }}>
       {/* Left: editable title */}
       <div className="flex items-center gap-2">
         {editing ? (
           <input
             autoFocus
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => onTitleChange(e.target.value)}
             onBlur={() => setEditing(false)}
             onKeyDown={(e) => e.key === 'Enter' && setEditing(false)}
             className="text-sm font-medium rounded px-2 py-1 outline-none"
@@ -60,29 +83,23 @@ export default function Header({ hasContent = false, onPreview }: { hasContent?:
         )}
       </div>
 
+      {saveNotice && (
+        <p className="absolute left-1/2 -translate-x-1/2 text-xs font-medium text-[#2F6B4F] bg-[#E8F5EE] border border-[#B8DEC8] rounded-full px-3 py-1.5 pointer-events-none whitespace-nowrap">
+          {saveNotice}
+        </p>
+      )}
+
       {/* Right: actions */}
       <div className="flex items-center gap-2" style={{ marginRight: 20 }}>
-        {/* Preview — secondary button (SVG) */}
-        <button
-          className="shrink-0 outline-none focus:outline-none focus-visible:outline-none"
-          style={{ cursor: hasContent ? 'pointer' : 'not-allowed', outline: 'none' }}
-          disabled={!hasContent}
-          onClick={onPreview}
-          onMouseEnter={() => setPreviewHover(true)}
-          onMouseLeave={() => setPreviewHover(false)}
-        >
-          <svg width="96" height="32" viewBox="0 0 96 32" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ opacity: !hasContent ? 0.3 : 1 }}>
-            {hasContent && previewHover && <rect x="1" y="1" width="94" height="30" rx="15" fill="#FC6839" fillOpacity="0.15"/>}
-            <path d="M18.936 14.216C18.936 14.664 18.828 15.084 18.612 15.476C18.404 15.868 18.072 16.184 17.616 16.424C17.168 16.664 16.6 16.784 15.912 16.784H14.508V20H12.828V11.624H15.912C16.56 11.624 17.112 11.736 17.568 11.96C18.024 12.184 18.364 12.492 18.588 12.884C18.82 13.276 18.936 13.72 18.936 14.216ZM15.84 15.428C16.304 15.428 16.648 15.324 16.872 15.116C17.096 14.9 17.208 14.6 17.208 14.216C17.208 13.4 16.752 12.992 15.84 12.992H14.508V15.428H15.84ZM21.8088 14.384C22.0248 14.032 22.3048 13.756 22.6488 13.556C23.0008 13.356 23.4008 13.256 23.8488 13.256V15.02H23.4048C22.8768 15.02 22.4768 15.144 22.2048 15.392C21.9408 15.64 21.8088 16.072 21.8088 16.688V20H20.1288V13.352H21.8088V14.384ZM31.1603 16.532C31.1603 16.772 31.1443 16.988 31.1123 17.18H26.2523C26.2923 17.66 26.4603 18.036 26.7563 18.308C27.0523 18.58 27.4163 18.716 27.8483 18.716C28.4723 18.716 28.9163 18.448 29.1803 17.912H30.9923C30.8003 18.552 30.4323 19.08 29.8883 19.496C29.3443 19.904 28.6763 20.108 27.8843 20.108C27.2443 20.108 26.6683 19.968 26.1563 19.688C25.6523 19.4 25.2563 18.996 24.9683 18.476C24.6883 17.956 24.5483 17.356 24.5483 16.676C24.5483 15.988 24.6883 15.384 24.9683 14.864C25.2483 14.344 25.6403 13.944 26.1443 13.664C26.6483 13.384 27.2283 13.244 27.8843 13.244C28.5163 13.244 29.0803 13.38 29.5763 13.652C30.0803 13.924 30.4683 14.312 30.7403 14.816C31.0203 15.312 31.1603 15.884 31.1603 16.532ZM29.4203 16.052C29.4123 15.62 29.2563 15.276 28.9523 15.02C28.6483 14.756 28.2763 14.624 27.8363 14.624C27.4203 14.624 27.0683 14.752 26.7803 15.008C26.5003 15.256 26.3283 15.604 26.2643 16.052H29.4203ZM35.1586 18.452L36.8386 13.352H38.6266L36.1666 20H34.1266L31.6786 13.352H33.4786L35.1586 18.452ZM40.4222 12.56C40.1262 12.56 39.8782 12.468 39.6782 12.284C39.4862 12.092 39.3902 11.856 39.3902 11.576C39.3902 11.296 39.4862 11.064 39.6782 10.88C39.8782 10.688 40.1262 10.592 40.4222 10.592C40.7182 10.592 40.9622 10.688 41.1542 10.88C41.3542 11.064 41.4542 11.296 41.4542 11.576C41.4542 11.856 41.3542 12.092 41.1542 12.284C40.9622 12.468 40.7182 12.56 40.4222 12.56ZM41.2502 13.352V20H39.5702V13.352H41.2502ZM49.09 16.532C49.09 16.772 49.074 16.988 49.042 17.18H44.182C44.222 17.66 44.39 18.036 44.686 18.308C44.982 18.58 45.346 18.716 45.778 18.716C46.402 18.716 46.846 18.448 47.11 17.912H48.922C48.73 18.552 48.362 19.08 47.818 19.496C47.274 19.904 46.606 20.108 45.814 20.108C45.174 20.108 44.598 19.968 44.086 19.688C43.582 19.4 43.186 18.996 42.898 18.476C42.618 17.956 42.478 17.356 42.478 16.676C42.478 15.988 42.618 15.384 42.898 14.864C43.178 14.344 43.57 13.944 44.074 13.664C44.578 13.384 45.158 13.244 45.814 13.244C46.446 13.244 47.01 13.38 47.506 13.652C48.01 13.924 48.398 14.312 48.67 14.816C48.95 15.312 49.09 15.884 49.09 16.532ZM47.35 16.052C47.342 15.62 47.186 15.276 46.882 15.02C46.578 14.756 46.206 14.624 45.766 14.624C45.35 14.624 44.998 14.752 44.71 15.008C44.43 15.256 44.258 15.604 44.194 16.052H47.35ZM59.5323 13.352L57.5883 20H55.7763L54.5643 15.356L53.3523 20H51.5283L49.5723 13.352H51.2763L52.4523 18.416L53.7243 13.352H55.5003L56.7483 18.404L57.9243 13.352H59.5323Z" fill={hasContent && previewHover ? '#F44C10' : '#FC6839'}/>
-            <mask id="mask_preview_hdr" style={{ maskType: 'alpha' as const }} maskUnits="userSpaceOnUse" x="68" y="8" width="16" height="16">
-              <rect x="68" y="8" width="16" height="16" fill="#D9D9D9"/>
-            </mask>
-            <g mask="url(#mask_preview_hdr)">
-              <path d="M75.9999 18.6665C76.8332 18.6665 77.5416 18.3749 78.1252 17.7918C78.7083 17.2083 78.9999 16.4998 78.9999 15.6665C78.9999 14.8332 78.7083 14.1247 78.1252 13.5412C77.5416 12.9581 76.8332 12.6665 75.9999 12.6665C75.1665 12.6665 74.4581 12.9581 73.8745 13.5412C73.2914 14.1247 72.9999 14.8332 72.9999 15.6665C72.9999 16.4998 73.2914 17.2083 73.8745 17.7918C74.4581 18.3749 75.1665 18.6665 75.9999 18.6665ZM75.9999 17.4665C75.4999 17.4665 75.075 17.2914 74.7252 16.9412C74.375 16.5914 74.1999 16.1665 74.1999 15.6665C74.1999 15.1665 74.375 14.7414 74.7252 14.3912C75.075 14.0414 75.4999 13.8665 75.9999 13.8665C76.4999 13.8665 76.925 14.0414 77.2752 14.3912C77.625 14.7414 77.7999 15.1665 77.7999 15.6665C77.7999 16.1665 77.625 16.5914 77.2752 16.9412C76.925 17.2914 76.4999 17.4665 75.9999 17.4665ZM75.9999 20.6665C74.4554 20.6665 73.0443 20.2583 71.7665 19.4418C70.4888 18.6249 69.5221 17.5221 68.8665 16.1332C68.8332 16.0776 68.811 16.0081 68.7999 15.9245C68.7888 15.8414 68.7832 15.7554 68.7832 15.6665C68.7832 15.5776 68.7888 15.4914 68.7999 15.4078C68.811 15.3247 68.8332 15.2554 68.8665 15.1998C69.5221 13.8109 70.4888 12.7083 71.7665 11.8918C73.0443 11.0749 74.4554 10.6665 75.9999 10.6665C77.5443 10.6665 78.9554 11.0749 80.2332 11.8918C81.511 12.7083 82.4776 13.8109 83.1332 15.1998C83.1665 15.2554 83.1888 15.3247 83.1999 15.4078C83.211 15.4914 83.2165 15.5776 83.2165 15.6665C83.2165 15.7554 83.211 15.8414 83.1999 15.9245C83.1888 16.0081 83.1665 16.0776 83.1332 16.1332C82.4776 17.5221 81.511 18.6249 80.2332 19.4418C78.9554 20.2583 77.5443 20.6665 75.9999 20.6665ZM75.9999 19.3332C77.2554 19.3332 78.4083 19.0025 79.4585 18.3412C80.5083 17.6803 81.311 16.7887 81.8665 15.6665C81.311 14.5443 80.5083 13.6525 79.4585 12.9912C78.4083 12.3303 77.2554 11.9998 75.9999 11.9998C74.7443 11.9998 73.5914 12.3303 72.5412 12.9912C71.4914 13.6525 70.6888 14.5443 70.1332 15.6665C70.6888 16.7887 71.4914 17.6803 72.5412 18.3412C73.5914 19.0025 74.7443 19.3332 75.9999 19.3332Z" fill={hasContent && previewHover ? '#F44C10' : '#FC6839'}/>
-            </g>
-          </svg>
-        </button>
-
+        {reviewLink && (
+          <button
+            type="button"
+            onClick={handleCopyReviewLink}
+            className="text-xs font-semibold text-gray-700 hover:text-[#FC6839] transition-colors px-2 py-1"
+          >
+            {linkCopied ? 'Link copied' : 'Copy review link'}
+          </button>
+        )}
         {/* Save and Continue — primary button (SVG) */}
         <button
           className="shrink-0"
@@ -90,6 +107,7 @@ export default function Header({ hasContent = false, onPreview }: { hasContent?:
           disabled={!hasContent}
           onMouseEnter={() => setSaveHover(true)}
           onMouseLeave={() => setSaveHover(false)}
+          onClick={onSaveAndContinue}
         >
           <svg width="141" height="32" viewBox="0 0 141 32" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ opacity: !hasContent ? 0.3 : 1 }}>
             <rect width="141" height="32" rx="16" fill={hasContent && saveHover ? '#F44C10' : '#FC6839'}/>

@@ -41,6 +41,7 @@ function HotspotIcon({ size = 18 }: { size?: number; style?: React.CSSProperties
   )
 }
 
+
 const interactions = [
   { id: 'fullscreen', label: 'Full Screen Dialog', icon: Monitor, color: '#8b5cf6', bgColor: undefined as string | undefined },
   { id: 'discovery', label: 'Discovery Question', icon: DiscoveryIcon, color: '#22c55e', bgColor: undefined as string | undefined },

@@ -15,3 +15,4 @@ dist/
 .DS_Store
 *.local
 tsconfig.tsbuildinfo
+.vercel
