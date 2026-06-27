@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import type { Node, Edge } from '@xyflow/react'
 import { ExternalLink, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import type { HotspotPage } from './HotspotBuilderModal'
+import { DescriptionTooltipPopup } from './nodes/AnswerInlineImage'
+import { normalizeAnswerImage, type AnswerImage } from './nodes/answerImage'
 
 // Walk graph from startNode following edges to produce an ordered step list
 function getOrderedSteps(nodes: Node[], edges: Edge[]): Node[] {
@@ -301,32 +303,30 @@ function HotspotStep({ node }: { node: Node }) {
 function QuestionStep({ node }: { node: Node }) {
   const { question, options } = node.data as {
     question?: string
-    options?: { id: number; value: string; description?: string }[]
+    options?: { id: number; value: string; description?: string; descriptionImage?: AnswerImage }[]
   }
-  const validOptions = (options ?? []).filter((o) => o.value.trim())
+  const previewOptions = (options ?? []).filter(
+    (o) => o.value.trim() || o.description?.trim() || o.descriptionImage,
+  )
 
   return (
     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl px-10 py-10">
       <p className="text-lg font-semibold text-gray-900 mb-8">
-        {question || 'Type your question here'}
+        {question || 'Enter your question here'}
       </p>
       <div className="flex flex-col gap-3">
-        {validOptions.length > 0 ? validOptions.map((option) => {
+        {previewOptions.length > 0 ? previewOptions.map((option) => {
           const tip = option.description?.trim()
+          const img = normalizeAnswerImage(option.descriptionImage)
+          const hasTooltip = !!(tip || img)
           return (
             <button
               key={option.id}
-              className={`w-full text-left px-5 py-4 rounded-xl border border-gray-200 text-sm text-gray-800 hover:border-[#FC6839] hover:bg-orange-50 transition-colors relative ${tip ? 'group/answer' : ''}`}
+              className={`w-full text-left px-5 py-4 rounded-xl border border-gray-200 text-sm text-gray-800 hover:border-[#FC6839] hover:bg-orange-50 transition-colors relative ${hasTooltip ? 'group/answer' : ''}`}
             >
-              {option.value}
-              {tip && (
-                <span
-                  className="absolute bottom-full left-5 mb-2 px-2.5 py-1.5 rounded-lg bg-gray-800 text-white text-xs opacity-0 pointer-events-none group-hover/answer:opacity-100 transition-opacity shadow-lg z-10"
-                  style={{ maxWidth: 320 }}
-                >
-                  {tip}
-                  <span className="absolute top-full left-4 border-4 border-transparent border-t-gray-800" />
-                </span>
+              {option.value.trim() ? option.value : null}
+              {hasTooltip && (
+                <DescriptionTooltipPopup description={tip} image={img} />
               )}
             </button>
           )

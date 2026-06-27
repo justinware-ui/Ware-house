@@ -22,7 +22,7 @@ export default function NodeInputClearButton({
       onClick={onClear}
       tabIndex={tabIndex}
       aria-hidden={ariaHidden}
-      className={`p-0.5 rounded text-gray-400 hover:text-red-500 shrink-0 nodrag nopan ${className}`}
+      className={`p-0.5 rounded shrink-0 nodrag nopan text-[#172537] hover:text-[#172537] hover:opacity-70 ${className}`}
       aria-label={ariaLabel}
     >
       <X size={14} />

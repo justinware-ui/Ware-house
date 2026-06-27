@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { type NodeProps, useReactFlow, useUpdateNodeInternals } from '@xyflow/react'
 import { X } from 'lucide-react'
@@ -20,7 +20,9 @@ import { clearOrRemoveField } from './NodeInputFieldRow'
 import {
   HEADER_INPUT_CLASS,
   PLACEHOLDERS,
-  RICH_TEXT_PLACEHOLDER_CLASS,
+  ANSWER_FIELD_CLASS,
+  ANSWER_RICH_TEXT_PLACEHOLDER_CLASS,
+  NODE_ERROR_COLOR,
   NODE_DEFAULT_WIDTH,
   NODE_INPUT_INNER_CLASS,
   ANSWER_INLINE_HANDLE_TOP,
@@ -28,8 +30,13 @@ import {
 import { NodeSideTargetHandle } from './NodeConnectorHandles'
 import RequiredFieldGroup from './RequiredFieldGroup'
 import NodeInputSection from './NodeInputSection'
+import NodeRequiredBanner from './NodeRequiredBanner'
 import { useFormattingToolbar } from './useFormattingToolbar'
 import { useNodeWidthResize } from './useNodeWidthResize'
+import { useNodeValidation } from './useNodeValidation'
+import { useRegisterNodeFields } from './useRegisterNodeFields'
+import { isFieldEmpty } from './nodeValidation'
+import { shouldShowFieldValidation } from './nodeValidationStore'
 import NodeResizeHandle from './NodeResizeHandle'
 
 const HotspotSvgIcon = () => (
@@ -188,6 +195,29 @@ export default function HotspotNode({ id, data }: NodeProps) {
     page.hotspots.map(hs => ({ ...hs, pageId: page.id }))
   )
 
+  const hotspotOrderKey = allHotspots.map((hs) => hs.id).join(',')
+  const hotspotFieldIds = useMemo(
+    () => allHotspots.map((hs) => `hotspot-${hs.id}`),
+    [hotspotOrderKey],
+  )
+  useRegisterNodeFields(id, hotspotFieldIds)
+
+  const getHasErrors = useCallback(() => {
+    if (isFieldEmpty(screenshotName)) return true
+    for (const page of pages) {
+      for (const hs of page.hotspots) {
+        if (isFieldEmpty(hs.title) && shouldShowFieldValidation(id, `hotspot-${hs.id}`)) {
+          return true
+        }
+      }
+    }
+    return false
+  }, [pages, screenshotName, id])
+
+  const { showValidation } = useNodeValidation(id, getHasErrors)
+  const nodeHasErrors = showValidation && getHasErrors()
+  const screenshotNameInvalid = showValidation && isFieldEmpty(screenshotName)
+
   const updateHotspotTitle = useCallback((hsId: string, pageId: string, title: string) => {
     const updatedPages = pages.map(p =>
       p.id === pageId ? { ...p, hotspots: p.hotspots.map(h => h.id === hsId ? { ...h, title } : h) } : p
@@ -199,9 +229,18 @@ export default function HotspotNode({ id, data }: NodeProps) {
   return (
     <>
       <div
-        className="bg-white border border-[#d0cbc6] rounded-2xl relative shadow-[0px_20px_20px_-20px_rgba(48,41,33,0.25)] overflow-visible"
-        style={{ width, paddingBottom: 32 }}
+        className={`bg-white border rounded-2xl relative shadow-[0px_20px_20px_-20px_rgba(48,41,33,0.25)] overflow-visible transition-[border-color] duration-150 ${nodeHasErrors ? '' : 'border-[#d0cbc6]'}`}
+        style={{
+          width,
+          paddingBottom: 32,
+          ...(nodeHasErrors ? { borderColor: NODE_ERROR_COLOR } : {}),
+        }}
       >
+        {nodeHasErrors && (
+          <div className="-mt-0 mb-0 overflow-hidden rounded-t-2xl relative z-0">
+            <NodeRequiredBanner className="rounded-t-2xl" />
+          </div>
+        )}
         <div className="relative flex flex-col flex-1 overflow-visible">
         <NodeSideTargetHandle />
 
@@ -246,29 +285,32 @@ export default function HotspotNode({ id, data }: NodeProps) {
         />
 
         {/* Screenshot name */}
-        <NodeInputSection className="pb-4">
-          <NodeInputShell
-            focused={focusedField === 'name'}
-            onBlur={handleFieldBlur}
-            padding={0}
-            hasContent={!!screenshotName.trim()}
-            onClear={() => setScreenshotName('')}
-          >
-            <input
-              type="text"
-              value={screenshotName}
-              onChange={(e) => setScreenshotName(e.target.value)}
-              placeholder={PLACEHOLDERS.screenshotName}
-              className={`${HEADER_INPUT_CLASS} ${NODE_INPUT_INNER_CLASS}`}
-              style={{ lineHeight: 1.5 }}
-              data-cta-field
-              onFocus={() => {
-                handleFieldFocus()
-                setFocusedField('name')
-              }}
+        <NodeInputSection className="pt-3 pb-4">
+          <RequiredFieldGroup showMessage={screenshotNameInvalid}>
+            <NodeInputShell
+              focused={focusedField === 'name'}
               onBlur={handleFieldBlur}
-            />
-          </NodeInputShell>
+              padding={0}
+              invalid={screenshotNameInvalid}
+              hasContent={!!screenshotName.trim()}
+              onClear={() => setScreenshotName('')}
+            >
+              <input
+                type="text"
+                value={screenshotName}
+                onChange={(e) => setScreenshotName(e.target.value)}
+                placeholder={PLACEHOLDERS.screenshotName}
+                className={`${HEADER_INPUT_CLASS} ${NODE_INPUT_INNER_CLASS}`}
+                style={{ lineHeight: 1.5 }}
+                data-cta-field
+                onFocus={() => {
+                  handleFieldFocus()
+                  setFocusedField('name')
+                }}
+                onBlur={handleFieldBlur}
+              />
+            </NodeInputShell>
+          </RequiredFieldGroup>
         </NodeInputSection>
 
         {/* Drop zone / image */}
@@ -348,14 +390,19 @@ export default function HotspotNode({ id, data }: NodeProps) {
         {allHotspots.length > 0 && (
           <NodeInputSection style={{ marginTop: 24 }}>
             <div className="flex flex-col gap-5 overflow-visible">
-              {allHotspots.map((hs) => (
+              {allHotspots.map((hs) => {
+                const hotspotInvalid =
+                  showValidation &&
+                  isFieldEmpty(hs.title) &&
+                  shouldShowFieldValidation(id, `hotspot-${hs.id}`)
+                return (
                 <div
                   key={`${hs.id}-${saveVersion}`}
                   className="nodrag group relative overflow-visible"
                   data-hotspot-row={hs.id}
                 >
                   <RequiredFieldGroup
-                    showMessage={false}
+                    showMessage={hotspotInvalid}
                     handleId={`hotspot-${hs.id}`}
                     handleTop={ANSWER_INLINE_HANDLE_TOP}
                     className="w-full"
@@ -365,18 +412,22 @@ export default function HotspotNode({ id, data }: NodeProps) {
                     className="w-full"
                     padding={0}
                     onBlur={handleFieldBlur}
+                    invalid={hotspotInvalid}
                     hasContent={!!hs.title.trim()}
+                    showClearWhenEmpty={allHotspots.length >= 2}
                     onClear={() => {
                       clearOrRemoveField(
                         hs.title,
-                        () => updateHotspotTitle(hs.id, hs.pageId, ''),
+                        () => {
+                          updateHotspotTitle(hs.id, hs.pageId, '')
+                          document
+                            .querySelector(`[data-hotspot-row="${hs.id}"] [contenteditable]`)
+                            ?.replaceChildren()
+                        },
                         allHotspots.length >= 2
                           ? () => deleteHotspotFromNode(hs.id, hs.pageId)
                           : undefined,
                       )
-                      document
-                        .querySelector(`[data-hotspot-row="${hs.id}"] [contenteditable]`)
-                        ?.replaceChildren()
                     }}
                   >
                   <div className={NODE_INPUT_INNER_CLASS}>
@@ -385,7 +436,7 @@ export default function HotspotNode({ id, data }: NodeProps) {
                       suppressContentEditableWarning
                       data-placeholder={PLACEHOLDERS.hotspotName}
                       data-cta-field
-                      className={`text-sm text-gray-800 outline-none min-h-[1.5em] [&_*]:leading-[inherit] ${!hs.title ? RICH_TEXT_PLACEHOLDER_CLASS : ''}`}
+                      className={`${ANSWER_FIELD_CLASS} outline-none min-h-[1.5em] [&_*]:leading-[inherit] ${!hs.title ? ANSWER_RICH_TEXT_PLACEHOLDER_CLASS : ''}`}
                       style={{ wordBreak: 'break-word', lineHeight: 1.5 }}
                       ref={(el) => {
                         if (el && !el.dataset.initialized) {
@@ -408,15 +459,21 @@ export default function HotspotNode({ id, data }: NodeProps) {
                   </NodeInputShell>
                   </RequiredFieldGroup>
 
-                  <button
-                    className="nopan nodrag absolute text-gray-400 hover:text-gray-600 transition-colors"
-                    style={{ top: 10, right: 0 }}
-                    onClick={() => deleteHotspotFromNode(hs.id, hs.pageId)}
-                  >
-                    <X size={14} />
-                  </button>
+                  {allHotspots.length >= 2 && (
+                    <div className="absolute flex items-center nodrag nopan" style={{ top: 10, right: 0 }}>
+                      <button
+                        type="button"
+                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                        onClick={() => deleteHotspotFromNode(hs.id, hs.pageId)}
+                        aria-label="Remove hotspot"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
                 </div>
-              ))}
+                )
+              })}
             </div>
           </NodeInputSection>
         )}

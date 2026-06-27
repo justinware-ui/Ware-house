@@ -27,6 +27,7 @@ import {
   ANSWER_ROW_GRIP_HEIGHT,
   ANSWER_INLINE_HANDLE_TOP,
   ANSWER_INLINE_HANDLE_TOP_WITH_GRIP,
+  answerRowReorderStyles,
 } from './nodeFieldStyles'
 import { NodeSideTargetHandle } from './NodeConnectorHandles'
 import { useFormattingToolbar } from './useFormattingToolbar'
@@ -37,6 +38,7 @@ import NodeInputSection from './NodeInputSection'
 import { useNodeValidation } from './useNodeValidation'
 import { useRegisterNodeFields } from './useRegisterNodeFields'
 import { isFieldEmpty, NODE_ERROR_COLOR } from './nodeValidation'
+import { hasAnswerListPreviewContent } from './nodePreview'
 import {
   registerFieldMount,
   shouldShowFieldValidation,
@@ -117,14 +119,20 @@ export default function CtaNode({ id, data }: NodeProps) {
   const { showValidation } = useNodeValidation(id, getHasErrors)
   const nodeHasErrors = showValidation && getHasErrors()
   const questionInvalid = showValidation && isFieldEmpty(question)
+  const canPreview = useMemo(
+    () => hasAnswerListPreviewContent(question, answers),
+    [question, answers],
+  )
 
   const handlePreview = (e: React.MouseEvent) => {
     e.stopPropagation()
+    if (!canPreview) return
     setShowPreview(true)
   }
 
   const [focusedField, setFocusedField] = useState<'question' | 'answer' | null>(null)
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
+  const [gripHoveredId, setGripHoveredId] = useState<number | null>(null)
   const [tooltipMode, setTooltipMode] = useState(false)
   const [tooltips, setTooltips] = useState<Record<number, string>>({})
   const [draftTooltips, setDraftTooltips] = useState<Record<number, string>>({})
@@ -425,8 +433,8 @@ export default function CtaNode({ id, data }: NodeProps) {
 
   const longestLine = useMemo(() => {
     const allTexts = [
-      question || 'Type your question here',
-      ...answers.map((a) => a.value || 'Type your answer here'),
+      question || PLACEHOLDERS.question,
+      ...answers.map((a) => a.value || PLACEHOLDERS.answer),
     ]
     const allLines = allTexts.flatMap((t) => t.split('\n'))
     const longest = allLines.reduce((a, b) => (a.length > b.length ? a : b), '')
@@ -478,6 +486,7 @@ export default function CtaNode({ id, data }: NodeProps) {
             <HeaderIconButton
               label="Preview"
               onClick={handlePreview}
+              disabled={!canPreview}
             >
               <PreviewEyeIcon />
             </HeaderIconButton>
@@ -606,6 +615,11 @@ export default function CtaNode({ id, data }: NodeProps) {
                 showValidation &&
                 isFieldEmpty(answer.value) &&
                 shouldShowFieldValidation(id, `answer-${answer.id}`)
+              const isRowFocused = focusedAnswerId === answer.id
+              const showReorderHighlight =
+                answers.length >= 2 &&
+                (draggingIndex === index ||
+                  (!isRowFocused && gripHoveredId === answer.id))
               return (
               <div
                 key={answer.id}
@@ -613,15 +627,20 @@ export default function CtaNode({ id, data }: NodeProps) {
                   answerRefs.current[index] = el
                   answerRefs.current.length = answers.length
                 }}
-                className={`nodrag relative overflow-visible transition-opacity ${
+                className={`nodrag relative overflow-visible ${
                   draggingIndex !== null && draggingIndex !== index ? 'opacity-50' : ''
                 }`}
-                style={{ paddingTop: answers.length >= 2 ? ANSWER_ROW_GRIP_HEIGHT : 0 }}
+                style={{
+                  paddingTop: answers.length >= 2 ? ANSWER_ROW_GRIP_HEIGHT : 0,
+                  ...answerRowReorderStyles(showReorderHighlight, draggingIndex === index),
+                }}
               >
                 {answers.length >= 2 && (
                   <div
                     className="absolute left-0 right-0 flex items-center justify-center nodrag nopan"
                     style={{ top: 0, height: ANSWER_ROW_GRIP_HEIGHT }}
+                    onMouseEnter={() => setGripHoveredId(answer.id)}
+                    onMouseLeave={() => setGripHoveredId(null)}
                   >
                     <div
                       className="cursor-grab select-none rotate-90 opacity-50 hover:opacity-100 transition-opacity p-1"
@@ -646,7 +665,9 @@ export default function CtaNode({ id, data }: NodeProps) {
                   padding={0}
                   onBlur={handleFieldBlur}
                   invalid={answerInvalid}
-                  showClearWhenEmpty
+                  suppressHover={draggingIndex !== null && draggingIndex !== index}
+                  showClearWhenEmpty={answers.length >= 2}
+                  hasContent={!!answer.value.trim()}
                   onClear={() => {
                     clearOrRemoveField(
                       answer.value,
@@ -780,6 +801,7 @@ export default function CtaNode({ id, data }: NodeProps) {
                       updateAnswer(answer.id, text)
                     }}
                     onFocus={() => {
+                      setGripHoveredId(null)
                       handleFieldFocus()
                       setFocusedField('answer')
                       setFocusedAnswerId(answer.id)

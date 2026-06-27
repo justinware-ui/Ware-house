@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from 'react'
 import type { AnswerImage } from './answerImage'
+import { DESCRIPTION_FIELD_CLASS } from './nodeFieldStyles'
 
 function inlineImageStyle(image: AnswerImage): CSSProperties {
   return {
@@ -25,6 +26,49 @@ export function AnswerInlineImagePreview({ image }: { image: AnswerImage }) {
         draggable={false}
       />
     </div>
+  )
+}
+
+/** Description body matching the collapsed QuestionNode layout (floated image + wrapped text). */
+export function DescriptionPreviewContent({
+  description,
+  image,
+}: {
+  description?: string
+  image?: AnswerImage
+}) {
+  if (!description?.trim() && !image) return null
+  return (
+    <div
+      className="text-left"
+      style={{ wordBreak: 'break-word', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}
+    >
+      {image && <AnswerInlineImagePreview image={image} />}
+      {description?.trim() ? (
+        <span className={DESCRIPTION_FIELD_CLASS}>{description}</span>
+      ) : null}
+      {image && <div style={{ clear: 'both' }} />}
+    </div>
+  )
+}
+
+/** Hover popup for answer descriptions in preview modals. */
+export function DescriptionTooltipPopup({
+  description,
+  image,
+}: {
+  description?: string
+  image?: AnswerImage
+}) {
+  if (!description?.trim() && !image) return null
+  return (
+    <span
+      className="absolute bottom-full left-5 mb-2 px-4 py-2.5 rounded-lg bg-white border border-gray-200 opacity-0 pointer-events-none group-hover/answer:opacity-100 transition-opacity shadow-lg z-10"
+      style={{ maxWidth: 320, width: 'max-content', minWidth: 120 }}
+    >
+      <DescriptionPreviewContent description={description} image={image} />
+      <span className="absolute top-full left-4 border-4 border-transparent border-t-gray-200" />
+    </span>
   )
 }
 

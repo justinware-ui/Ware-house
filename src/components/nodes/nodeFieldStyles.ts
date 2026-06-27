@@ -13,21 +13,43 @@ export const NODE_HANDLE_INLINE_OFFSET = -NODE_BODY_PADDING_RIGHT
 
 export const ANSWER_ROW_GRIP_HEIGHT = 24
 export const ANSWER_ROW_DRAG_BORDER = '#D0CBC6'
+export const ANSWER_ROW_DRAG_SHADOW = '0 2px 8px rgba(41, 55, 72, 0.1)'
+export const ANSWER_ROW_DRAGGING_SHADOW = '0 4px 14px rgba(41, 55, 72, 0.14)'
+
+/** Hover/drag highlight for reorderable answer (or button) rows. */
+export function answerRowReorderStyles(active: boolean, dragging: boolean) {
+  if (!active) {
+    return {
+      borderWidth: 1,
+      borderStyle: 'solid' as const,
+      borderColor: 'transparent',
+      boxShadow: 'none',
+      transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
+    }
+  }
+  return {
+    borderWidth: 1,
+    borderStyle: 'solid' as const,
+    borderColor: ANSWER_ROW_DRAG_BORDER,
+    boxShadow: dragging ? ANSWER_ROW_DRAGGING_SHADOW : ANSWER_ROW_DRAG_SHADOW,
+    transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
+  }
+}
 /** Vertical center of the answer line in a combined answer + description shell. */
 export const ANSWER_INLINE_HANDLE_TOP = 20
 export const ANSWER_INLINE_HANDLE_TOP_WITH_GRIP = 14
 
 export const PLACEHOLDERS = {
-  question: 'Type your question here',
-  answer: 'Type your answer here',
-  description: 'Type your description here (optional)',
-  header: 'Type your header here',
-  message: 'Type your message here',
-  button: 'Type your button text here',
-  url: 'Type button URL here',
-  tooltip: 'Type your tool-tip here',
-  screenshotName: 'Enter your screenshot name here',
-  hotspotName: 'Type your hotspot name here',
+  question: 'Enter your question here',
+  answer: 'Enter your answer here',
+  description: 'Enter your description here (optional)',
+  header: 'Enter your header here',
+  message: 'Enter your message here',
+  button: 'Enter your button text here',
+  url: 'Enter button URL here',
+  tooltip: 'Enter your tool-tip here',
+  screenshotName: 'Enter your screengrab name',
+  hotspotName: 'Enter a hotspot name',
 } as const
 
 export const QUESTION_FIELD_CLASS = 'text-base font-semibold text-gray-800'

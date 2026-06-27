@@ -16,12 +16,12 @@ export function NodeInputFieldRow({
   children: React.ReactNode
 }) {
   return (
-    <div className={`flex items-start gap-2 ${className}`}>
+    <div className={`flex items-center gap-2 ${className}`}>
       <div className="flex-1 min-w-0">{children}</div>
       <NodeInputClearButton
         onClear={onClear}
         ariaLabel={clearLabel}
-        className={`mt-0.5 shrink-0 ${showClear ? '' : 'invisible pointer-events-none'}`}
+        className={`shrink-0 -translate-x-2 ${showClear ? '' : 'invisible pointer-events-none'}`}
         tabIndex={showClear ? 0 : -1}
         aria-hidden={!showClear}
       />

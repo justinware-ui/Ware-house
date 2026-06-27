@@ -17,6 +17,8 @@ export default function NodeInputShell({
   minHeight = INPUT_MIN_HEIGHT,
   padding = '10px 16px',
   onHoverChange,
+  onMouseDown,
+  suppressHover = false,
   invalid = false,
 }: {
   focused: boolean
@@ -29,6 +31,9 @@ export default function NodeInputShell({
   /** Answer fields show clear while focused even when empty. */
   showClearWhenEmpty?: boolean
   onHoverChange?: (hovered: boolean) => void
+  onMouseDown?: (e: React.MouseEvent) => void
+  /** Hide dashed hover border — e.g. while another row is being dragged to reorder. */
+  suppressHover?: boolean
   children: React.ReactNode
   className?: string
   minHeight?: number
@@ -68,11 +73,15 @@ export default function NodeInputShell({
       }
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
+      onMouseDown={(e) => {
+        e.stopPropagation()
+        onMouseDown?.(e)
+      }}
       className={`nodrag nopan ${className}`}
       style={{
         minHeight,
         padding: typeof padding === 'number' ? `${padding}px` : padding,
-        ...inputShellStyles(hovered, focused, invalid),
+        ...inputShellStyles(hovered && !suppressHover, focused, invalid),
         cursor: onClick && !focused ? 'text' : undefined,
       }}
     >

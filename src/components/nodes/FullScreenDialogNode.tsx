@@ -30,6 +30,7 @@ import {
   ANSWER_ROW_GRIP_HEIGHT,
   ANSWER_INLINE_HANDLE_TOP,
   ANSWER_INLINE_HANDLE_TOP_WITH_GRIP,
+  answerRowReorderStyles,
 } from './nodeFieldStyles'
 import { NodeSideTargetHandle } from './NodeConnectorHandles'
 import { useFormattingToolbar } from './useFormattingToolbar'
@@ -40,6 +41,7 @@ import NodeInputSection from './NodeInputSection'
 import { useNodeValidation } from './useNodeValidation'
 import { useRegisterNodeFields } from './useRegisterNodeFields'
 import { isFieldEmpty, NODE_ERROR_COLOR } from './nodeValidation'
+import { hasDialogPreviewContent } from './nodePreview'
 import {
   registerFieldMount,
   shouldShowFieldValidation,
@@ -106,6 +108,10 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
   const nodeHasErrors = showValidation && getHasErrors()
   const headerInvalid = showValidation && isFieldEmpty(header)
   const messageInvalid = showValidation && isFieldEmpty(message)
+  const canPreview = useMemo(
+    () => hasDialogPreviewContent(header, message, messageImage, buttons),
+    [header, message, messageImage, buttons],
+  )
 
   const buttonOrderKey = buttons.map((b) => b.id).join(',')
 
@@ -121,9 +127,11 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
 
   const handlePreview = (e: React.MouseEvent) => {
     e.stopPropagation()
+    if (!canPreview) return
     setShowPreview(true)
   }
   const [draggingBtnIndex, setDraggingBtnIndex] = useState<number | null>(null)
+  const [gripHoveredBtnId, setGripHoveredBtnId] = useState<number | null>(null)
   const dragBtnIndexRef = useRef<number | null>(null)
   const buttonRefs = useRef<(HTMLDivElement | null)[]>([])
   const buttonsRef = useRef(buttons)
@@ -313,10 +321,10 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
 
   const longestLine = useMemo(() => {
     const allTexts = [
-      header || 'Type your header here',
-      message || 'Type your message here',
-      ...buttons.map((b) => b.text || 'Type your button text here'),
-      ...(isCta ? buttons.map((b) => b.url || 'Type button URL here') : []),
+      header || PLACEHOLDERS.header,
+      message || PLACEHOLDERS.message,
+      ...buttons.map((b) => b.text || PLACEHOLDERS.button),
+      ...(isCta ? buttons.map((b) => b.url || PLACEHOLDERS.url) : []),
     ]
     const allLines = allTexts.flatMap((t) => t.split('\n'))
     const longest = allLines.reduce((a, b) => (a.length > b.length ? a : b), '')
@@ -468,6 +476,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
             <HeaderIconButton
               label="Preview"
               onClick={handlePreview}
+              disabled={!canPreview}
             >
               <PreviewEyeIcon />
             </HeaderIconButton>
@@ -730,6 +739,11 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                 isFieldEmpty(btn.url) &&
                 shouldShowFieldValidation(id, `button-url-${btn.id}`)
               const isOutputButton = index === buttons.length - 1
+              const isRowFocused = focusedButtonId === btn.id
+              const showReorderHighlight =
+                buttons.length >= 2 &&
+                (draggingBtnIndex === index ||
+                  (!isRowFocused && gripHoveredBtnId === btn.id))
               return (
               <div
                 key={btn.id}
@@ -737,18 +751,21 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                   buttonRefs.current[index] = el
                   buttonRefs.current.length = buttons.length
                 }}
-                className={`relative overflow-visible transition-opacity ${
+                className={`relative overflow-visible ${
                   draggingBtnIndex !== null && draggingBtnIndex !== index ? 'opacity-50' : ''
                 }`}
                 style={{
                   paddingTop: buttons.length >= 2 ? ANSWER_ROW_GRIP_HEIGHT : 0,
                   marginBottom: !isCta ? 12 : 0,
+                  ...answerRowReorderStyles(showReorderHighlight, draggingBtnIndex === index),
                 }}
               >
                 {buttons.length >= 2 && (
                   <div
                     className="absolute left-0 right-0 flex items-center justify-center nodrag nopan"
                     style={{ top: 0, height: ANSWER_ROW_GRIP_HEIGHT }}
+                    onMouseEnter={() => setGripHoveredBtnId(btn.id)}
+                    onMouseLeave={() => setGripHoveredBtnId(null)}
                   >
                     <div
                       className="cursor-grab select-none rotate-90 opacity-50 hover:opacity-100 transition-opacity p-1"
@@ -773,6 +790,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                     padding={0}
                     onBlur={handleFieldBlur}
                     invalid={buttonInvalid}
+                    suppressHover={draggingBtnIndex !== null && draggingBtnIndex !== index}
                     hasContent={!!btn.text.trim()}
                     onClear={() =>
                       clearOrRemoveField(
@@ -791,6 +809,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                         className={BUTTON_INPUT_CLASS}
                         data-cta-field
                         onFocus={() => {
+                          setGripHoveredBtnId(null)
                           handleFieldFocus()
                           setFocusedButtonId(btn.id)
                           setFocusedField('button')
@@ -822,6 +841,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                       padding={0}
                       onBlur={handleFieldBlur}
                       invalid={urlInvalid}
+                      suppressHover={draggingBtnIndex !== null && draggingBtnIndex !== index}
                       hasContent={!!btn.url.trim()}
                       onClear={() => updateButtonUrl(btn.id, '')}
                     >
@@ -833,6 +853,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                         className={`${URL_INPUT_CLASS} ${NODE_INPUT_INNER_CLASS}`}
                         data-cta-field
                         onFocus={() => {
+                          setGripHoveredBtnId(null)
                           handleFieldFocus()
                           setFocusedField('url')
                           setFocusedButtonId(btn.id)
