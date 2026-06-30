@@ -28,9 +28,13 @@ import {
   ANSWER_INLINE_HANDLE_TOP,
   ANSWER_INLINE_HANDLE_TOP_WITH_GRIP,
   answerRowReorderStyles,
+  NODE_CARD_BORDER_RADIUS,
 } from './nodeFieldStyles'
 import { NodeSideTargetHandle } from './NodeConnectorHandles'
-import { useFormattingToolbar } from './useFormattingToolbar'
+import { useNodeFormattingToolbar } from './useNodeFormattingToolbar'
+import { useNodeActive } from './useNodeActive'
+import { handleNodeCardClick } from './handleNodeCardClick'
+import { useAutoResizeTextarea } from './useAutoResizeTextarea'
 import NodeResizeHandle from './NodeResizeHandle'
 import NodeRequiredBanner from './NodeRequiredBanner'
 import RequiredFieldGroup from './RequiredFieldGroup'
@@ -141,42 +145,36 @@ export default function CtaNode({ id, data }: NodeProps) {
   const [focusedTooltipId, setFocusedTooltipId] = useState<number | null>(null)
   const [resizingImage, setResizingImage] = useState<{ answerId: number; startX: number; startY: number; startW: number; startH: number; corner: string } | null>(null)
   const [draggingImage, setDraggingImage] = useState<{ answerId: number; startX: number; startY: number; startOffX: number; startOffY: number } | null>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const answerRefs = useRef<(HTMLDivElement | null)[]>([])
   const answersRef = useRef(answers)
   answersRef.current = answers
   const dragIndexRef = useRef<number | null>(null)
+
+  const nodeActive = useNodeActive(cardRef)
   const {
-    showToolbar,
-    setShowToolbar,
     activeFormats,
     handleFieldFocus,
     handleFieldBlur,
     toggleRichFormat,
     toggleToggleFormat,
-  } = useFormattingToolbar({
+    toolbarVisible,
+    toolbarRef,
+    toolbarStyle,
+    handleToolbarDragStart,
+    anchorToolbarToField,
+    hideToolbar,
+  } = useNodeFormattingToolbar({
     nodeId: id,
+    containerRef: cardRef,
+    enabled: !tooltipMode,
     onBlurClear: () => setFocusedField(null),
   })
 
   useEffect(() => {
     updateNodeInternals(id)
   }, [answerOrderKey, id, updateNodeInternals])
-
-  const LINE_LIMIT = 65
-
-  const wrapText = (text: string) => {
-    const lines: string[] = []
-    for (const existing of text.split('\n')) {
-      let remaining = existing
-      while (remaining.length > LINE_LIMIT) {
-        lines.push(remaining.slice(0, LINE_LIMIT))
-        remaining = remaining.slice(LINE_LIMIT)
-      }
-      lines.push(remaining)
-    }
-    return lines.join('\n')
-  }
 
   const addAnswer = () => {
     const newId = Date.now()
@@ -189,7 +187,7 @@ export default function CtaNode({ id, data }: NodeProps) {
     setAnswers((prev) => prev.filter((a) => a.id !== answerId))
   }
 
-  const updateQuestion = (raw: string) => setQuestion(wrapText(raw))
+  const updateQuestion = (raw: string) => setQuestion(raw)
 
   const updateAnswer = (answerId: number, raw: string) => {
     const cleaned = raw.replace(/\n/g, ' ').replace(/\s{2,}/g, ' ')
@@ -387,6 +385,8 @@ export default function CtaNode({ id, data }: NodeProps) {
   const measureRef = useRef<HTMLSpanElement>(null)
   const [cardWidth, setCardWidth] = useState(NODE_DEFAULT_WIDTH)
   const [manualWidth, setManualWidth] = useState<number | null>(null)
+  const nodeWidth = manualWidth ?? cardWidth
+  const questionRef = useAutoResizeTextarea(question, INPUT_MIN_HEIGHT - 22, nodeWidth)
   const resizing = useRef<{ startX: number; startW: number } | null>(null)
 
   useEffect(() => {
@@ -447,21 +447,30 @@ export default function CtaNode({ id, data }: NodeProps) {
     setCardWidth(Math.max(measureRef.current.offsetWidth + CARD_CHROME, NODE_DEFAULT_WIDTH))
   }, [longestLine])
 
+  const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const nodeIsEmpty =
+      isFieldEmpty(question) &&
+      answers.every((a) => isFieldEmpty(a.value) && !a.image)
+    handleNodeCardClick(e, { nodeIsEmpty })
+  }
+
   return (
     <div
-      className={`bg-white border rounded-2xl py-5 shadow-sm relative transition-[width,box-shadow,border-color] duration-150 overflow-visible ${nodeHasErrors ? '' : 'border-gray-200'}`}
+      ref={cardRef}
+      className={`bg-white border rounded-lg py-5 shadow-sm relative transition-[width,box-shadow,border-color] duration-150 overflow-visible ${nodeHasErrors ? '' : 'border-gray-200'}`}
+      onClick={handleCardClick}
       style={{
         width: tooltipMode ? Math.max(manualWidth ?? cardWidth, 320) : (manualWidth ?? cardWidth),
+        borderRadius: NODE_CARD_BORDER_RADIUS,
         ...(nodeHasErrors ? { borderColor: NODE_ERROR_COLOR } : {}),
       }}
     >
-      {nodeHasErrors && (
-        <div className="-mt-5 mb-2 overflow-hidden rounded-t-2xl relative z-0">
-          <NodeRequiredBanner className="rounded-t-2xl" />
-        </div>
-      )}
-      {showToolbar && !tooltipMode && (
+      {nodeHasErrors && <NodeRequiredBanner />}
+      {toolbarVisible && (
         <FormattingToolbar
+          toolbarRef={toolbarRef}
+          style={toolbarStyle}
+          onDragHandleMouseDown={handleToolbarDragStart}
           activeFormats={activeFormats}
           onToggle={toggleFormat}
           disabledKeys={toolbarDisabledKeys}
@@ -589,17 +598,21 @@ export default function CtaNode({ id, data }: NodeProps) {
                 invalid={questionInvalid}
                 hasContent={!!question.trim()}
                 onClear={() => updateQuestion('')}
+                label="Question"
+                nodeActive={nodeActive}
+                primaryField
               >
                 <textarea
+                  ref={questionRef}
                   value={question}
                   onChange={(e) => updateQuestion(e.target.value)}
                   placeholder={PLACEHOLDERS.question}
-                  rows={Math.max(1, question.split('\n').length)}
+                  rows={1}
                   className={`${QUESTION_INPUT_CLASS} ${NODE_INPUT_INNER_CLASS} resize-none overflow-hidden`}
                   style={{ lineHeight: 1.5, minHeight: INPUT_MIN_HEIGHT - 22 }}
                   data-cta-field
                   onFocus={() => {
-                    handleFieldFocus()
+                    hideToolbar()
                     setFocusedField('question')
                   }}
                   onBlur={handleFieldBlur}
@@ -642,10 +655,11 @@ export default function CtaNode({ id, data }: NodeProps) {
                     onMouseEnter={() => setGripHoveredId(answer.id)}
                     onMouseLeave={() => setGripHoveredId(null)}
                   >
-                    <div
-                      className="cursor-grab select-none rotate-90 opacity-50 hover:opacity-100 transition-opacity p-1"
-                      onMouseDown={(e) => handleGrabStart(index, e)}
-                    >
+                  <div
+                    data-drag-grip
+                    className="cursor-grab select-none rotate-90 opacity-50 hover:opacity-100 transition-opacity p-1"
+                    onMouseDown={(e) => handleGrabStart(index, e)}
+                  >
                       <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M7.5 16.666c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.459.163-.851.49-1.178.326-.326.718-.489 1.177-.489s.851.163 1.177.49c.326.326.49.718.49 1.177s-.164.851-.49 1.177c-.326.327-.718.49-1.177.49Zm5 0c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.459.164-.851.49-1.178.326-.326.718-.489 1.177-.489s.851.163 1.177.49c.327.326.49.718.49 1.177s-.163.851-.49 1.177c-.326.327-.718.49-1.177.49ZM7.5 11.666c-.459 0-.851-.163-1.177-.49a1.604 1.604 0 0 1-.49-1.177c0-.458.163-.851.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.326.326.49.718.49 1.177 0 .459-.164.851-.49 1.178-.326.326-.718.489-1.177.489Zm5 0c-.459 0-.851-.163-1.177-.49a1.604 1.604 0 0 1-.49-1.177c0-.458.164-.851.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.327.326.49.718.49 1.177 0 .459-.163.851-.49 1.178-.326.326-.718.489-1.177.489ZM7.5 6.666c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.458.163-.85.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.326.327.49.718.49 1.177 0 .459-.164.851-.49 1.178-.326.326-.718.489-1.177.489Zm5 0c-.459 0-.851-.163-1.177-.49a1.607 1.607 0 0 1-.49-1.177c0-.458.164-.85.49-1.177.326-.327.718-.49 1.177-.49s.851.163 1.177.49c.327.327.49.718.49 1.177 0 .459-.163.851-.49 1.178-.326.326-.718.489-1.177.489Z" fill="#8D8A87"/>
                       </svg>
@@ -668,6 +682,8 @@ export default function CtaNode({ id, data }: NodeProps) {
                   suppressHover={draggingIndex !== null && draggingIndex !== index}
                   showClearWhenEmpty={answers.length >= 2}
                   hasContent={!!answer.value.trim()}
+                  label="Answer & Description"
+                  nodeActive={nodeActive}
                   onClear={() => {
                     clearOrRemoveField(
                       answer.value,
@@ -800,8 +816,9 @@ export default function CtaNode({ id, data }: NodeProps) {
                       const text = el.textContent || ''
                       updateAnswer(answer.id, text)
                     }}
-                    onFocus={() => {
+                    onFocus={(e) => {
                       setGripHoveredId(null)
+                      anchorToolbarToField(e.target)
                       handleFieldFocus()
                       setFocusedField('answer')
                       setFocusedAnswerId(answer.id)

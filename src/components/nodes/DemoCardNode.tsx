@@ -9,6 +9,7 @@ import PreviewModal from '../PreviewModal'
 import { NodeSideSourceHandle, NodeSideTargetHandle } from './NodeConnectorHandles'
 import { useNodeWidthResize } from './useNodeWidthResize'
 import NodeResizeHandle from './NodeResizeHandle'
+import { NODE_CARD_BORDER_RADIUS } from './nodeFieldStyles'
 
 const thumbnails = [thumbTableHero, thumbContent]
 
@@ -47,7 +48,7 @@ export default function DemoCardNode({ id, data }: NodeProps) {
     )}
     <div
       className="group/card relative flex items-center bg-white shadow-sm transition-[box-shadow,border-color] duration-200 overflow-visible"
-      style={{ width, paddingLeft: 16, paddingRight: 16, paddingTop: 32, paddingBottom: 32, borderRadius: 8, border: '1px solid #D0CBC6', gap: 12 }}
+      style={{ width, paddingLeft: 16, paddingRight: 16, paddingTop: 32, paddingBottom: 32, borderRadius: NODE_CARD_BORDER_RADIUS, border: '1px solid #D0CBC6', gap: 12 }}
     >
       <NodeSideTargetHandle />
 

@@ -1,8 +1,10 @@
+import type { CSSProperties } from 'react'
+
 export const INPUT_MIN_HEIGHT = 41
 
 export const NODE_DEFAULT_WIDTH = 412
 
-export const NODE_HANDLE_SIZE = 14
+export const NODE_HANDLE_SIZE = 18
 export const NODE_HANDLE_CLASS = '!bg-[#FC6839] !border-white !border-2'
 export const NODE_HANDLE_STYLE = { width: NODE_HANDLE_SIZE, height: NODE_HANDLE_SIZE } as const
 export const NODE_HANDLE_SIDE_STYLE = { ...NODE_HANDLE_STYLE, top: '50%' } as const
@@ -10,6 +12,48 @@ export const NODE_BODY_PADDING_RIGHT = 28
 export const NODE_INPUT_INNER_CLASS = 'px-4 py-2.5'
 /** With translate(50%, -50%), positions handle center on the node border. */
 export const NODE_HANDLE_INLINE_OFFSET = -NODE_BODY_PADDING_RIGHT
+
+/** Inset inside draggable rows so inputs don't touch the drag border. */
+export const DRAG_ROW_INSET = 8
+/** Left lane for the drag grip when rows are reorderable. */
+export const GRIP_LANE_WIDTH = 28
+/** Right lane for the trash remove button — sized to center a 28px button. */
+export const FIELD_REMOVE_LANE_PADDING = 36
+export const TRASH_BUTTON_SIZE = 28
+
+export const NODE_HEADER_BAR_CLASS = 'px-5 pt-5'
+export const NODE_INPUT_SECTION_CLASS = 'pt-3 pb-[33px] flex-1 flex flex-col nodrag nopan'
+
+export const NODE_CARD_MIN_HEIGHT = 307
+export const NODE_CARD_BORDER_RADIUS = 8
+export const NODE_INPUT_BORDER_RADIUS = 8.5
+export const NODE_CARD_SHADOW = '0 20px 20px rgba(48, 41, 33, 0.12)'
+export const NODE_CARD_BORDER_DEFAULT = '#E5E7EB'
+export const NODE_CARD_BORDER_SELECTED = '#FC6839'
+
+export function nodeContentPaddingLeft(hasReorderLanes = false) {
+  return DRAG_ROW_INSET + (hasReorderLanes ? GRIP_LANE_WIDTH : 0)
+}
+
+export function nodeContentPaddingRight(hasReorderLanes = false) {
+  return DRAG_ROW_INSET + (hasReorderLanes ? FIELD_REMOVE_LANE_PADDING : 0)
+}
+
+export function nodeContentInsetStyle(hasReorderLanes = false): CSSProperties {
+  return {
+    paddingLeft: nodeContentPaddingLeft(hasReorderLanes),
+    paddingRight: nodeContentPaddingRight(hasReorderLanes),
+  }
+}
+
+export function answerHandleRightOffset(hasReorderLanes = false) {
+  return -(NODE_BODY_PADDING_RIGHT + nodeContentPaddingRight(hasReorderLanes))
+}
+
+/** Distance from a row's right edge to center the trash icon in the right margin lane. */
+export function trashRightInset() {
+  return DRAG_ROW_INSET + (FIELD_REMOVE_LANE_PADDING - TRASH_BUTTON_SIZE) / 2
+}
 
 export const ANSWER_ROW_GRIP_HEIGHT = 24
 export const ANSWER_ROW_DRAG_BORDER = '#D0CBC6'
@@ -40,19 +84,19 @@ export const ANSWER_INLINE_HANDLE_TOP = 20
 export const ANSWER_INLINE_HANDLE_TOP_WITH_GRIP = 14
 
 export const PLACEHOLDERS = {
-  question: 'Enter your question here',
-  answer: 'Enter your answer here',
-  description: 'Enter your description here (optional)',
-  header: 'Enter your header here',
-  message: 'Enter your message here',
-  button: 'Enter your button text here',
-  url: 'Enter button URL here',
+  question: 'Question...',
+  answer: 'Answer...',
+  description: 'Description (optional)',
+  header: 'Header...',
+  message: 'Message...',
+  button: 'Button text...',
+  url: 'Button URL...',
   tooltip: 'Enter your tool-tip here',
-  screenshotName: 'Enter your screengrab name',
-  hotspotName: 'Enter a hotspot name',
+  screenshotName: 'Screengrab name...',
+  hotspotName: 'Hotspot name...',
 } as const
 
-export const QUESTION_FIELD_CLASS = 'text-base font-semibold text-gray-800'
+export const QUESTION_FIELD_CLASS = 'text-lg font-semibold text-gray-800'
 export const QUESTION_INPUT_CLASS = `nodrag w-full ${QUESTION_FIELD_CLASS} placeholder:text-gray-800 placeholder:font-semibold placeholder:opacity-100 focus:placeholder:opacity-60 outline-none bg-transparent`
 
 export const ANSWER_FIELD_CLASS = 'text-base text-gray-800'
@@ -78,7 +122,7 @@ export const ANSWER_RICH_TEXT_PLACEHOLDER_CLASS =
   'before:content-[attr(data-placeholder)] before:pointer-events-none before:text-gray-800 before:opacity-100 focus:before:opacity-60'
 
 export const BLUR_RETAIN_SELECTORS =
-  '[data-toolbar], [data-cta-field], [data-answer-content]'
+  '[data-toolbar], [data-toolbar-drag], [data-cta-field], [data-answer-content]'
 
 import { NODE_ERROR_COLOR } from './nodeValidation'
 
@@ -87,7 +131,7 @@ export { NODE_ERROR_COLOR } from './nodeValidation'
 export function inputShellStyles(hovered: boolean, focused: boolean, invalid = false) {
   if (invalid) {
     return {
-      borderRadius: 8.5,
+      borderRadius: NODE_INPUT_BORDER_RADIUS,
       borderWidth: 1,
       borderStyle: 'solid' as const,
       borderColor: NODE_ERROR_COLOR,
@@ -98,7 +142,7 @@ export function inputShellStyles(hovered: boolean, focused: boolean, invalid = f
   }
   const showBorder = hovered || focused
   return {
-    borderRadius: 8.5,
+    borderRadius: NODE_INPUT_BORDER_RADIUS,
     borderWidth: 1,
     borderStyle: (focused ? 'solid' : 'dashed') as 'solid' | 'dashed',
     borderColor: showBorder ? (focused ? '#FC6839' : '#FF7A4A') : 'transparent',

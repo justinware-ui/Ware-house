@@ -1,7 +1,7 @@
 'use client'
 
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { NODE_HANDLE_CLASS, NODE_HANDLE_SIDE_STYLE } from './nodeFieldStyles'
+import { NODE_HANDLE_CLASS, NODE_HANDLE_SIDE_STYLE, NODE_CARD_BORDER_RADIUS } from './nodeFieldStyles'
 import { useNodeWidthResize } from './useNodeWidthResize'
 import NodeResizeHandle from './NodeResizeHandle'
 
@@ -18,8 +18,8 @@ export default function InteractionNode({ data }: NodeProps) {
 
   return (
     <div
-      className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm relative overflow-visible"
-      style={{ width }}
+      className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm relative overflow-visible"
+      style={{ width, borderRadius: NODE_CARD_BORDER_RADIUS }}
     >
       <Handle
         type="target"

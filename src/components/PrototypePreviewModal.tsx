@@ -6,6 +6,7 @@ import { ExternalLink, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import type { HotspotPage } from './HotspotBuilderModal'
 import { DescriptionTooltipPopup } from './nodes/AnswerInlineImage'
 import { normalizeAnswerImage, type AnswerImage } from './nodes/answerImage'
+import { PLACEHOLDERS } from './nodes/nodeFieldStyles'
 
 // Walk graph from startNode following edges to produce an ordered step list
 function getOrderedSteps(nodes: Node[], edges: Edge[]): Node[] {
@@ -312,7 +313,7 @@ function QuestionStep({ node }: { node: Node }) {
   return (
     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl px-10 py-10">
       <p className="text-lg font-semibold text-gray-900 mb-8">
-        {question || 'Enter your question here'}
+        {question || PLACEHOLDERS.question}
       </p>
       <div className="flex flex-col gap-3">
         {previewOptions.length > 0 ? previewOptions.map((option) => {

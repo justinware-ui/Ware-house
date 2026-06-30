@@ -21,8 +21,13 @@ export function useFormattingToolbar({
   const [showToolbar, setShowToolbar] = useState(false)
   const [activeFormats, setActiveFormats] = useState<Set<FormatOption>>(new Set())
   const suppressSelectionRef = useRef(false)
+  const blurHideTimerRef = useRef<number | null>(null)
 
   const handleFieldFocus = useCallback(() => {
+    if (blurHideTimerRef.current !== null) {
+      window.clearTimeout(blurHideTimerRef.current)
+      blurHideTimerRef.current = null
+    }
     suppressSelectionRef.current = true
     setActiveFormats(new Set())
     onFocusClear?.()
@@ -35,13 +40,19 @@ export function useFormattingToolbar({
 
   const handleFieldBlur = useCallback(
     (e: React.FocusEvent) => {
-      requestAnimationFrame(() => {
+      if (blurHideTimerRef.current !== null) {
+        window.clearTimeout(blurHideTimerRef.current)
+      }
+
+      blurHideTimerRef.current = window.setTimeout(() => {
+        blurHideTimerRef.current = null
         if (shouldRetainFocus?.()) return
         const related = e.relatedTarget as HTMLElement | null
         if (related?.closest(BLUR_RETAIN_SELECTORS)) return
+        if (document.activeElement?.closest(BLUR_RETAIN_SELECTORS)) return
         setShowToolbar(false)
         onBlurClear?.()
-      })
+      }, 120)
     },
     [shouldRetainFocus, onBlurClear],
   )
@@ -120,7 +131,12 @@ export function useFormattingToolbar({
       if ((e as CustomEvent).detail !== nodeId) setShowToolbar(false)
     }
     document.addEventListener('toolbar-open', handler)
-    return () => document.removeEventListener('toolbar-open', handler)
+    return () => {
+      document.removeEventListener('toolbar-open', handler)
+      if (blurHideTimerRef.current !== null) {
+        window.clearTimeout(blurHideTimerRef.current)
+      }
+    }
   }, [nodeId])
 
   return {
