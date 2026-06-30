@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import type { Node, Edge } from '@xyflow/react'
 import { ExternalLink, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import type { HotspotPage } from './HotspotBuilderModal'
-import { DescriptionTooltipPopup } from './nodes/AnswerInlineImage'
+import { DiscoveryPreviewAnswerRow } from './DiscoveryPreviewAnswerRow'
 import { normalizeAnswerImage, type AnswerImage } from './nodes/answerImage'
 import { PLACEHOLDERS } from './nodes/nodeFieldStyles'
 
@@ -319,17 +319,13 @@ function QuestionStep({ node }: { node: Node }) {
         {previewOptions.length > 0 ? previewOptions.map((option) => {
           const tip = option.description?.trim()
           const img = normalizeAnswerImage(option.descriptionImage)
-          const hasTooltip = !!(tip || img)
           return (
-            <button
+            <DiscoveryPreviewAnswerRow
               key={option.id}
-              className={`w-full text-left px-5 py-4 rounded-xl border border-gray-200 text-sm text-gray-800 hover:border-[#FC6839] hover:bg-orange-50 transition-colors relative ${hasTooltip ? 'group/answer' : ''}`}
-            >
-              {option.value.trim() ? option.value : null}
-              {hasTooltip && (
-                <DescriptionTooltipPopup description={tip} image={img} />
-              )}
-            </button>
+              answer={option.value}
+              description={tip}
+              descriptionImage={img}
+            />
           )
         }) : (
           <>

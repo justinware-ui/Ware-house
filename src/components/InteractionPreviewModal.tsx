@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import type { AnswerImage } from './nodes/answerImage'
-import { DescriptionTooltipPopup } from './nodes/AnswerInlineImage'
+import { DiscoveryPreviewAnswerRow } from './DiscoveryPreviewAnswerRow'
 
 interface PreviewImage {
   src: string
@@ -111,21 +111,15 @@ function DiscoveryPreview({
           const tip = tooltips?.[i]?.trim()
           const answerImg = answerImages?.[i]
           const tooltipImg = tooltipImages?.[i]
-          const hasTooltip = !!(tip || tooltipImg)
           if (!answer.trim() && !answerImg && !tooltipImg) return null
           return (
-            <button
+            <DiscoveryPreviewAnswerRow
               key={i}
-              className={`w-full text-left px-5 py-4 rounded-xl border border-gray-200 text-sm text-gray-800 hover:border-[#FC6839] hover:bg-orange-50 transition-colors cursor-pointer relative ${hasTooltip ? 'group/answer' : ''}`}
-            >
-              {answerImg && (
-                <img src={answerImg.src} alt="" className="rounded mb-3 max-h-40 object-contain" />
-              )}
-              {answer.trim() ? <span>{answer}</span> : null}
-              {hasTooltip && (
-                <DescriptionTooltipPopup description={tip} image={tooltipImg} />
-              )}
-            </button>
+              answer={answer}
+              description={tip}
+              descriptionImage={tooltipImg}
+              answerImage={answerImg}
+            />
           )
         })}
         {answers.every((a, i) => !a.trim() && !answerImages?.[i] && !tooltipImages?.[i]) && (
