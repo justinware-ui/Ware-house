@@ -1,6 +1,14 @@
 import type { CSSProperties } from 'react'
 
 export const INPUT_MIN_HEIGHT = 41
+/** Single-line fields with NODE_INPUT_INNER_CLASS inside a shell with padding={0}. */
+export const SINGLE_LINE_FIELD_MIN_HEIGHT = INPUT_MIN_HEIGHT
+/** text-lg primary fields use a tighter line-height so shell height matches text-base message/button rows. */
+export const PRIMARY_FIELD_LINE_HEIGHT = 24 / 18
+export const PRIMARY_SINGLE_LINE_FIELD_STYLE: CSSProperties = {
+  lineHeight: PRIMARY_FIELD_LINE_HEIGHT,
+  minHeight: SINGLE_LINE_FIELD_MIN_HEIGHT,
+}
 
 export const NODE_DEFAULT_WIDTH = 412
 

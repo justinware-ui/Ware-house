@@ -10,6 +10,7 @@ type ToolbarPosition = {
 }
 
 function resolveInputShell(anchor: HTMLElement) {
+  if (anchor.matches('[data-input-shell]')) return anchor
   return anchor.closest('[data-input-shell]') ?? anchor
 }
 
@@ -63,16 +64,24 @@ export function useAnchoredToolbar({
       const containerRect = container.getBoundingClientRect()
       const shell = resolveInputShell(anchor)
       const shellRect = shell.getBoundingClientRect()
-      setPosition({
-        top: shellRect.top - containerRect.top,
-        left: shellRect.left - containerRect.left + shellRect.width / 2,
+      setPosition((prev) => {
+        const next = {
+          top: shellRect.top - containerRect.top,
+          left: shellRect.left - containerRect.left + shellRect.width / 2,
+        }
+        if (prev.top === next.top && prev.left === next.left) return prev
+        return next
       })
       return
     }
 
-    setPosition({
-      top: DEFAULT_TOP,
-      left: container.clientWidth / 2,
+    setPosition((prev) => {
+      const next = {
+        top: DEFAULT_TOP,
+        left: container.clientWidth / 2,
+      }
+      if (prev.top === next.top && prev.left === next.left) return prev
+      return next
     })
   }, [anchorRef, containerRef, draggingRef])
 
@@ -83,18 +92,36 @@ export function useAnchoredToolbar({
       return
     }
     measurePosition()
+    const frame = requestAnimationFrame(() => {
+      measurePosition()
+      requestAnimationFrame(measurePosition)
+    })
+    return () => cancelAnimationFrame(frame)
   }, [showToolbar, anchorVersion, manualPos, measurePosition])
 
   useEffect(() => {
     if (!showToolbar) return
     const container = containerRef.current
     if (!container) return
+
     const observer = new ResizeObserver(() => measurePosition())
     observer.observe(container)
+
     const anchor = anchorRef.current
     const shell = anchor ? resolveInputShell(anchor) : null
-    if (shell instanceof HTMLElement) observer.observe(shell)
-    return () => observer.disconnect()
+    if (shell instanceof HTMLElement) {
+      observer.observe(shell)
+      const row = shell.closest('[data-answer-row]')
+      if (row instanceof HTMLElement) observer.observe(row)
+    }
+
+    const onScroll = () => measurePosition()
+    window.addEventListener('scroll', onScroll, true)
+
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('scroll', onScroll, true)
+    }
   }, [anchorRef, anchorVersion, containerRef, measurePosition, showToolbar])
 
   const handleDragStart = useCallback(

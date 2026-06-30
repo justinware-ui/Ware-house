@@ -23,6 +23,8 @@ import {
   NODE_ERROR_COLOR,
   NODE_INPUT_INNER_CLASS,
   INPUT_MIN_HEIGHT,
+  PRIMARY_SINGLE_LINE_FIELD_STYLE,
+  SINGLE_LINE_FIELD_MIN_HEIGHT,
   NODE_HEADER_BAR_CLASS,
   NODE_INPUT_SECTION_CLASS,
   NODE_CARD_MIN_HEIGHT,
@@ -210,7 +212,7 @@ export default function HotspotNode({ id, data, selected }: NodeProps) {
   }, [id, setNodes, setEdges])
 
   const { width, startResize } = useNodeWidthResize()
-  const screenshotNameRef = useAutoResizeTextarea(screenshotName, INPUT_MIN_HEIGHT - 2, width)
+  const screenshotNameRef = useAutoResizeTextarea(screenshotName, SINGLE_LINE_FIELD_MIN_HEIGHT, width)
 
   const loadFile = (file: File) => {
     if (!file.type.startsWith('image/')) return
@@ -369,7 +371,7 @@ export default function HotspotNode({ id, data, selected }: NodeProps) {
                 placeholder={PLACEHOLDERS.screenshotName}
                 rows={1}
                 className={`${HEADER_INPUT_CLASS} ${NODE_INPUT_INNER_CLASS} resize-none overflow-hidden`}
-                style={{ lineHeight: 1.5, minHeight: INPUT_MIN_HEIGHT - 2 }}
+                style={PRIMARY_SINGLE_LINE_FIELD_STYLE}
                 data-cta-field
                 onFocus={() => {
                   hideToolbar()

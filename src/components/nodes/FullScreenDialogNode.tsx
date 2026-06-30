@@ -16,7 +16,8 @@ import FormattingToolbar, { type FormatOption } from './FormattingToolbar'
 import NodeInputShell from './NodeInputShell'
 import { clearOrRemoveField } from './NodeInputFieldRow'
 import {
-  INPUT_MIN_HEIGHT,
+  PRIMARY_SINGLE_LINE_FIELD_STYLE,
+  SINGLE_LINE_FIELD_MIN_HEIGHT,
   PLACEHOLDERS,
   HEADER_INPUT_CLASS,
   ANSWER_FIELD_CLASS,
@@ -287,7 +288,7 @@ export default function FullScreenDialogNode({ id, data, selected }: NodeProps) 
   const [cardWidth, setCardWidth] = useState(NODE_DEFAULT_WIDTH)
   const [manualWidth, setManualWidth] = useState<number | null>(null)
   const nodeWidth = manualWidth ?? cardWidth
-  const headerRef = useAutoResizeTextarea(header, INPUT_MIN_HEIGHT - 22, nodeWidth)
+  const headerRef = useAutoResizeTextarea(header, SINGLE_LINE_FIELD_MIN_HEIGHT, nodeWidth)
   const resizing = useRef<{ startX: number; startW: number } | null>(null)
 
   useEffect(() => {
@@ -616,7 +617,7 @@ export default function FullScreenDialogNode({ id, data, selected }: NodeProps) 
                   placeholder={PLACEHOLDERS.header}
                   rows={1}
                   className={`${HEADER_INPUT_CLASS} ${NODE_INPUT_INNER_CLASS} resize-none overflow-hidden`}
-                  style={{ lineHeight: 1.5, minHeight: INPUT_MIN_HEIGHT - 22 }}
+                  style={PRIMARY_SINGLE_LINE_FIELD_STYLE}
                   data-cta-field
                   onFocus={() => {
                     hideToolbar()

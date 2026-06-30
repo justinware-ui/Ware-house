@@ -16,7 +16,8 @@ import FormattingToolbar, { type FormatOption } from './FormattingToolbar'
 import NodeInputShell from './NodeInputShell'
 import { clearOrRemoveField } from './NodeInputFieldRow'
 import {
-  INPUT_MIN_HEIGHT,
+  PRIMARY_SINGLE_LINE_FIELD_STYLE,
+  SINGLE_LINE_FIELD_MIN_HEIGHT,
   PLACEHOLDERS,
   QUESTION_INPUT_CLASS,
   TOOLTIP_INPUT_CLASS,
@@ -386,7 +387,7 @@ export default function CtaNode({ id, data }: NodeProps) {
   const [cardWidth, setCardWidth] = useState(NODE_DEFAULT_WIDTH)
   const [manualWidth, setManualWidth] = useState<number | null>(null)
   const nodeWidth = manualWidth ?? cardWidth
-  const questionRef = useAutoResizeTextarea(question, INPUT_MIN_HEIGHT - 22, nodeWidth)
+  const questionRef = useAutoResizeTextarea(question, SINGLE_LINE_FIELD_MIN_HEIGHT, nodeWidth)
   const resizing = useRef<{ startX: number; startW: number } | null>(null)
 
   useEffect(() => {
@@ -609,7 +610,7 @@ export default function CtaNode({ id, data }: NodeProps) {
                   placeholder={PLACEHOLDERS.question}
                   rows={1}
                   className={`${QUESTION_INPUT_CLASS} ${NODE_INPUT_INNER_CLASS} resize-none overflow-hidden`}
-                  style={{ lineHeight: 1.5, minHeight: INPUT_MIN_HEIGHT - 22 }}
+                  style={PRIMARY_SINGLE_LINE_FIELD_STYLE}
                   data-cta-field
                   onFocus={() => {
                     hideToolbar()

@@ -17,6 +17,8 @@ import NodeInputShell from './NodeInputShell'
 import { NodeInputFieldRow } from './NodeInputFieldRow'
 import {
   INPUT_MIN_HEIGHT,
+  PRIMARY_SINGLE_LINE_FIELD_STYLE,
+  SINGLE_LINE_FIELD_MIN_HEIGHT,
   PLACEHOLDERS,
   QUESTION_INPUT_CLASS,
   ANSWER_FIELD_CLASS,
@@ -142,7 +144,7 @@ function QuestionField({
   suppressHover?: boolean
   layoutWidth?: number
 }) {
-  const ref = useAutoResizeTextarea(value, INPUT_MIN_HEIGHT - 2, layoutWidth)
+  const ref = useAutoResizeTextarea(value, SINGLE_LINE_FIELD_MIN_HEIGHT, layoutWidth)
 
   return (
     <RequiredFieldGroup showMessage={!!invalid}>
@@ -169,10 +171,7 @@ function QuestionField({
         rows={1}
         className={`${QUESTION_INPUT_CLASS} ${NODE_INPUT_INNER_CLASS} resize-none overflow-hidden`}
         data-cta-field
-        style={{
-          lineHeight: 1.5,
-          minHeight: INPUT_MIN_HEIGHT - 2,
-        }}
+        style={PRIMARY_SINGLE_LINE_FIELD_STYLE}
       />
       </NodeInputShell>
     </RequiredFieldGroup>
@@ -305,7 +304,9 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
     toolbarRef,
     toolbarStyle,
     handleToolbarDragStart,
-    anchorToolbarToField,
+    followToolbarToField,
+    followToolbarToShell,
+    remeasure,
     hideToolbar,
   } = useNodeFormattingToolbar({
     nodeId: id,
@@ -528,7 +529,16 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
   }
 
   useLayoutEffect(() => {
-    if (editingOptionId == null || editFocusTarget !== 'description') return
+    if (editingOptionId == null) return
+    if (focusedField !== 'answer' && focusedField !== 'description') return
+
+    const row = cardRef.current?.querySelector<HTMLElement>(
+      `[data-answer-row="${editingOptionId}"]`,
+    )
+    const shell = row?.querySelector<HTMLElement>('[data-input-shell]')
+    if (shell) followToolbarToShell(shell)
+
+    if (editFocusTarget !== 'description') return
     const el = descriptionEditRefs.current.get(editingOptionId)
     if (!el) return
     el.focus()
@@ -540,7 +550,13 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
       selection.removeAllRanges()
       selection.addRange(range)
     }
-  }, [editingOptionId, editFocusTarget])
+  }, [editingOptionId, editFocusTarget, focusedField, followToolbarToShell])
+
+  useLayoutEffect(() => {
+    if (!toolbarVisible || editingOptionId == null) return
+    if (focusedField !== 'answer' && focusedField !== 'description') return
+    remeasure()
+  }, [canReorder, showInputAffordances, optionOrderKey, toolbarVisible, editingOptionId, focusedField, remeasure])
 
   const handleOptionChange = (optionId: number, value: string) => {
     const next = options.map((opt) => (opt.id === optionId ? { ...opt, value } : opt))
@@ -718,6 +734,9 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
             {options.map((option, index) => {
               const isDragging = draggingIndex !== null || dragAreaRowId !== null
               const keepFieldsVisible = nodeActive || isDragging
+              const hasDescription =
+                !!option.description?.trim() || !!option.descriptionImage
+              const showDescriptionField = keepFieldsVisible || hasDescription
               const showReorderHighlight =
                 canReorder &&
                 (draggingIndex === index ||
@@ -727,16 +746,13 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
                 showValidation &&
                 isFieldEmpty(option.value) &&
                 shouldShowFieldValidation(id, `option-${option.id}`)
-              const showAnswerField = keepFieldsVisible || !!option.value.trim()
-              const hasDescription =
-                !!option.description?.trim() || !!option.descriptionImage
-              const showDescriptionField = keepFieldsVisible || hasDescription
               const optionFocused =
                 editingOptionId === option.id && !suppressFieldAffordances
 
               return (
                 <div
                   key={option.id}
+                  data-answer-row={option.id}
                   ref={(el) => {
                     optionRefs.current[index] = el
                     optionRefs.current.length = options.length
@@ -772,15 +788,6 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
 
                     <div className="min-w-0 flex-1">
                       <div className="relative">
-                        {!showAnswerField && !showDescriptionField ? (
-                          <div className="relative overflow-visible" style={{ minHeight: 24 }}>
-                            <NodeInlineSourceHandle
-                              id={`option-${option.id}`}
-                              top="50%"
-                              right={answerHandleRightOffset(canReorder)}
-                            />
-                          </div>
-                        ) : (
                         <AnswerInputShell
                           focused={optionFocused}
                           className="my-0"
@@ -805,8 +812,7 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
                               }
                             }}
                           >
-                              {showAnswerField && (
-                                <NodeInputFieldRow
+                              <NodeInputFieldRow
                                   showClear={
                                     showInputAffordances &&
                                     editingOptionId === option.id &&
@@ -828,7 +834,7 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
                                       setShowOverlay(false)
                                       setGripHoveredId(null)
                                       setEditingOptionId(option.id)
-                                      anchorToolbarToField(e.target)
+                                      followToolbarToField(e.target)
                                       handleFieldFocus()
                                       setFocusedField('answer')
                                       setEditFocusTarget('answer')
@@ -837,7 +843,7 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
                                     onKeyDown={(e) => {
                                       if (e.key === 'Escape') (e.target as HTMLInputElement).blur()
                                     }}
-                                    placeholder={showInputAffordances ? ANSWER_PLACEHOLDER : ''}
+                                    placeholder={ANSWER_PLACEHOLDER}
                                     className={`${ANSWER_INPUT_CLASS} ${
                                       showDescriptionField ? 'px-4 pt-2.5' : NODE_INPUT_INNER_CLASS
                                     }`}
@@ -850,9 +856,8 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
                                     }}
                                   />
                                 </NodeInputFieldRow>
-                              )}
                             {showDescriptionField && (
-                            <div className={`${showAnswerField ? 'mt-1' : ''} relative z-10`} data-answer-content>
+                            <div className="mt-1 relative z-10" data-answer-content>
                               {option.descriptionImage && (
                                 <div className="px-4">
                                   <AnswerInlineImage
@@ -912,7 +917,7 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
                                     setShowOverlay(false)
                                     setGripHoveredId(null)
                                     setEditingOptionId(option.id)
-                                    anchorToolbarToField(e.target)
+                                    followToolbarToField(e.target)
                                     handleFieldFocus()
                                     setFocusedField('description')
                                     setEditFocusTarget('description')
@@ -933,7 +938,6 @@ export default function QuestionNode({ id, data, selected }: NodeProps) {
                           </div>
                           </AnswerConnectorScope>
                         </AnswerInputShell>
-                        )}
                       </div>
                     </div>
 

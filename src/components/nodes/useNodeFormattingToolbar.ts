@@ -44,15 +44,18 @@ export function useNodeFormattingToolbar({
 
   const toolbarVisible = formatting.showToolbar && enabled
 
-  const { toolbarRef, toolbarStyle, handleDragStart, resetManualPosition } = useAnchoredToolbar({
+  const onManualPositionChange = useCallback((pinned: boolean) => {
+    toolbarPinnedRef.current = pinned
+  }, [])
+
+  const { toolbarRef, toolbarStyle, handleDragStart, resetManualPosition, remeasure } =
+    useAnchoredToolbar({
     containerRef,
     anchorRef: toolbarAnchorRef,
     anchorVersion: toolbarAnchorVersion,
     showToolbar: toolbarVisible,
     draggingRef: toolbarDraggingRef,
-    onManualPositionChange: (pinned) => {
-      toolbarPinnedRef.current = pinned
-    },
+    onManualPositionChange,
   })
 
   useEffect(() => {
@@ -96,19 +99,50 @@ export function useNodeFormattingToolbar({
     return () => document.removeEventListener('pointerdown', onPointerDown, true)
   }, [containerRef, formatting.showToolbar, resetManualPosition])
 
-  const anchorToolbarToField = useCallback(
-    (target: EventTarget | null) => {
-      const el = target as HTMLElement | null
-      const field =
-        el?.closest?.('[data-cta-field]') ?? el?.closest?.('[data-input-shell]')
-      const nextAnchor = field instanceof HTMLElement ? field : null
-      if (nextAnchor === toolbarAnchorRef.current) return
+  const followToolbarToShell = useCallback(
+    (shell: HTMLElement | null) => {
       toolbarPinnedRef.current = false
       resetManualPosition()
-      toolbarAnchorRef.current = nextAnchor
+      const resolved =
+        shell == null
+          ? null
+          : shell.matches('[data-input-shell]')
+            ? shell
+            : shell.closest('[data-input-shell]')
+      toolbarAnchorRef.current = resolved instanceof HTMLElement ? resolved : null
       setToolbarAnchorVersion((version) => version + 1)
     },
     [resetManualPosition],
+  )
+
+  const followToolbarToField = useCallback(
+    (target: EventTarget | null) => {
+      const el = target as HTMLElement | null
+      followToolbarToShell(el?.closest?.('[data-input-shell]') ?? null)
+    },
+    [followToolbarToShell],
+  )
+
+  const anchorToolbarToField = followToolbarToField
+
+  const anchorToolbarToShell = useCallback(
+    (shell: HTMLElement | null) => {
+      if (shell == null) {
+        followToolbarToShell(null)
+        return
+      }
+      const resolved = shell.matches('[data-input-shell]')
+        ? shell
+        : shell.closest('[data-input-shell]')
+      if (resolved === toolbarAnchorRef.current) {
+        toolbarPinnedRef.current = false
+        resetManualPosition()
+        setToolbarAnchorVersion((version) => version + 1)
+        return
+      }
+      followToolbarToShell(resolved instanceof HTMLElement ? resolved : null)
+    },
+    [followToolbarToShell, resetManualPosition],
   )
 
   const hideToolbar = useCallback(() => {
@@ -124,6 +158,10 @@ export function useNodeFormattingToolbar({
     toolbarStyle,
     handleToolbarDragStart: handleDragStart,
     anchorToolbarToField,
+    anchorToolbarToShell,
+    followToolbarToField,
+    followToolbarToShell,
+    remeasure,
     hideToolbar,
   }
 }
