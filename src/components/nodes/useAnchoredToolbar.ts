@@ -1,5 +1,6 @@
 'use client'
 
+import { useStore } from '@xyflow/react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 const DEFAULT_TOP = 8
@@ -9,9 +10,40 @@ type ToolbarPosition = {
   left: number
 }
 
-function resolveInputShell(anchor: HTMLElement) {
+function resolveInputShell(anchor: HTMLElement): HTMLElement {
   if (anchor.matches('[data-input-shell]')) return anchor
-  return anchor.closest('[data-input-shell]') ?? anchor
+  const shell = anchor.closest('[data-input-shell]')
+  return shell instanceof HTMLElement ? shell : anchor
+}
+
+function getLocalScale(element: HTMLElement): number {
+  const layoutWidth = element.offsetWidth
+  if (layoutWidth <= 0) return 1
+  return element.getBoundingClientRect().width / layoutWidth
+}
+
+function measureShellToolbarPosition(
+  container: HTMLElement,
+  shell: HTMLElement,
+): ToolbarPosition {
+  const scale = getLocalScale(container)
+  const containerRect = container.getBoundingClientRect()
+  const shellRect = shell.getBoundingClientRect()
+
+  const label = shell
+    .closest('[data-field-anchor]')
+    ?.querySelector<HTMLElement>('[data-input-label]')
+
+  const labelRect = label?.getBoundingClientRect()
+  const screenTop = labelRect
+    ? labelRect.top - containerRect.top + labelRect.height / 2
+    : shellRect.top - containerRect.top
+  const screenLeft = shellRect.left - containerRect.left + shellRect.width / 2
+
+  return {
+    top: screenTop / scale,
+    left: screenLeft / scale,
+  }
 }
 
 export function useAnchoredToolbar({
@@ -29,6 +61,7 @@ export function useAnchoredToolbar({
   draggingRef?: React.MutableRefObject<boolean>
   onManualPositionChange?: (pinned: boolean) => void
 }) {
+  const viewportZoom = useStore((state) => state.transform[2])
   const toolbarRef = useRef<HTMLDivElement | null>(null)
   const [manualPos, setManualPos] = useState<ToolbarPosition | null>(null)
   const manualPosRef = useRef<ToolbarPosition | null>(null)
@@ -61,14 +94,9 @@ export function useAnchoredToolbar({
     const anchor = anchorRef.current
 
     if (anchor) {
-      const containerRect = container.getBoundingClientRect()
       const shell = resolveInputShell(anchor)
-      const shellRect = shell.getBoundingClientRect()
+      const next = measureShellToolbarPosition(container, shell)
       setPosition((prev) => {
-        const next = {
-          top: shellRect.top - containerRect.top,
-          left: shellRect.left - containerRect.left + shellRect.width / 2,
-        }
         if (prev.top === next.top && prev.left === next.left) return prev
         return next
       })
@@ -97,7 +125,7 @@ export function useAnchoredToolbar({
       requestAnimationFrame(measurePosition)
     })
     return () => cancelAnimationFrame(frame)
-  }, [showToolbar, anchorVersion, manualPos, measurePosition])
+  }, [showToolbar, anchorVersion, manualPos, measurePosition, viewportZoom])
 
   useEffect(() => {
     if (!showToolbar) return
@@ -111,6 +139,10 @@ export function useAnchoredToolbar({
     const shell = anchor ? resolveInputShell(anchor) : null
     if (shell instanceof HTMLElement) {
       observer.observe(shell)
+      const fieldAnchor = shell.closest('[data-field-anchor]')
+      if (fieldAnchor instanceof HTMLElement) observer.observe(fieldAnchor)
+      const label = fieldAnchor?.querySelector('[data-input-label]')
+      if (label instanceof HTMLElement) observer.observe(label)
       const row = shell.closest('[data-answer-row]')
       if (row instanceof HTMLElement) observer.observe(row)
     }
@@ -144,19 +176,20 @@ export function useAnchoredToolbar({
             : anchor.querySelector<HTMLElement>('input, textarea, [contenteditable="true"]')
           : null
 
+      const scale = getLocalScale(container)
       const containerRect = container.getBoundingClientRect()
       const toolbarRect = toolbar.getBoundingClientRect()
       const startX = e.clientX
       const startY = e.clientY
       const originCenterY =
-        toolbarRect.top + toolbarRect.height / 2 - containerRect.top
+        (toolbarRect.top + toolbarRect.height / 2 - containerRect.top) / scale
       const originCenterX =
-        toolbarRect.left + toolbarRect.width / 2 - containerRect.left
+        (toolbarRect.left + toolbarRect.width / 2 - containerRect.left) / scale
 
       const onMove = (ev: MouseEvent) => {
         const next = {
-          top: originCenterY + (ev.clientY - startY),
-          left: originCenterX + (ev.clientX - startX),
+          top: originCenterY + (ev.clientY - startY) / scale,
+          left: originCenterX + (ev.clientX - startX) / scale,
         }
         manualPosRef.current = next
         setManualPos(next)

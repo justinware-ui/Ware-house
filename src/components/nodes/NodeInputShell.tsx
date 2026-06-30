@@ -123,6 +123,7 @@ export default function NodeInputShell({
   return (
     <div data-field-anchor style={{ position: 'relative', paddingTop: 20 }}>
       <span
+        data-input-label
         style={{
           position: 'absolute',
           top: 2,

@@ -51,11 +51,7 @@ export function DiscoveryPreviewAnswerRow({
   return (
     <div className="flex items-start gap-3">
       <div
-        className={`flex-1 min-w-0 text-left px-5 py-4 rounded-xl border text-sm text-gray-800 transition-colors ${
-          expanded && hasDescription
-            ? 'border-[#FC6839] bg-orange-50'
-            : 'border-gray-200'
-        }`}
+        className="flex-1 min-w-0 text-left px-5 py-4 rounded-xl border border-solid border-gray-200 bg-white text-sm text-gray-800 transition-colors hover:border-[#FC6839] hover:bg-[#FFF5EF]"
       >
         {answerImage && (
           <img src={answerImage.src} alt="" className="rounded mb-3 max-h-40 object-contain" />
