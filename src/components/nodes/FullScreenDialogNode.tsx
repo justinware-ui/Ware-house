@@ -16,7 +16,8 @@ import FormattingToolbar, { type FormatOption } from './FormattingToolbar'
 import NodeInputShell from './NodeInputShell'
 import { clearOrRemoveField } from './NodeInputFieldRow'
 import {
-  INPUT_MIN_HEIGHT,
+  PRIMARY_SINGLE_LINE_FIELD_STYLE,
+  SINGLE_LINE_FIELD_MIN_HEIGHT,
   PLACEHOLDERS,
   HEADER_INPUT_CLASS,
   ANSWER_FIELD_CLASS,
@@ -28,12 +29,24 @@ import {
   NODE_DEFAULT_WIDTH,
   NODE_INPUT_INNER_CLASS,
   ANSWER_ROW_GRIP_HEIGHT,
-  ANSWER_INLINE_HANDLE_TOP,
-  ANSWER_INLINE_HANDLE_TOP_WITH_GRIP,
+  DRAG_ROW_INSET,
+  NODE_HEADER_BAR_CLASS,
+  NODE_INPUT_SECTION_CLASS,
+  NODE_CARD_MIN_HEIGHT,
+  NODE_CARD_BORDER_RADIUS,
+  NODE_CARD_SHADOW,
+  NODE_CARD_BORDER_DEFAULT,
+  NODE_CARD_BORDER_SELECTED,
+  nodeContentInsetStyle,
+  nodeContentPaddingLeft,
+  nodeContentPaddingRight,
   answerRowReorderStyles,
 } from './nodeFieldStyles'
-import { NodeSideTargetHandle } from './NodeConnectorHandles'
-import { useFormattingToolbar } from './useFormattingToolbar'
+import { NodeSideTargetHandle, NodeSideSourceHandle } from './NodeConnectorHandles'
+import { useNodeFormattingToolbar } from './useNodeFormattingToolbar'
+import { useNodeActive } from './useNodeActive'
+import { handleNodeCardClick } from './handleNodeCardClick'
+import { useAutoResizeTextarea } from './useAutoResizeTextarea'
 import NodeResizeHandle from './NodeResizeHandle'
 import NodeRequiredBanner from './NodeRequiredBanner'
 import RequiredFieldGroup from './RequiredFieldGroup'
@@ -66,7 +79,7 @@ interface ButtonEntry {
   image?: AnswerImage
 }
 
-export default function FullScreenDialogNode({ id, data }: NodeProps) {
+export default function FullScreenDialogNode({ id, data, selected }: NodeProps) {
   const { setNodes, setEdges, getNodes } = useReactFlow()
   const updateNodeInternals = useUpdateNodeInternals()
   const typedData = data as { header?: string; message?: string; buttons?: string[]; buttonUrls?: string[]; variant?: 'cta' | 'fullscreen' }
@@ -90,7 +103,12 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
   const [resizingImage, setResizingImage] = useState<{ startX: number; startY: number; startW: number; startH: number } | null>(null)
   const [draggingImage, setDraggingImage] = useState<{ startX: number; startY: number; startOffX: number; startOffY: number } | null>(null)
   const [showOverlay, setShowOverlay] = useState(false)
-  const hasContent = !!(header.trim() || message.trim() || buttons.some(b => b.text.trim()))
+  const hasContent = !!(
+    header.trim() ||
+    message.trim() ||
+    buttons.some((b) => b.text.trim()) ||
+    messageImage
+  )
 
   const getHasErrors = useCallback(() => {
     if (isFieldEmpty(header)) return true
@@ -112,6 +130,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
     () => hasDialogPreviewContent(header, message, messageImage, buttons),
     [header, message, messageImage, buttons],
   )
+  const canReorderButtons = buttons.length >= 2
 
   const buttonOrderKey = buttons.map((b) => b.id).join(',')
 
@@ -136,21 +155,29 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
   const buttonRefs = useRef<(HTMLDivElement | null)[]>([])
   const buttonsRef = useRef(buttons)
   buttonsRef.current = buttons
+  const cardRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const nodeActive = useNodeActive(cardRef)
   const tooltipModeRef = useRef(false)
   const messageRef = useRef<HTMLDivElement>(null)
   const messageContainerRef = useRef<HTMLDivElement>(null)
 
   const {
-    showToolbar,
-    setShowToolbar,
     activeFormats,
     handleFieldFocus,
     handleFieldBlur,
     toggleRichFormat,
     toggleToggleFormat,
-  } = useFormattingToolbar({
+    toolbarVisible,
+    toolbarRef,
+    toolbarStyle,
+    handleToolbarDragStart,
+    anchorToolbarToField,
+    hideToolbar,
+  } = useNodeFormattingToolbar({
     nodeId: id,
+    containerRef: cardRef,
+    enabled: !tooltipMode,
     shouldRetainFocus: () => tooltipModeRef.current,
     onBlurClear: () => setFocusedField(null),
   })
@@ -168,21 +195,6 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
       messageRef.current.textContent = typedData.message
     }
   }, [typedData.header, typedData.message])
-
-  const LINE_LIMIT = 65
-
-  const wrapText = (text: string) => {
-    const lines: string[] = []
-    for (const existing of text.split('\n')) {
-      let remaining = existing
-      while (remaining.length > LINE_LIMIT) {
-        lines.push(remaining.slice(0, LINE_LIMIT))
-        remaining = remaining.slice(LINE_LIMIT)
-      }
-      lines.push(remaining)
-    }
-    return lines.join('\n')
-  }
 
   const addButton = () => {
     const newId = Date.now()
@@ -275,6 +287,8 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
   const measureRef = useRef<HTMLSpanElement>(null)
   const [cardWidth, setCardWidth] = useState(NODE_DEFAULT_WIDTH)
   const [manualWidth, setManualWidth] = useState<number | null>(null)
+  const nodeWidth = manualWidth ?? cardWidth
+  const headerRef = useAutoResizeTextarea(header, SINGLE_LINE_FIELD_MIN_HEIGHT, nodeWidth)
   const resizing = useRef<{ startX: number; startW: number } | null>(null)
 
   useEffect(() => {
@@ -432,21 +446,33 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
     return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp) }
   }, [resizingImage, messageImage])
 
+  const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    handleNodeCardClick(e, { nodeIsEmpty: !hasContent })
+  }
+
   return (
     <div
-      className={`bg-white border rounded-2xl py-5 shadow-sm relative transition-[width,box-shadow,border-color] duration-150 overflow-visible ${nodeHasErrors ? '' : 'border-gray-200'}`}
+      ref={cardRef}
+      className="bg-white rounded-lg relative flex flex-col overflow-visible"
+      onClick={handleCardClick}
       style={{
         width: tooltipMode ? Math.max(manualWidth ?? cardWidth, 320) : (manualWidth ?? cardWidth),
-        ...(nodeHasErrors ? { borderColor: NODE_ERROR_COLOR } : {}),
+        minHeight: NODE_CARD_MIN_HEIGHT,
+        boxShadow: NODE_CARD_SHADOW,
+        border: nodeHasErrors
+          ? `1px solid ${NODE_ERROR_COLOR}`
+          : selected
+            ? `1px solid ${NODE_CARD_BORDER_SELECTED}`
+            : `1px solid ${NODE_CARD_BORDER_DEFAULT}`,
+        borderRadius: NODE_CARD_BORDER_RADIUS,
       }}
     >
-      {nodeHasErrors && (
-        <div className="-mt-5 mb-2 overflow-hidden rounded-t-2xl relative z-0">
-          <NodeRequiredBanner className="rounded-t-2xl" />
-        </div>
-      )}
-      {showToolbar && !tooltipMode && (
+      {nodeHasErrors && <NodeRequiredBanner />}
+      {toolbarVisible && (
         <FormattingToolbar
+          toolbarRef={toolbarRef}
+          style={toolbarStyle}
+          onDragHandleMouseDown={handleToolbarDragStart}
           activeFormats={activeFormats}
           onToggle={toggleFormat}
           disabledKeys={toolbarDisabledKeys}
@@ -458,11 +484,12 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
         className="invisible absolute whitespace-nowrap text-base font-semibold pointer-events-none"
         aria-hidden
       />
-      <div className="relative flex flex-col flex-1 overflow-visible">
+      <div className="relative flex flex-col flex-1 z-0 overflow-visible">
         <NodeSideTargetHandle />
+        <NodeSideSourceHandle />
 
       <NodeHeaderBar
-        className="px-5 pt-5 -mt-5 mb-2"
+        className={NODE_HEADER_BAR_CLASS}
         icon={
           isCta ? (
             <MousePointerClick size={16} className="text-[#FC6839] shrink-0" />
@@ -568,9 +595,9 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
 
         <div style={tooltipMode ? { height: 0, overflow: 'hidden' as const, visibility: 'hidden' as const } : undefined}>
         <>
-          <NodeInputSection>
+          <NodeInputSection className={NODE_INPUT_SECTION_CLASS}>
           {/* Header field */}
-          <div className="mb-7" style={{ marginTop: 6 }}>
+          <div style={nodeContentInsetStyle(canReorderButtons)}>
             <RequiredFieldGroup showMessage={headerInvalid}>
               <NodeInputShell
                 focused={focusedField === 'header'}
@@ -579,17 +606,21 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                 invalid={headerInvalid}
                 hasContent={!!header.trim()}
                 onClear={() => setHeader('')}
+                label="Header"
+                nodeActive={nodeActive}
+                primaryField
               >
                 <textarea
+                  ref={headerRef}
                   value={header}
-                  onChange={(e) => setHeader(wrapText(e.target.value))}
+                  onChange={(e) => setHeader(e.target.value)}
                   placeholder={PLACEHOLDERS.header}
-                  rows={Math.max(1, header.split('\n').length)}
+                  rows={1}
                   className={`${HEADER_INPUT_CLASS} ${NODE_INPUT_INNER_CLASS} resize-none overflow-hidden`}
-                  style={{ lineHeight: 1.5, minHeight: INPUT_MIN_HEIGHT - 22 }}
+                  style={PRIMARY_SINGLE_LINE_FIELD_STYLE}
                   data-cta-field
                   onFocus={() => {
-                    handleFieldFocus()
+                    hideToolbar()
                     setFocusedField('header')
                   }}
                   onBlur={handleFieldBlur}
@@ -599,7 +630,8 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
           </div>
 
           {/* Message body */}
-          <RequiredFieldGroup showMessage={messageInvalid} className="mb-6">
+          <div className="mt-4" style={nodeContentInsetStyle(canReorderButtons)}>
+          <RequiredFieldGroup showMessage={messageInvalid}>
           <NodeInputShell
             focused={focusedField === 'message'}
             padding={0}
@@ -610,6 +642,8 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
               setMessage('')
               if (messageRef.current) messageRef.current.textContent = ''
             }}
+            label="Message"
+            nodeActive={nodeActive}
           >
           <div ref={messageContainerRef} className={`${NODE_INPUT_INNER_CLASS} flex items-start gap-2`} data-answer-content>
             <div className="flex-1 min-w-0">
@@ -705,7 +739,8 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                   const el = e.target as HTMLDivElement
                   setMessage(el.textContent || '')
                 }}
-                onFocus={() => {
+                onFocus={(e) => {
+                  anchorToolbarToField(e.target)
                   handleFieldFocus()
                   setFocusedField('message')
                 }}
@@ -725,9 +760,10 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
           </div>
           </NodeInputShell>
           </RequiredFieldGroup>
+          </div>
 
           {/* Button fields */}
-          <div className="flex flex-col gap-5" style={{ paddingBottom: buttons.length >= 2 ? 16 : 0 }}>
+          <div className="mt-4 flex flex-col gap-5">
             {buttons.map((btn, index) => {
               const buttonInvalid =
                 showValidation &&
@@ -738,10 +774,9 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                 showValidation &&
                 isFieldEmpty(btn.url) &&
                 shouldShowFieldValidation(id, `button-url-${btn.id}`)
-              const isOutputButton = index === buttons.length - 1
               const isRowFocused = focusedButtonId === btn.id
               const showReorderHighlight =
-                buttons.length >= 2 &&
+                canReorderButtons &&
                 (draggingBtnIndex === index ||
                   (!isRowFocused && gripHoveredBtnId === btn.id))
               return (
@@ -755,12 +790,15 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                   draggingBtnIndex !== null && draggingBtnIndex !== index ? 'opacity-50' : ''
                 }`}
                 style={{
-                  paddingTop: buttons.length >= 2 ? ANSWER_ROW_GRIP_HEIGHT : 0,
+                  paddingBottom: canReorderButtons ? DRAG_ROW_INSET : 0,
+                  paddingLeft: nodeContentPaddingLeft(canReorderButtons),
+                  paddingRight: nodeContentPaddingRight(canReorderButtons),
+                  paddingTop: canReorderButtons ? ANSWER_ROW_GRIP_HEIGHT : 0,
                   marginBottom: !isCta ? 12 : 0,
                   ...answerRowReorderStyles(showReorderHighlight, draggingBtnIndex === index),
                 }}
               >
-                {buttons.length >= 2 && (
+                {canReorderButtons && (
                   <div
                     className="absolute left-0 right-0 flex items-center justify-center nodrag nopan"
                     style={{ top: 0, height: ANSWER_ROW_GRIP_HEIGHT }}
@@ -768,6 +806,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                     onMouseLeave={() => setGripHoveredBtnId(null)}
                   >
                     <div
+                      data-drag-grip
                       className="cursor-grab select-none rotate-90 opacity-50 hover:opacity-100 transition-opacity p-1"
                       onMouseDown={(e) => handleBtnGrabStart(index, e)}
                     >
@@ -781,8 +820,6 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                   <RequiredFieldGroup
                     showMessage={buttonInvalid}
                     className="w-full"
-                    sourceHandle={isOutputButton}
-                    handleTop={buttons.length >= 2 ? ANSWER_INLINE_HANDLE_TOP_WITH_GRIP : ANSWER_INLINE_HANDLE_TOP}
                   >
                   <NodeInputShell
                     focused={focusedField === 'button' && focusedButtonId === btn.id}
@@ -792,6 +829,8 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                     invalid={buttonInvalid}
                     suppressHover={draggingBtnIndex !== null && draggingBtnIndex !== index}
                     hasContent={!!btn.text.trim()}
+                    label="Button text"
+                    nodeActive={nodeActive}
                     onClear={() =>
                       clearOrRemoveField(
                         btn.text,
@@ -810,7 +849,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                         data-cta-field
                         onFocus={() => {
                           setGripHoveredBtnId(null)
-                          handleFieldFocus()
+                          hideToolbar()
                           setFocusedButtonId(btn.id)
                           setFocusedField('button')
                         }}
@@ -834,15 +873,17 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                   )}
 
                 {isCta && (
-                  <RequiredFieldGroup showMessage={urlInvalid} className="w-full">
+                  <RequiredFieldGroup showMessage={urlInvalid} className="w-full mt-6">
                     <NodeInputShell
                       focused={focusedField === 'url' && focusedButtonId === btn.id}
-                      className="nodrag w-full mt-6 mb-2.5"
+                      className="nodrag w-full mb-2.5"
                       padding={0}
                       onBlur={handleFieldBlur}
                       invalid={urlInvalid}
                       suppressHover={draggingBtnIndex !== null && draggingBtnIndex !== index}
                       hasContent={!!btn.url.trim()}
+                      label="Button URL"
+                      nodeActive={nodeActive}
                       onClear={() => updateButtonUrl(btn.id, '')}
                     >
                       <input
@@ -854,7 +895,7 @@ export default function FullScreenDialogNode({ id, data }: NodeProps) {
                         data-cta-field
                         onFocus={() => {
                           setGripHoveredBtnId(null)
-                          handleFieldFocus()
+                          hideToolbar()
                           setFocusedField('url')
                           setFocusedButtonId(btn.id)
                         }}

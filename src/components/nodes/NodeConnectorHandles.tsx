@@ -30,15 +30,17 @@ function HandleAnchor({
 export function NodeInlineSourceHandle({
   id,
   top = '50%',
+  right = NODE_HANDLE_INLINE_OFFSET,
 }: {
   id?: string
   top?: string | number
+  right?: number
 }) {
   return (
     <HandleAnchor
       style={{
         top,
-        right: NODE_HANDLE_INLINE_OFFSET,
+        right,
         transform: 'translate(50%, -50%)',
       }}
     >
@@ -53,7 +55,13 @@ export function NodeInlineSourceHandle({
   )
 }
 
-export function NodeGhostConnectorDot({ top = '50%' }: { top?: string | number }) {
+export function NodeGhostConnectorDot({
+  top = '50%',
+  right = NODE_HANDLE_INLINE_OFFSET,
+}: {
+  top?: string | number
+  right?: number
+}) {
   return (
     <div
       className="absolute rounded-full border-2 border-white pointer-events-none z-10 nodrag nopan"
@@ -61,7 +69,7 @@ export function NodeGhostConnectorDot({ top = '50%' }: { top?: string | number }
         width: NODE_HANDLE_SIZE,
         height: NODE_HANDLE_SIZE,
         top,
-        right: NODE_HANDLE_INLINE_OFFSET,
+        right,
         transform: 'translate(50%, -50%)',
         backgroundColor: '#FC6839',
       }}

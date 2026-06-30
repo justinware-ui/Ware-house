@@ -1,6 +1,7 @@
 'use client'
 
 import { AlignJustify, Bold, ChevronDown, Italic, Pilcrow, Underline } from 'lucide-react'
+import ToolbarDragGripIcon from './ToolbarDragGripIcon'
 
 export type FormatOption = 'bold' | 'italic' | 'underline' | 'align' | 'image' | 'paragraph'
 
@@ -15,11 +16,17 @@ export default function FormattingToolbar({
   onToggle,
   disabledKeys,
   sparkleId = 'toolbar',
+  toolbarRef,
+  style,
+  onDragHandleMouseDown,
 }: {
   activeFormats: Set<FormatOption>
   onToggle: (fmt: FormatOption) => void
   disabledKeys?: Set<FormatOption>
   sparkleId?: string
+  toolbarRef?: React.Ref<HTMLDivElement>
+  style?: React.CSSProperties
+  onDragHandleMouseDown?: (e: React.MouseEvent) => void
 }) {
   const tools: {
     key: FormatOption
@@ -38,10 +45,34 @@ export default function FormattingToolbar({
 
   return (
     <div
+      ref={toolbarRef}
       data-toolbar
-      className="absolute -top-14 left-1/2 -translate-x-1/2 z-30 flex items-center rounded-full shadow-lg border border-gray-200 px-2 py-1.5 gap-0.5"
-      style={{ backgroundColor: '#F7F4F2' }}
+      className={`absolute z-30 flex items-center rounded-full shadow-lg border border-gray-200 py-1.5 gap-0.5 nodrag nopan ${
+        style ? 'pl-1 pr-2' : 'px-2 -top-14 left-1/2 -translate-x-1/2'
+      }`}
+      style={{ backgroundColor: '#F7F4F2', ...style }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
     >
+      {onDragHandleMouseDown && (
+        <>
+          <button
+            type="button"
+            data-toolbar-drag
+            aria-label="Drag toolbar"
+            className="cursor-grab active:cursor-grabbing p-1 rounded shrink-0 opacity-50 hover:opacity-100 transition-opacity"
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onDragHandleMouseDown(e)
+            }}
+          >
+            <ToolbarDragGripIcon />
+          </button>
+          <div className="w-px h-6 bg-gray-200 shrink-0" />
+        </>
+      )}
       {tools.map(({ key, icon: Icon, custom, label, hasDropdown }) => {
         const isDisabled = disabledKeys?.has(key)
         return (

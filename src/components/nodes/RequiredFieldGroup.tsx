@@ -7,6 +7,7 @@ export default function RequiredFieldGroup({
   showMessage,
   handleId,
   handleTop,
+  handleRight,
   sourceHandle,
   ghostConnector,
   ghostConnectorTop,
@@ -16,6 +17,8 @@ export default function RequiredFieldGroup({
   showMessage: boolean
   handleId?: string
   handleTop?: string | number
+  /** Custom right offset for the connector handle. Defaults to NODE_HANDLE_INLINE_OFFSET. */
+  handleRight?: number
   sourceHandle?: boolean
   ghostConnector?: boolean
   ghostConnectorTop?: string | number
@@ -26,8 +29,8 @@ export default function RequiredFieldGroup({
     <div className={`min-w-0 ${className}`}>
       <div className="relative overflow-visible">
         {children}
-        {handleId && <NodeInlineSourceHandle id={handleId} top={handleTop} />}
-        {sourceHandle && <NodeInlineSourceHandle top={handleTop} />}
+        {handleId && <NodeInlineSourceHandle id={handleId} top={handleTop} right={handleRight} />}
+        {sourceHandle && <NodeInlineSourceHandle top={handleTop} right={handleRight} />}
         {ghostConnector && <NodeGhostConnectorDot top={ghostConnectorTop ?? handleTop} />}
       </div>
       <NodeRequiredMessage show={showMessage} />

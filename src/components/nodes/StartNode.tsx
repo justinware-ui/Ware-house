@@ -1,7 +1,7 @@
 'use client'
 
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { NODE_HANDLE_CLASS, NODE_HANDLE_SIDE_STYLE } from './nodeFieldStyles'
+import { NODE_HANDLE_CLASS, NODE_HANDLE_SIDE_STYLE, NODE_CARD_BORDER_RADIUS } from './nodeFieldStyles'
 import { useNodeWidthResize } from './useNodeWidthResize'
 import NodeResizeHandle from './NodeResizeHandle'
 
@@ -12,8 +12,8 @@ export default function StartNode({ data }: NodeProps) {
 
   return (
     <div
-      className="bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm relative overflow-visible"
-      style={{ width }}
+      className="bg-white border border-gray-200 rounded-lg px-4 py-3 shadow-sm relative overflow-visible"
+      style={{ width, borderRadius: NODE_CARD_BORDER_RADIUS }}
     >
       <div className="flex items-center gap-2">
         <div className="w-6 h-6 rounded-full bg-brand-500 flex items-center justify-center">

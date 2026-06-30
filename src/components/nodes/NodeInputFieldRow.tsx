@@ -7,12 +7,14 @@ export function NodeInputFieldRow({
   onClear,
   clearLabel = 'Clear',
   className = '',
+  clearButtonClassName = '-translate-x-2',
   children,
 }: {
   showClear: boolean
   onClear: () => void
   clearLabel?: string
   className?: string
+  clearButtonClassName?: string
   children: React.ReactNode
 }) {
   return (
@@ -21,7 +23,7 @@ export function NodeInputFieldRow({
       <NodeInputClearButton
         onClear={onClear}
         ariaLabel={clearLabel}
-        className={`shrink-0 -translate-x-2 ${showClear ? '' : 'invisible pointer-events-none'}`}
+        className={`shrink-0 ${clearButtonClassName} ${showClear ? '' : 'invisible pointer-events-none'}`}
         tabIndex={showClear ? 0 : -1}
         aria-hidden={!showClear}
       />

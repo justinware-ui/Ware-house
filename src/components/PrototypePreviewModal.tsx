@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react'
 import type { Node, Edge } from '@xyflow/react'
 import { ExternalLink, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import type { HotspotPage } from './HotspotBuilderModal'
-import { DescriptionTooltipPopup } from './nodes/AnswerInlineImage'
+import { DiscoveryPreviewAnswerRow } from './DiscoveryPreviewAnswerRow'
 import { normalizeAnswerImage, type AnswerImage } from './nodes/answerImage'
+import { PLACEHOLDERS } from './nodes/nodeFieldStyles'
 
 // Walk graph from startNode following edges to produce an ordered step list
 function getOrderedSteps(nodes: Node[], edges: Edge[]): Node[] {
@@ -312,23 +313,19 @@ function QuestionStep({ node }: { node: Node }) {
   return (
     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl px-10 py-10">
       <p className="text-lg font-semibold text-gray-900 mb-8">
-        {question || 'Enter your question here'}
+        {question || PLACEHOLDERS.question}
       </p>
       <div className="flex flex-col gap-3">
         {previewOptions.length > 0 ? previewOptions.map((option) => {
           const tip = option.description?.trim()
           const img = normalizeAnswerImage(option.descriptionImage)
-          const hasTooltip = !!(tip || img)
           return (
-            <button
+            <DiscoveryPreviewAnswerRow
               key={option.id}
-              className={`w-full text-left px-5 py-4 rounded-xl border border-gray-200 text-sm text-gray-800 hover:border-[#FC6839] hover:bg-orange-50 transition-colors relative ${hasTooltip ? 'group/answer' : ''}`}
-            >
-              {option.value.trim() ? option.value : null}
-              {hasTooltip && (
-                <DescriptionTooltipPopup description={tip} image={img} />
-              )}
-            </button>
+              answer={option.value}
+              description={tip}
+              descriptionImage={img}
+            />
           )
         }) : (
           <>
