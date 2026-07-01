@@ -11,6 +11,11 @@ import thumbTableHero from '../assets/thumb-table-hero.svg'
 import thumbContent from '../assets/thumb-content.svg'
 import thumbDynamicTour from '../assets/thumb-dynamic-tour.svg'
 import { demos as realDemos } from '../data/demos'
+import {
+  InteractionsHelpGuide,
+  InteractionsHelpIcon,
+  useInteractionsHelp,
+} from './InteractionsHelp'
 
 const thumbnails = [thumbTableHero, thumbContent]
 
@@ -85,6 +90,7 @@ export default function Sidebar() {
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null)
   const [canScrollUp, setCanScrollUp] = useState(false)
   const [canScrollDown, setCanScrollDown] = useState(false)
+  const { open: interactionsHelpOpen, setOpen: setInteractionsHelpOpen } = useInteractionsHelp()
   const scrollRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const isDragging = useRef(false)
@@ -356,10 +362,24 @@ export default function Sidebar() {
         <div className="w-1 h-10 rounded-full bg-gray-300" />
       </div>
       {/* Interaction types */}
-      <div className="px-9 pt-9 pb-3">
-        <h2 className="text-xs font-semibold text-navy-600 uppercase tracking-wider mb-3" style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 250ms ease-in' }}>
-          Interactions
-        </h2>
+      <div
+        className="px-9 pt-9 pb-3"
+        onMouseLeave={() => setInteractionsHelpOpen(false)}
+      >
+        <div
+          className="mb-3 flex items-center gap-1.5"
+          style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 250ms ease-in' }}
+        >
+          <h2 className="text-xs font-semibold text-navy-600 uppercase tracking-wider">
+            Interactions
+          </h2>
+          <InteractionsHelpIcon
+            visible={contentVisible}
+            onOpenChange={setInteractionsHelpOpen}
+          />
+        </div>
+        <div className="relative">
+          <InteractionsHelpGuide open={interactionsHelpOpen} />
         <div className="grid grid-cols-4 gap-3">
           {interactions.map(({ id, label, icon: Icon, color, bgColor }) => (
             <div
@@ -384,6 +404,7 @@ export default function Sidebar() {
               </span>
             </div>
           ))}
+        </div>
         </div>
       </div>
 
