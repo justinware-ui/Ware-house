@@ -4,6 +4,8 @@ import { useStore } from '@xyflow/react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 const DEFAULT_TOP = 8
+/** Raise auto-anchored toolbars this many layout pixels above the measured anchor. */
+const TOOLBAR_VERTICAL_OFFSET = 10
 
 type ToolbarPosition = {
   top: number
@@ -33,16 +35,15 @@ function measureShellToolbarPosition(
   const label = shell
     .closest('[data-field-anchor]')
     ?.querySelector<HTMLElement>('[data-input-label]')
-
   const labelRect = label?.getBoundingClientRect()
+
   const screenTop = labelRect
     ? labelRect.top - containerRect.top + labelRect.height / 2
-    : shellRect.top - containerRect.top
-  const screenLeft = shellRect.left - containerRect.left + shellRect.width / 2
+    : shellRect.top - containerRect.top + shellRect.height / 2
 
   return {
-    top: screenTop / scale,
-    left: screenLeft / scale,
+    top: screenTop / scale - TOOLBAR_VERTICAL_OFFSET,
+    left: container.clientWidth / 2,
   }
 }
 
@@ -105,7 +106,7 @@ export function useAnchoredToolbar({
 
     setPosition((prev) => {
       const next = {
-        top: DEFAULT_TOP,
+        top: DEFAULT_TOP - TOOLBAR_VERTICAL_OFFSET,
         left: container.clientWidth / 2,
       }
       if (prev.top === next.top && prev.left === next.left) return prev
@@ -143,6 +144,10 @@ export function useAnchoredToolbar({
       if (fieldAnchor instanceof HTMLElement) observer.observe(fieldAnchor)
       const label = fieldAnchor?.querySelector('[data-input-label]')
       if (label instanceof HTMLElement) observer.observe(label)
+      const answerField = shell.querySelector('[data-cta-field]')
+      if (answerField instanceof HTMLElement) observer.observe(answerField)
+      const descriptionBlock = shell.querySelector('[data-answer-content]')
+      if (descriptionBlock instanceof HTMLElement) observer.observe(descriptionBlock)
       const row = shell.closest('[data-answer-row]')
       if (row instanceof HTMLElement) observer.observe(row)
     }

@@ -3,11 +3,14 @@ import { ReactFlowProvider } from '@xyflow/react'
 import Header from '@/components/Header'
 import FlowCanvas, { type FlowCanvasHandle } from '@/components/FlowCanvas'
 import Sidebar from '@/components/Sidebar'
+import OnboardingModal from '@/components/OnboardingModal'
 import { copyToClipboard, saveDemoSnapshot } from '@/lib/demoShare'
+import { shouldShowOnboarding } from '@/lib/onboarding'
 import { requestGlobalNodeValidation } from '@/components/nodes/nodeValidation'
 import { hasAnyValidationErrors } from '@/components/nodes/nodeValidationStore'
 
 export default function App() {
+  const [onboardingOpen, setOnboardingOpen] = useState(() => shouldShowOnboarding())
   const [hasContent, setHasContent] = useState(false)
   const [demoTitle, setDemoTitle] = useState('Demo Title')
   const [reviewLink, setReviewLink] = useState<string | null>(null)
@@ -26,6 +29,17 @@ export default function App() {
     if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current)
     setSaveNotice(message)
     noticeTimerRef.current = setTimeout(() => setSaveNotice(null), 4000)
+  }
+
+  const closeOnboarding = () => {
+    setOnboardingOpen(false)
+  }
+
+  const handleOnboardingChoice = (choice: 'ai' | 'manual') => {
+    if (choice === 'manual') {
+      canvasRef.current?.startManualMode()
+    }
+    closeOnboarding()
   }
 
   const handleSaveAndContinue = () => {
@@ -72,11 +86,15 @@ export default function App() {
         <div className="flex flex-1 overflow-hidden">
           <FlowCanvas
             ref={canvasRef}
+            onboardingOpen={onboardingOpen}
             onContentChange={setHasContent}
             onTitleLoad={setDemoTitle}
           />
           <Sidebar />
         </div>
+        {onboardingOpen && (
+          <OnboardingModal onChoice={handleOnboardingChoice} />
+        )}
       </div>
     </ReactFlowProvider>
   )

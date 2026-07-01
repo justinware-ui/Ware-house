@@ -44,6 +44,7 @@ import { loadDemoFromLocation } from '@/lib/demoShare'
 export type FlowCanvasHandle = {
   getSnapshot: () => { nodes: Node[]; edges: Edge[] }
   loadSnapshot: (snapshot: { nodes: Node[]; edges: Edge[] }) => void
+  startManualMode: () => void
 }
 
 const edgeTypes = {
@@ -937,14 +938,23 @@ function ReplacePopover({ nodeId, title, demoId, anchorRect, wrapperRef, onRepla
 
 const FlowCanvas = forwardRef<
   FlowCanvasHandle,
-  { onContentChange?: (hasContent: boolean) => void; onTitleLoad?: (title: string) => void }
->(function FlowCanvas({ onContentChange, onTitleLoad }, ref) {
+  {
+    onContentChange?: (hasContent: boolean) => void
+    onTitleLoad?: (title: string) => void
+    onboardingOpen?: boolean
+  }
+>(function FlowCanvas({ onContentChange, onTitleLoad, onboardingOpen = false }, ref) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
   const { screenToFlowPosition, getNodes, getEdges } = useReactFlow()
   const updateNodeInternals = useUpdateNodeInternals()
   const sharedLoadedRef = useRef(false)
+
+  const startPanelTransitionRef = useRef<(opts?: { delayWelcomeFade?: number }) => void>(() => {})
+  const pendingManualTransitionRef = useRef(false)
+  const onboardingOpenRef = useRef(onboardingOpen)
+  onboardingOpenRef.current = onboardingOpen
 
   useImperativeHandle(
     ref,
@@ -953,6 +963,13 @@ const FlowCanvas = forwardRef<
       loadSnapshot: (snapshot) => {
         setNodes(snapshot.nodes)
         setEdges(snapshot.edges)
+      },
+      startManualMode: () => {
+        if (onboardingOpenRef.current) {
+          pendingManualTransitionRef.current = true
+        } else {
+          startPanelTransitionRef.current()
+        }
       },
     }),
     [getNodes, getEdges, setNodes, setEdges],
@@ -1021,54 +1038,72 @@ const FlowCanvas = forwardRef<
   const showWelcome = nodes.length === 0 && transitionPhase === 'none'
   const isWelcomeMode = showWelcome || transitionPhase === 'stage-fading'
 
-  const startPanelTransition = useCallback(() => {
+  const startPanelTransition = useCallback((opts?: { delayWelcomeFade?: number }) => {
     if (hasTransitioned.current) return
     hasTransitioned.current = true
-    setTransitionPhase('stage-fading')
 
-    setTimeout(() => {
-      setTransitionPhase('bar-reveal')
-    }, 350)
-
-    setTimeout(() => {
-      setTransitionPhase('panel-opening')
-      setChatOpen(true)
-
-      const availableH = reactFlowWrapper.current?.getBoundingClientRect().height ?? 800
-      const targetH = hasChatStarted
-        ? Math.round(availableH - 32)
-        : Math.round((availableH - 32) / 2)
-      setPanelHeight(targetH)
-
-      setPanelAnim('expand-width')
-      setPanelW(PANEL_W)
+    const begin = () => {
+      setTransitionPhase('stage-fading')
 
       setTimeout(() => {
-        setPanelAnim('expand-height')
-        setPanelH(targetH)
+        setTransitionPhase('bar-reveal')
       }, 350)
 
       setTimeout(() => {
-        setPanelAnim('content-in')
-        setContentVisible(true)
-      }, 700)
+        setTransitionPhase('panel-opening')
+        setChatOpen(true)
 
-      setTimeout(() => {
-        setPanelAnim('idle')
-        if (pendingNodesRef.current) {
-          const pending = pendingNodesRef.current
-          pendingNodesRef.current = null
-          setNodes(pending.nodes)
-          setEdges(pending.edges)
-        }
-        setTransitionPhase('done')
+        const availableH = reactFlowWrapper.current?.getBoundingClientRect().height ?? 800
+        const targetH = hasChatStarted
+          ? Math.round(availableH - 32)
+          : Math.round((availableH - 32) / 2)
+        setPanelHeight(targetH)
+
+        setPanelAnim('expand-width')
+        setPanelW(PANEL_W)
+
         setTimeout(() => {
-          const scrollArea = document.querySelector('[data-scroll-area]')
-          if (scrollArea) scrollArea.scrollTo({ top: scrollArea.scrollHeight, behavior: 'smooth' })
-        }, 100)
-      }, 1000)
-    }, 500)
+          setPanelAnim('expand-height')
+          setPanelH(targetH)
+        }, 350)
+
+        setTimeout(() => {
+          setPanelAnim('content-in')
+          setContentVisible(true)
+        }, 700)
+
+        setTimeout(() => {
+          setPanelAnim('idle')
+          if (pendingNodesRef.current) {
+            const pending = pendingNodesRef.current
+            pendingNodesRef.current = null
+            setNodes(pending.nodes)
+            setEdges(pending.edges)
+          }
+          setTransitionPhase('done')
+          setTimeout(() => {
+            const scrollArea = document.querySelector('[data-scroll-area]')
+            if (scrollArea) scrollArea.scrollTo({ top: scrollArea.scrollHeight, behavior: 'smooth' })
+          }, 100)
+        }, 1000)
+      }, 500)
+    }
+
+    const delay = opts?.delayWelcomeFade ?? 0
+    if (delay > 0) {
+      setTimeout(begin, delay)
+    } else {
+      begin()
+    }
   }, [setNodes, setEdges, hasChatStarted])
+
+  startPanelTransitionRef.current = startPanelTransition
+
+  useEffect(() => {
+    if (onboardingOpen || !pendingManualTransitionRef.current) return
+    pendingManualTransitionRef.current = false
+    startPanelTransition({ delayWelcomeFade: 80 })
+  }, [onboardingOpen, startPanelTransition])
 
   useEffect(() => {
     onContentChange?.(nodes.length > 0)
@@ -1989,16 +2024,18 @@ const FlowCanvas = forwardRef<
             : 'absolute top-4 left-4 z-20'
         }
         style={
-          isWelcomeMode
-            ? {
-                ...(hasChatStarted ? { paddingTop: 24 } : {}),
-                opacity: transitionPhase === 'stage-fading' ? 0 : 1,
-                transition: transitionPhase === 'stage-fading' ? 'opacity 0.3s ease' : undefined,
-              }
-            : {
-                opacity: transitionPhase === 'bar-reveal' ? 1 : undefined,
-                transition: transitionPhase === 'bar-reveal' ? 'opacity 0.4s ease' : undefined,
-              }
+          onboardingOpen
+            ? { opacity: 0, pointerEvents: 'none', visibility: 'hidden' }
+            : isWelcomeMode
+              ? {
+                  ...(hasChatStarted ? { paddingTop: 24 } : {}),
+                  opacity: transitionPhase === 'stage-fading' ? 0 : 1,
+                  transition: transitionPhase === 'stage-fading' ? 'opacity 0.3s ease' : undefined,
+                }
+              : {
+                  opacity: transitionPhase === 'bar-reveal' ? 1 : undefined,
+                  transition: transitionPhase === 'bar-reveal' ? 'opacity 0.4s ease' : undefined,
+                }
         }
       >
         {/* Welcome decorations — sparkle + heading above the chat */}
