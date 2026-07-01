@@ -13,6 +13,7 @@ import { demos as allDemos } from '../data/demos'
 import PreviewModal from './PreviewModal'
 import thumbTableHero from '../assets/thumb-table-hero.svg'
 import thumbContent from '../assets/thumb-content.svg'
+import manualDropZoneSvg from '../assets/manual-drop-zone.svg'
 import {
   ReactFlow,
   Background,
@@ -952,6 +953,7 @@ const FlowCanvas = forwardRef<
   const sharedLoadedRef = useRef(false)
 
   const startPanelTransitionRef = useRef<(opts?: { delayWelcomeFade?: number }) => void>(() => {})
+  const startManualOnboardingModeRef = useRef<(opts?: { delayWelcomeFade?: number }) => void>(() => {})
   const pendingManualTransitionRef = useRef(false)
   const onboardingOpenRef = useRef(onboardingOpen)
   onboardingOpenRef.current = onboardingOpen
@@ -968,7 +970,7 @@ const FlowCanvas = forwardRef<
         if (onboardingOpenRef.current) {
           pendingManualTransitionRef.current = true
         } else {
-          startPanelTransitionRef.current()
+          startManualOnboardingModeRef.current()
         }
       },
     }),
@@ -1020,6 +1022,7 @@ const FlowCanvas = forwardRef<
   const prevNodeCount = useRef(0)
   const [ghostText, setGhostText] = useState<string | null>(null)
   const [inputBottom, setInputBottom] = useState(false)
+  const [showManualDropTarget, setShowManualDropTarget] = useState(false)
   const headingRef = useRef<HTMLDivElement>(null)
   const chatWrapRef = useRef<HTMLDivElement>(null)
 
@@ -1097,13 +1100,50 @@ const FlowCanvas = forwardRef<
     }
   }, [setNodes, setEdges, hasChatStarted])
 
+  const startManualOnboardingMode = useCallback((opts?: { delayWelcomeFade?: number }) => {
+    if (hasTransitioned.current) return
+    hasTransitioned.current = true
+
+    const begin = () => {
+      setTransitionPhase('stage-fading')
+
+      setTimeout(() => {
+        setTransitionPhase('bar-reveal')
+        setChatOpen(false)
+        setPanelW(COLLAPSED_W)
+        setPanelH(COLLAPSED_H)
+        setContentVisible(false)
+        setPanelAnim('idle')
+      }, 350)
+
+      setTimeout(() => {
+        setTransitionPhase('done')
+        setShowManualDropTarget(true)
+      }, 750)
+    }
+
+    const delay = opts?.delayWelcomeFade ?? 0
+    if (delay > 0) {
+      setTimeout(begin, delay)
+    } else {
+      begin()
+    }
+  }, [])
+
   startPanelTransitionRef.current = startPanelTransition
+  startManualOnboardingModeRef.current = startManualOnboardingMode
 
   useEffect(() => {
     if (onboardingOpen || !pendingManualTransitionRef.current) return
     pendingManualTransitionRef.current = false
-    startPanelTransition({ delayWelcomeFade: 80 })
-  }, [onboardingOpen, startPanelTransition])
+    startManualOnboardingMode({ delayWelcomeFade: 80 })
+  }, [onboardingOpen, startManualOnboardingMode])
+
+  useEffect(() => {
+    if (showManualDropTarget && nodes.length > 0) {
+      setShowManualDropTarget(false)
+    }
+  }, [nodes.length, showManualDropTarget])
 
   useEffect(() => {
     onContentChange?.(nodes.length > 0)
@@ -1993,6 +2033,15 @@ const FlowCanvas = forwardRef<
         <Background variant={BackgroundVariant.Dots} gap={14} size={1.5} color="#b0b0b0" />
         {/* Controls replaced by custom toolbar */}
       </ReactFlow>
+
+      {showManualDropTarget && (
+        <div
+          className="absolute inset-0 z-[5] flex items-center justify-center pointer-events-none px-8"
+          aria-hidden
+        >
+          <img src={manualDropZoneSvg} alt="" className="w-full max-w-[430px] h-auto" />
+        </div>
+      )}
 
       {/* Custom controls toolbar */}
       <ControlsToolbar />
